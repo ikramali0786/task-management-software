@@ -4,7 +4,7 @@ export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
 
 export interface ITask extends Document {
-  _id: string;
+  _id: mongoose.Types.ObjectId;
   title: string;
   description: string;
   team: mongoose.Types.ObjectId;

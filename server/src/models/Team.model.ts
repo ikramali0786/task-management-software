@@ -7,7 +7,7 @@ export interface IMember {
 }
 
 export interface ITeam extends Document {
-  _id: string;
+  _id: mongoose.Types.ObjectId;
   name: string;
   description: string;
   slug: string;
