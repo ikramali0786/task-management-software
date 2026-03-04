@@ -16,7 +16,7 @@ const pageTitles: Record<string, string> = {
 
 export const AppLayout = () => {
   const { fetchTeams } = useTeamStore();
-  const { fetchUnreadCount } = useNotificationStore();
+  const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
   const location = useLocation();
 
   useSocketEvents();
@@ -24,6 +24,7 @@ export const AppLayout = () => {
   useEffect(() => {
     fetchTeams();
     fetchUnreadCount();
+    fetchNotifications(); // populates the Recent Activity feed on the dashboard
   }, []);
 
   const title = pageTitles[location.pathname] || 'TaskFlow';

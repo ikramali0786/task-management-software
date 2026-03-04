@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Zap } from 'lucide-react';
+import { Mail, Lock, Zap, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { useUIStore } from '@/store/uiStore';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
@@ -15,23 +14,21 @@ interface FormData {
 
 export const LoginPage = () => {
   const { login, isLoading } = useAuthStore();
-  const { addToast } = useUIStore();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || '/';
 
+  const [formError, setFormError] = useState<string | null>(null);
+
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
 
   const onSubmit = async (data: FormData) => {
+    setFormError(null);
     try {
       await login(data.email, data.password);
       navigate(from, { replace: true });
     } catch (err: any) {
-      addToast({
-        type: 'error',
-        title: 'Login failed',
-        message: err.response?.data?.message || 'Invalid credentials.',
-      });
+      setFormError(err.response?.data?.message || 'Invalid email or password. Please try again.');
     }
   };
 
@@ -112,6 +109,18 @@ export const LoginPage = () => {
               error={errors.password?.message}
               {...register('password', { required: 'Password is required' })}
             />
+
+            {/* Inline error banner */}
+            {formError && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 dark:border-red-800/50 dark:bg-red-500/10"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+                <p className="text-sm text-red-600 dark:text-red-400">{formError}</p>
+              </motion.div>
+            )}
 
             <Button type="submit" className="w-full" isLoading={isLoading}>
               Sign In

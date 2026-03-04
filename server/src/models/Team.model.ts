@@ -21,6 +21,7 @@ export interface ITeam extends Document {
   }>;
   settings: {
     allowMemberInvite: boolean;
+    isLocked: boolean;
     defaultTaskPriority: 'urgent' | 'high' | 'medium' | 'low';
   };
   isArchived: boolean;
@@ -54,6 +55,7 @@ const TeamSchema = new Schema<ITeam>(
     ],
     settings: {
       allowMemberInvite: { type: Boolean, default: false },
+      isLocked: { type: Boolean, default: false }, // when true, only admins can create/edit tasks
       defaultTaskPriority: {
         type: String,
         enum: ['urgent', 'high', 'medium', 'low'],

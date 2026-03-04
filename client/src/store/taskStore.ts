@@ -55,9 +55,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   createTask: async (data) => {
     const task = await taskService.createTask(data);
     set((state) => {
+      // Always update task map with full API response (more complete than socket payload)
       const tasks = { ...state.tasks, [task._id]: task };
       const columns = { ...state.columns };
-      columns[task.status] = [...columns[task.status], task._id];
+      // Guard: socket event may have already inserted the ID before HTTP response arrived
+      if (!columns[task.status].includes(task._id)) {
+        columns[task.status] = [...columns[task.status], task._id];
+      }
       return { tasks, columns };
     });
     return task;

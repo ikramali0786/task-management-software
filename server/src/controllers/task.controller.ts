@@ -39,7 +39,13 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(parsed.data.teamId, userId);
+  const team = await verifyTeamMember(parsed.data.teamId, userId);
+
+  // Enforce team lock — only admins can create tasks when locked
+  const memberEntry = team.members.find((m) => m.user.toString() === userId);
+  if ((team.settings as any)?.isLocked && memberEntry?.role !== 'admin') {
+    throw new ApiError(403, 'This team is locked. Only admins can create tasks.');
+  }
 
   const status = parsed.data.status || 'todo';
   const position = await getMaxPosition(parsed.data.teamId, status as TaskStatus);

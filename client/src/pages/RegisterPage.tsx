@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Zap } from 'lucide-react';
+import { User, Mail, Lock, Zap, Hash, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { useUIStore } from '@/store/uiStore';
+import { teamService } from '@/services/teamService';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
@@ -11,25 +12,31 @@ interface FormData {
   name: string;
   email: string;
   password: string;
+  teamCode?: string;
 }
 
 export const RegisterPage = () => {
   const { register: registerUser, isLoading } = useAuthStore();
-  const { addToast } = useUIStore();
   const navigate = useNavigate();
+  const [formError, setFormError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
 
   const onSubmit = async (data: FormData) => {
+    setFormError(null);
     try {
       await registerUser(data.name, data.email, data.password);
+      // Optionally join a team immediately after registration
+      if (data.teamCode?.trim()) {
+        try {
+          await teamService.joinByCode(data.teamCode.trim());
+        } catch {
+          // Non-fatal — user is created, just couldn't join team with that code
+        }
+      }
       navigate('/');
     } catch (err: any) {
-      addToast({
-        type: 'error',
-        title: 'Registration failed',
-        message: err.response?.data?.message || 'Please try again.',
-      });
+      setFormError(err.response?.data?.message || 'Registration failed. Please try again.');
     }
   };
 
@@ -73,6 +80,30 @@ export const RegisterPage = () => {
             error={errors.password?.message}
             {...register('password', { required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } })}
           />
+
+          {/* Optional team invite code */}
+          <div className="space-y-1">
+            <Input
+              label="Team Invite Code (optional)"
+              type="text"
+              placeholder="Paste code to join a team instantly"
+              leftIcon={<Hash className="h-4 w-4" />}
+              {...register('teamCode')}
+            />
+            <p className="pl-1 text-xs text-slate-400">Leave blank — you can create or join teams later</p>
+          </div>
+
+          {/* Inline error */}
+          {formError && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 dark:border-red-800/50 dark:bg-red-500/10"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+              <p className="text-sm text-red-600 dark:text-red-400">{formError}</p>
+            </motion.div>
+          )}
 
           <Button type="submit" className="w-full" isLoading={isLoading}>
             Create Account

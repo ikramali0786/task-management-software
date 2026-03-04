@@ -200,6 +200,77 @@ export const updateMemberRole = asyncHandler(async (req: Request, res: Response)
   sendSuccess(res, null, 'Role updated.');
 });
 
+// Join a team using only an invite code (no teamId needed — used during signup)
+export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ code: z.string().min(1) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'Invite code is required.');
+
+  const userId = req.user!._id.toString();
+
+  const team = await Team.findOne({
+    'inviteCodes.code': parsed.data.code,
+    'inviteCodes.expiresAt': { $gt: new Date() },
+    'inviteCodes.usedBy': null,
+  });
+
+  if (!team) throw new ApiError(400, 'Invalid or expired invite code.');
+
+  const alreadyMember = team.members.some((m) => m.user.toString() === userId);
+  if (alreadyMember) throw new ApiError(409, 'Already a member of this team.');
+
+  team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date() });
+
+  const invite = team.inviteCodes.find((c) => c.code === parsed.data.code)!;
+  invite.usedBy = new (require('mongoose').Types.ObjectId)(userId);
+
+  await team.save();
+  await User.findByIdAndUpdate(userId, { $addToSet: { teams: team._id } });
+
+  const admins = team.members.filter((m) => m.role === 'admin' && m.user.toString() !== userId);
+  const io = getIO();
+  for (const admin of admins) {
+    await createNotification({
+      recipientId: admin.user.toString(),
+      actorId: userId,
+      type: 'member_joined',
+      teamId: team._id.toString(),
+      message: `${req.user!.name} joined your team "${team.name}".`,
+    });
+  }
+  if (io) {
+    io.to(`team:${team._id}`).emit('member:joined', {
+      teamId: team._id,
+      user: { _id: req.user!._id, name: req.user!.name, avatar: req.user!.avatar },
+    });
+  }
+
+  await team.populate('members.user', 'name avatar email');
+  sendSuccess(res, { team }, 'Joined team successfully.');
+});
+
+// Toggle team lock (admin only)
+export const toggleTeamLock = asyncHandler(async (req: Request, res: Response) => {
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+
+  const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
+  if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
+
+  team.settings.isLocked = !team.settings.isLocked;
+  await team.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${team._id}`).emit('team:lockChanged', {
+      teamId: team._id,
+      isLocked: team.settings.isLocked,
+    });
+  }
+
+  sendSuccess(res, { isLocked: team.settings.isLocked }, `Team ${team.settings.isLocked ? 'locked' : 'unlocked'}.`);
+});
+
 export const leaveTeam = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!._id.toString();
   const team = await Team.findById(req.params.teamId);

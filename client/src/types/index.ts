@@ -1,6 +1,6 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
-export type UserRole = 'admin' | 'member';
+export type UserRole = 'owner' | 'admin' | 'member';
 export type Theme = 'light' | 'dark' | 'system';
 
 export interface User {
@@ -31,6 +31,7 @@ export interface Team {
   owner: User;
   settings: {
     allowMemberInvite: boolean;
+    isLocked: boolean;
     defaultTaskPriority: TaskPriority;
   };
   createdAt: string;

@@ -35,4 +35,13 @@ export const teamService = {
   leaveTeam: async (teamId: string) => {
     await api.delete(`/teams/${teamId}/leave`);
   },
+  // Join any team using only an invite code (no teamId needed)
+  joinByCode: async (code: string) => {
+    const res = await api.post('/teams/join', { code });
+    return res.data.data.team as Team;
+  },
+  toggleLock: async (teamId: string) => {
+    const res = await api.patch(`/teams/${teamId}/lock`);
+    return res.data.data as { isLocked: boolean };
+  },
 };
