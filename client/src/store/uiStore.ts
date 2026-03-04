@@ -1,0 +1,67 @@
+import { create } from 'zustand';
+import { Theme } from '../types';
+
+interface UIStore {
+  theme: Theme;
+  sidebarOpen: boolean;
+  activeModal: string | null;
+  activeTaskId: string | null;
+  toasts: Toast[];
+  setTheme: (theme: Theme) => void;
+  toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  openTaskDetail: (taskId: string) => void;
+  closeModal: () => void;
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
+}
+
+export interface Toast {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  title: string;
+  message?: string;
+}
+
+const applyTheme = (theme: Theme) => {
+  const root = document.documentElement;
+  if (theme === 'dark') root.classList.add('dark');
+  else if (theme === 'light') root.classList.remove('dark');
+  else {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    prefersDark ? root.classList.add('dark') : root.classList.remove('dark');
+  }
+};
+
+const savedTheme = (localStorage.getItem('theme') as Theme) || 'system';
+applyTheme(savedTheme);
+
+export const useUIStore = create<UIStore>((set) => ({
+  theme: savedTheme,
+  sidebarOpen: true,
+  activeModal: null,
+  activeTaskId: null,
+  toasts: [],
+
+  setTheme: (theme) => {
+    localStorage.setItem('theme', theme);
+    applyTheme(theme);
+    set({ theme });
+  },
+
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+  openTaskDetail: (taskId) => set({ activeTaskId: taskId, activeModal: 'task-detail' }),
+  closeModal: () => set({ activeModal: null, activeTaskId: null }),
+
+  addToast: (toast) => {
+    const id = Math.random().toString(36).slice(2);
+    set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }));
+    setTimeout(() => {
+      set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+    }, 4000);
+  },
+
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+}));

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(command:*)",
+      "Bash(env)",
+      "Bash(ls:*)",
+      "Bash(/bin/bash -i -c \"which node\")",
+      "Bash(/bin/zsh -i -c \"which node\")",
+      "Bash(sw_vers:*)"
+    ]
+  }
+}

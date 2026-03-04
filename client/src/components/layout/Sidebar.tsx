@@ -1,0 +1,145 @@
+import { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
+  Plus, ChevronDown, ChevronRight
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/authStore';
+import { useTeamStore } from '@/store/teamStore';
+import { useUIStore } from '@/store/uiStore';
+import { Avatar } from '@/components/ui/Avatar';
+import { CreateTeamModal } from '@/components/team/CreateTeamModal';
+
+const navItems = [
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/board', icon: Kanban, label: 'Kanban Board' },
+  { to: '/team', icon: Users, label: 'Team' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
+];
+
+export const Sidebar = () => {
+  const { user, logout } = useAuthStore();
+  const { teams, activeTeam, setActiveTeam } = useTeamStore();
+  const { sidebarOpen } = useUIStore();
+  const navigate = useNavigate();
+  const [showTeamMenu, setShowTeamMenu] = useState(false);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  if (!sidebarOpen) return null;
+
+  return (
+    <>
+      <aside className="flex h-full w-60 flex-col border-r border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-5 py-5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl gradient-brand">
+            <Zap className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-lg font-bold gradient-text">TaskFlow</span>
+        </div>
+
+        {/* Team Switcher */}
+        <div className="px-3">
+          <button
+            onClick={() => setShowTeamMenu(!showTeamMenu)}
+            className="flex w-full items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left transition-colors hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/50 dark:hover:bg-slate-800"
+          >
+            {activeTeam ? (
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-500 text-xs font-bold text-white">
+                {activeTeam.name[0].toUpperCase()}
+              </div>
+            ) : (
+              <div className="h-7 w-7 flex-shrink-0 rounded-lg bg-slate-200 dark:bg-slate-700" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">
+                {activeTeam?.name || 'Select Team'}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {activeTeam ? `${activeTeam.members.length} members` : 'No team selected'}
+              </p>
+            </div>
+            <ChevronDown className={cn('h-3.5 w-3.5 text-slate-400 transition-transform', showTeamMenu && 'rotate-180')} />
+          </button>
+
+          <AnimatePresence>
+            {showTeamMenu && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-1 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800"
+              >
+                {teams.map((team) => (
+                  <button
+                    key={team._id}
+                    onClick={() => { setActiveTeam(team); setShowTeamMenu(false); }}
+                    className={cn(
+                      'flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700',
+                      activeTeam?._id === team._id && 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400'
+                    )}
+                  >
+                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-brand-500 text-xs font-bold text-white">
+                      {team.name[0]}
+                    </div>
+                    <span className="truncate font-medium">{team.name}</span>
+                    {activeTeam?._id === team._id && <ChevronRight className="ml-auto h-3 w-3" />}
+                  </button>
+                ))}
+                <button
+                  onClick={() => { setShowTeamMenu(false); setShowCreateTeam(true); }}
+                  className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-sm font-medium text-brand-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Team
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Nav */}
+        <nav className="mt-4 flex-1 space-y-0.5 px-3">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) => cn('sidebar-link', isActive && 'active')}
+            >
+              <item.icon className="h-4 w-4 flex-shrink-0" />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* User */}
+        <div className="border-t border-slate-100 p-3 dark:border-slate-800">
+          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+            <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{user?.name}</p>
+              <p className="truncate text-xs text-slate-400">{user?.email}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <CreateTeamModal isOpen={showCreateTeam} onClose={() => setShowCreateTeam(false)} />
+    </>
+  );
+};

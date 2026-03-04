@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: taskflow_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-taskflow}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-changeme}
+      MONGO_INITDB_DATABASE: taskflow
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - taskflow_net
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: taskflow_server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://${MONGO_USER:-taskflow}:${MONGO_PASS:-changeme}@mongo:27017/taskflow?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production_please}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CLIENT_URL: ${CLIENT_URL:-http://localhost}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - taskflow_net
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost/api}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost}
+    container_name: taskflow_client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - taskflow_net
+
+volumes:
+  mongo_data:
+
+networks:
+  taskflow_net:
+    driver: bridge
