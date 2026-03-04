@@ -8,6 +8,7 @@ import {
   updateTaskPosition,
   deleteTask,
   getTaskStats,
+  getWorkload,
 } from '../controllers/task.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -16,6 +17,7 @@ const router = Router();
 router.use(protect);
 
 router.get('/stats', getTaskStats);
+router.get('/workload', getWorkload);
 router.get('/', getTasks);
 router.post('/', createTask);
 router.get('/:taskId', getTask);

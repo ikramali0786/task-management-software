@@ -292,6 +292,53 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, null, 'Task deleted.');
 });
 
+export const getWorkload = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as { teamId: string };
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+
+  await verifyTeamMember(teamId, req.user!._id.toString());
+
+  const { Types } = require('mongoose');
+
+  const workload = await Task.aggregate([
+    { $match: { team: new Types.ObjectId(teamId), isArchived: false } },
+    { $unwind: { path: '$assignees', preserveNullAndEmptyArrays: false } },
+    {
+      $group: {
+        _id: { user: '$assignees', status: '$status' },
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $group: {
+        _id: '$_id.user',
+        statusBreakdown: { $push: { status: '$_id.status', count: '$count' } },
+        total: { $sum: '$count' },
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: '$user' },
+    { $sort: { total: -1 } },
+    {
+      $project: {
+        _id: 0,
+        user: { _id: 1, name: 1, avatar: 1, email: 1, username: 1 },
+        total: 1,
+        statusBreakdown: 1,
+      },
+    },
+  ]);
+
+  sendSuccess(res, { workload });
+});
+
 export const getTaskStats = asyncHandler(async (req: Request, res: Response) => {
   const { teamId } = req.query as { teamId: string };
   if (!teamId) throw new ApiError(400, 'teamId is required.');

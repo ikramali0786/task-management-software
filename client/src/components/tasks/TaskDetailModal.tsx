@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Calendar, Flag, Tag, Users, Trash2, Save, CheckCircle2
+  X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
 } from 'lucide-react';
-import { Task, TaskStatus, TaskPriority, TASK_STATUSES, PRIORITY_CONFIG } from '@/types';
+import { Task, TaskStatus, TaskPriority, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
 import { taskService } from '@/services/taskService';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
 import { useUIStore } from '@/store/uiStore';
-import { PriorityBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/Button';
-import { cn, formatDate, formatRelative } from '@/lib/utils';
+import { cn, formatRelative } from '@/lib/utils';
+import { getSocket } from '@/lib/socket';
+import { MentionInput, extractMentions } from '@/components/ui/MentionInput';
+import { CommentSection } from '@/components/tasks/CommentSection';
 
 interface TaskDetailModalProps {
   taskId: string;
@@ -29,14 +30,22 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [editTitle, setEditTitle] = useState(false);
   const [title, setTitle] = useState(task?.title || '');
   const [description, setDescription] = useState(task?.description || '');
+  const [descMentions, setDescMentions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [liveUpdated, setLiveUpdated] = useState(false);
 
+  // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!task) {
       setLoading(true);
-      taskService.getTask(taskId)
-        .then((t) => { setFullTask(t); setTitle(t.title); setDescription(t.description); })
+      taskService
+        .getTask(taskId)
+        .then((t) => {
+          setFullTask(t);
+          setTitle(t.title);
+          setDescription(t.description);
+        })
         .finally(() => setLoading(false));
     } else {
       setFullTask(task);
@@ -45,6 +54,29 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     }
   }, [taskId]);
 
+  // ── Real-time socket sync ─────────────────────────────────────────────────
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !fullTask) return;
+
+    const handler = ({ taskId: id, changes }: { taskId: string; changes: Partial<Task> }) => {
+      if (id !== taskId) return;
+      setFullTask((prev) => (prev ? { ...prev, ...changes } : prev));
+      if (changes.title !== undefined) setTitle(changes.title);
+      if (changes.description !== undefined) setDescription(changes.description);
+      setLiveUpdated(true);
+      setTimeout(() => setLiveUpdated(false), 2000);
+    };
+
+    socket.on('task:updated', handler);
+    return () => {
+      socket.off('task:updated', handler);
+    };
+    // Re-subscribe when taskId or fullTask presence changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, !!fullTask]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSave = async (changes: Partial<Task>) => {
     setSaving(true);
     try {
@@ -70,6 +102,18 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     }
   };
 
+  const handleDescBlur = () => {
+    if (!fullTask || description === fullTask.description) return;
+    // Auto-assign newly mentioned users
+    const currentAssigneeIds = fullTask.assignees.map((a) => a._id);
+    const newMentioned = descMentions.filter((id) => !currentAssigneeIds.includes(id));
+    const changes: Partial<Task> = { description };
+    if (newMentioned.length > 0) {
+      changes.assignees = [...currentAssigneeIds, ...newMentioned] as any;
+    }
+    handleSave(changes);
+  };
+
   const handleStatusChange = (status: TaskStatus) => handleSave({ status });
   const handlePriorityChange = (priority: TaskPriority) => handleSave({ priority });
   const handleAssigneeToggle = (userId: string) => {
@@ -80,6 +124,10 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     handleSave({ assignees: updated as any });
   };
 
+  // Team members as User[]
+  const teamMembers: User[] = activeTeam?.members.map((m) => m.user) || [];
+
+  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (!fullTask && loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-end">
@@ -134,11 +182,29 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
             <X className="h-4 w-4" />
           </button>
           <div className="flex-1" />
-          {saving && <span className="text-xs text-slate-400">Saving...</span>}
+
+          {/* Live badge */}
+          <AnimatePresence>
+            {liveUpdated && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 dark:bg-emerald-500/10"
+              >
+                <Wifi className="h-3 w-3 text-emerald-500" />
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  Live
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {saving && <span className="text-xs text-slate-400">Saving…</span>}
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 transition-colors"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
             title="Delete task"
           >
             <Trash2 className="h-4 w-4" />
@@ -154,32 +220,39 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 autoFocus
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => { setEditTitle(false); if (title !== fullTask.title) handleSave({ title }); }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { setEditTitle(false); handleSave({ title }); } if (e.key === 'Escape') { setEditTitle(false); setTitle(fullTask.title); } }}
+                onBlur={() => {
+                  setEditTitle(false);
+                  if (title !== fullTask.title) handleSave({ title });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { setEditTitle(false); handleSave({ title }); }
+                  if (e.key === 'Escape') { setEditTitle(false); setTitle(fullTask.title); }
+                }}
                 className="flex-1 rounded-xl border border-brand-400 bg-transparent px-3 py-2 text-lg font-bold text-slate-900 focus:outline-none dark:text-white"
               />
             </div>
           ) : (
             <h2
               onClick={() => setEditTitle(true)}
-              className="cursor-pointer text-xl font-bold text-slate-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-400 leading-relaxed"
+              className="cursor-pointer text-xl font-bold leading-relaxed text-slate-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
             >
               {fullTask.title}
             </h2>
           )}
 
-          {/* Description */}
+          {/* Description with @mention support */}
           <div>
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-400">
               Description
             </label>
-            <textarea
+            <MentionInput
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onBlur={() => { if (description !== fullTask.description) handleSave({ description }); }}
-              placeholder="Add a description..."
+              onChange={setDescription}
+              onMentionsChange={setDescMentions}
+              members={teamMembers}
+              placeholder="Add a description… use @ to mention teammates"
               rows={4}
-              className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              onBlur={handleDescBlur}
             />
           </div>
 
@@ -201,7 +274,10 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   )}
                   style={fullTask.status === id ? { backgroundColor: color } : {}}
                 >
-                  <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: fullTask.status === id ? 'rgba(255,255,255,0.6)' : color }} />
+                  <div
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: fullTask.status === id ? 'rgba(255,255,255,0.6)' : color }}
+                  />
                   {label}
                 </button>
               ))}
@@ -222,7 +298,9 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     onClick={() => handlePriorityChange(p)}
                     className={cn(
                       'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
-                      fullTask.priority === p ? config.bg + ' border-transparent' : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      fullTask.priority === p
+                        ? config.bg + ' border-transparent'
+                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     )}
                   >
                     <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: config.color }} />
@@ -279,7 +357,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
           )}
 
           {/* Meta */}
-          <div className="border-t border-slate-100 pt-4 dark:border-slate-800 space-y-2">
+          <div className="space-y-2 border-t border-slate-100 pt-4 dark:border-slate-800">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Created by</span>
               <div className="flex items-center gap-1.5">
@@ -300,6 +378,17 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               </div>
             )}
           </div>
+
+          {/* Comments */}
+          {activeTeam && (
+            <div className="border-t border-slate-100 pt-5 dark:border-slate-800">
+              <CommentSection
+                taskId={taskId}
+                teamId={activeTeam._id}
+                members={teamMembers}
+              />
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

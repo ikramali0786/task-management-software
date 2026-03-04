@@ -92,6 +92,26 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface Comment {
+  _id: string;
+  task: string;
+  author: User;
+  body: string;
+  parentComment: string | null;
+  mentions: User[];
+  editedAt: string | null;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  replies?: Comment[];
+}
+
+export interface WorkloadEntry {
+  user: User;
+  total: number;
+  statusBreakdown: { status: TaskStatus; count: number }[];
+}
+
 export interface TaskStats {
   byStatus: Record<TaskStatus, number>;
   byPriority: Record<TaskPriority, number>;

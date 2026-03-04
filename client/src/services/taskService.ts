@@ -1,5 +1,5 @@
 import api from './api';
-import { Task, TaskStats } from '../types';
+import { Task, TaskStats, WorkloadEntry } from '../types';
 
 export const taskService = {
   getTasks: async (params: Record<string, string>) => {
@@ -32,5 +32,9 @@ export const taskService = {
   getStats: async (teamId: string) => {
     const res = await api.get('/tasks/stats', { params: { teamId } });
     return res.data.data.stats as TaskStats;
+  },
+  getWorkload: async (teamId: string) => {
+    const res = await api.get('/tasks/workload', { params: { teamId } });
+    return res.data.data.workload as WorkloadEntry[];
   },
 };
