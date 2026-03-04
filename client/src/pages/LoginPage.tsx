@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 interface FormData {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 export const LoginPage = () => {
@@ -20,12 +21,14 @@ export const LoginPage = () => {
 
   const [formError, setFormError] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    defaultValues: { rememberMe: false },
+  });
 
   const onSubmit = async (data: FormData) => {
     setFormError(null);
     try {
-      await login(data.email, data.password);
+      await login(data.email, data.password, data.rememberMe);
       navigate(from, { replace: true });
     } catch (err: any) {
       setFormError(err.response?.data?.message || 'Invalid email or password. Please try again.');
@@ -109,6 +112,25 @@ export const LoginPage = () => {
               error={errors.password?.message}
               {...register('password', { required: 'Password is required' })}
             />
+
+            {/* Remember Me */}
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <div className="relative flex-shrink-0">
+                <input
+                  type="checkbox"
+                  className="peer sr-only"
+                  {...register('rememberMe')}
+                />
+                <div className="h-4 w-4 rounded border border-slate-300 bg-white transition-colors peer-checked:border-brand-500 peer-checked:bg-brand-500 dark:border-slate-600 dark:bg-slate-800" />
+                <svg
+                  className="pointer-events-none absolute inset-0 h-4 w-4 scale-0 text-white transition-transform peer-checked:scale-100"
+                  fill="none" viewBox="0 0 16 16"
+                >
+                  <path d="M3.5 8l3 3 5.5-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <span className="text-sm text-slate-600 dark:text-slate-400">Remember me for 30 days</span>
+            </label>
 
             {/* Inline error banner */}
             {formError && (

@@ -1,11 +1,12 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
-export type UserRole = 'owner' | 'admin' | 'member';
+export type UserRole = 'owner' | 'admin' | 'moderator' | 'member' | 'viewer';
 export type Theme = 'light' | 'dark' | 'system';
 
 export interface User {
   _id: string;
   name: string;
+  username?: string;
   email: string;
   avatar: string | null;
   timezone: string;
@@ -13,6 +14,13 @@ export interface User {
   teams: Team[];
   lastSeenAt?: string;
   createdAt?: string;
+}
+
+export interface TaskActivity {
+  _id: string;
+  message: string;
+  createdAt: string;
+  icon?: 'task' | 'member';
 }
 
 export interface TeamMember {

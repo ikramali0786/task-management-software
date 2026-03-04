@@ -197,7 +197,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
                     fullTask.status === id
                       ? 'border-transparent text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:border-slate-600'
                   )}
                   style={fullTask.status === id ? { backgroundColor: color } : {}}
                 >

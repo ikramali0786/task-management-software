@@ -1,7 +1,7 @@
 import api from './api';
 import { User } from '../types';
 
-interface LoginData { email: string; password: string; }
+interface LoginData { email: string; password: string; rememberMe?: boolean; }
 interface RegisterData { name: string; email: string; password: string; }
 
 export const authService = {

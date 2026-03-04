@@ -29,7 +29,7 @@ export const teamService = {
   removeMember: async (teamId: string, userId: string) => {
     await api.delete(`/teams/${teamId}/members/${userId}`);
   },
-  updateMemberRole: async (teamId: string, userId: string, role: 'admin' | 'member') => {
+  updateMemberRole: async (teamId: string, userId: string, role: string) => {
     await api.patch(`/teams/${teamId}/members/${userId}`, { role });
   },
   leaveTeam: async (teamId: string) => {

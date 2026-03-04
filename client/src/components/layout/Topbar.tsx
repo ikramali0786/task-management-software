@@ -6,6 +6,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/store/authStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { NotificationPanel } from '@/components/notifications/NotificationPanel';
+import { ProfilePanel } from '@/components/profile/ProfilePanel';
 import { cn } from '@/lib/utils';
 
 const themeIcons = { light: Sun, dark: Moon, system: Monitor };
@@ -15,6 +16,7 @@ export const Topbar = ({ title }: { title?: string }) => {
   const { unreadCount } = useNotificationStore();
   const { user } = useAuthStore();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const ThemeIcon = themeIcons[theme];
   const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
@@ -64,11 +66,18 @@ export const Topbar = ({ title }: { title?: string }) => {
           </AnimatePresence>
         </button>
 
-        {/* User avatar */}
-        <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
+        {/* User avatar — click to open profile panel */}
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="rounded-full ring-2 ring-transparent transition-all hover:ring-brand-400 focus:outline-none focus:ring-brand-500"
+          title="Open profile"
+        >
+          <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
+        </button>
       </header>
 
       <NotificationPanel isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
+      <ProfilePanel isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </>
   );
 };

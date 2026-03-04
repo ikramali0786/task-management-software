@@ -1,8 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type TeamRole = 'admin' | 'moderator' | 'member' | 'viewer';
+
 export interface IMember {
   user: mongoose.Types.ObjectId;
-  role: 'admin' | 'member';
+  role: TeamRole;
   joinedAt: Date;
 }
 
@@ -32,7 +34,7 @@ export interface ITeam extends Document {
 const MemberSchema = new Schema<IMember>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    role: { type: String, enum: ['admin', 'member'], default: 'member' },
+    role: { type: String, enum: ['admin', 'moderator', 'member', 'viewer'], default: 'member' },
     joinedAt: { type: Date, default: Date.now },
   },
   { _id: false }

@@ -80,8 +80,10 @@ export const updateTeam = asyncHandler(async (req: Request, res: Response) => {
   const team = await Team.findById(req.params.teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
+  // Owner OR admin can edit the team
+  const isOwner = team.owner.toString() === req.user!._id.toString();
   const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
-  if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
+  if (!isOwner && (!member || member.role !== 'admin')) throw new ApiError(403, 'Admin or owner only.');
 
   Object.assign(team, parsed.data);
   await team.save();
@@ -97,7 +99,7 @@ export const generateInviteCode = asyncHandler(async (req: Request, res: Respons
   if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
 
   const code = crypto.randomBytes(16).toString('hex');
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
   team.inviteCodes.push({ code, expiresAt, usedBy: null as any });
   await team.save();
@@ -119,6 +121,11 @@ export const joinTeam = asyncHandler(async (req: Request, res: Response) => {
   });
 
   if (!team) throw new ApiError(400, 'Invalid or expired invite code.');
+
+  // Team lock prevents new members from joining
+  if (team.settings?.isLocked) {
+    throw new ApiError(403, 'This team is locked. New members cannot join at this time.');
+  }
 
   const alreadyMember = team.members.some((m) => m.user.toString() === userId);
   if (alreadyMember) throw new ApiError(409, 'Already a member of this team.');
@@ -178,9 +185,9 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
 });
 
 export const updateMemberRole = asyncHandler(async (req: Request, res: Response) => {
-  const schema = z.object({ role: z.enum(['admin', 'member']) });
+  const schema = z.object({ role: z.enum(['admin', 'moderator', 'member', 'viewer']) });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success) throw new ApiError(400, 'Valid role required.');
+  if (!parsed.success) throw new ApiError(400, 'Valid role required (admin, moderator, member, or viewer).');
 
   const { teamId, userId } = req.params;
   const team = await Team.findById(teamId);
@@ -189,13 +196,35 @@ export const updateMemberRole = asyncHandler(async (req: Request, res: Response)
   const requestingMember = team.members.find(
     (m) => m.user.toString() === req.user!._id.toString()
   );
-  if (!requestingMember || requestingMember.role !== 'admin') throw new ApiError(403, 'Admin only.');
+  const requestIsOwner = team.owner.toString() === req.user!._id.toString();
+  if (!requestIsOwner && (!requestingMember || requestingMember.role !== 'admin')) {
+    throw new ApiError(403, 'Admin or owner only.');
+  }
 
   const targetMember = team.members.find((m) => m.user.toString() === userId);
   if (!targetMember) throw new ApiError(404, 'Member not found.');
+  if (team.owner.toString() === userId) throw new ApiError(400, 'Cannot change the owner\'s role.');
 
+  const oldRole = targetMember.role;
   targetMember.role = parsed.data.role;
   await team.save();
+
+  // Notify the affected member about the role change
+  const io = getIO();
+  await createNotification({
+    recipientId: userId,
+    actorId: req.user!._id.toString(),
+    type: 'member_joined', // reuse type for now
+    teamId: teamId,
+    message: `${req.user!.name} changed your role from "${oldRole}" to "${parsed.data.role}" in "${team.name}".`,
+  });
+  if (io) {
+    io.to(`team:${teamId}`).emit('member:roleChanged', {
+      teamId,
+      userId,
+      newRole: parsed.data.role,
+    });
+  }
 
   sendSuccess(res, null, 'Role updated.');
 });
@@ -215,6 +244,11 @@ export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) =
   });
 
   if (!team) throw new ApiError(400, 'Invalid or expired invite code.');
+
+  // Team lock prevents new members from joining
+  if (team.settings?.isLocked) {
+    throw new ApiError(403, 'This team is locked. New members cannot join at this time.');
+  }
 
   const alreadyMember = team.members.some((m) => m.user.toString() === userId);
   if (alreadyMember) throw new ApiError(409, 'Already a member of this team.');

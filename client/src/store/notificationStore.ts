@@ -1,20 +1,23 @@
 import { create } from 'zustand';
-import { Notification } from '../types';
+import { Notification, TaskActivity } from '../types';
 import { notificationService } from '../services/notificationService';
 
 interface NotificationStore {
   notifications: Notification[];
+  taskActivities: TaskActivity[];
   unreadCount: number;
   isLoading: boolean;
   fetchNotifications: () => Promise<void>;
   fetchUnreadCount: () => Promise<void>;
   addNotification: (notification: Notification) => void;
+  addTaskActivity: (activity: TaskActivity) => void;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
 }
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
   notifications: [],
+  taskActivities: [],
   unreadCount: 0,
   isLoading: false,
 
@@ -41,6 +44,13 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     set((state) => ({
       notifications: [notification, ...state.notifications],
       unreadCount: state.unreadCount + 1,
+    }));
+  },
+
+  addTaskActivity: (activity) => {
+    set((state) => ({
+      // keep latest 50 activities in memory
+      taskActivities: [activity, ...state.taskActivities].slice(0, 50),
     }));
   },
 

@@ -8,7 +8,7 @@ interface AuthStore {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
@@ -21,10 +21,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isAuthenticated: !!localStorage.getItem('accessToken'),
   isLoading: false,
 
-  login: async (email, password) => {
+  login: async (email, password, rememberMe = false) => {
     set({ isLoading: true });
     try {
-      const { accessToken, user } = await authService.login({ email, password });
+      const { accessToken, user } = await authService.login({ email, password, rememberMe });
       localStorage.setItem('accessToken', accessToken);
 
       const socket = initSocket(accessToken);

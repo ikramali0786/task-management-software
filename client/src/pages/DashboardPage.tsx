@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckSquare, Clock, AlertTriangle, TrendingUp, Plus, ArrowRight } from 'lucide-react';
+import { CheckSquare, Clock, AlertTriangle, TrendingUp, Plus, ArrowRight, SquareKanban, UserPlus } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -31,7 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const { activeTeam } = useTeamStore();
-  const { notifications } = useNotificationStore();
+  const { notifications, taskActivities } = useNotificationStore();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState<TaskStats | null>(null);
@@ -248,30 +248,64 @@ export const DashboardPage = () => {
         </motion.div>
       </div>
 
-      {/* Recent Activity */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.45 }}
-        className="card"
-      >
-        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
-        {notifications.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">No recent activity</p>
-        ) : (
-          <div className="space-y-3">
-            {notifications.slice(0, 5).map((n) => (
-              <div key={n._id} className="flex items-start gap-3">
-                <Avatar name={n.actor.name} src={n.actor.avatar} size="xs" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-slate-700 dark:text-slate-300">{n.message}</p>
-                  <p className="text-xs text-slate-400">{formatRelative(n.createdAt)}</p>
-                </div>
+      {/* Recent Activity — merged notifications + task events */}
+      {(() => {
+        // Build unified activity items
+        const notifItems = notifications.map((n) => ({
+          id: n._id,
+          message: n.message,
+          createdAt: n.createdAt,
+          kind: 'notification' as const,
+          actorName: n.actor?.name,
+          actorAvatar: n.actor?.avatar,
+          icon: n.type === 'member_joined' ? 'member' : 'notification',
+        }));
+        const taskItems = taskActivities.map((a) => ({
+          id: a._id,
+          message: a.message,
+          createdAt: a.createdAt,
+          kind: 'task' as const,
+          icon: a.icon || 'task',
+        }));
+        const merged = [...notifItems, ...taskItems]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 8);
+
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="card"
+          >
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
+            {merged.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-400">No recent activity</p>
+            ) : (
+              <div className="space-y-3">
+                {merged.map((item) => (
+                  <div key={item.id} className="flex items-start gap-3">
+                    {item.kind === 'notification' && (item as any).actorName ? (
+                      <Avatar name={(item as any).actorName} src={(item as any).actorAvatar} size="xs" />
+                    ) : (
+                      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10">
+                        {item.icon === 'member'
+                          ? <UserPlus className="h-3 w-3 text-brand-500" />
+                          : <SquareKanban className="h-3 w-3 text-brand-500" />
+                        }
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-slate-700 dark:text-slate-300">{item.message}</p>
+                      <p className="text-xs text-slate-400">{formatRelative(item.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
+            )}
+          </motion.div>
+        );
+      })()}
     </div>
   );
 };
