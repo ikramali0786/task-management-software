@@ -31,9 +31,11 @@ const isTyping = (): boolean => {
  *   [         → toggle sidebar
  *   D         → Dashboard
  *   B         → Board
+ *   C         → AI Chatbots
  *   T         → Team
  *   W         → Workload
  *   A         → Activity
+ *   S         → Settings
  *   N         → trigger onNewTask callback
  *   Ctrl/⌘+K  → jump to Board (quick-open)
  */
@@ -85,6 +87,14 @@ export const useKeyboardShortcuts = ({
         case 'a':
         case 'A':
           navigate('/activity');
+          break;
+        case 'c':
+        case 'C':
+          navigate('/chatbots');
+          break;
+        case 's':
+        case 'S':
+          navigate('/settings');
           break;
         case 'n':
         case 'N':

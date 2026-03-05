@@ -13,13 +13,13 @@ import { Avatar } from '@/components/ui/Avatar';
 import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/board', icon: Kanban, label: 'Kanban Board' },
-  { to: '/chatbots', icon: Bot, label: 'AI Chatbots' },
-  { to: '/team', icon: Users, label: 'Team' },
-  { to: '/workload', icon: BarChart2, label: 'Workload' },
-  { to: '/activity', icon: Activity, label: 'Activity' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true, shortcut: 'D' },
+  { to: '/board', icon: Kanban, label: 'Kanban Board', shortcut: 'B' },
+  { to: '/chatbots', icon: Bot, label: 'AI Chatbots', shortcut: 'C' },
+  { to: '/team', icon: Users, label: 'Team', shortcut: 'T' },
+  { to: '/workload', icon: BarChart2, label: 'Workload', shortcut: 'W' },
+  { to: '/activity', icon: Activity, label: 'Activity', shortcut: 'A' },
+  { to: '/settings', icon: Settings, label: 'Settings', shortcut: 'S' },
 ];
 
 export const Sidebar = () => {
@@ -169,10 +169,15 @@ export const Sidebar = () => {
                   key={item.to}
                   to={item.to}
                   end={item.end}
-                  className={({ isActive }) => cn('sidebar-link', isActive && 'active')}
+                  className={({ isActive }) => cn('sidebar-link group', isActive && 'active')}
                 >
                   <item.icon className="h-4 w-4 flex-shrink-0" />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.shortcut && (
+                    <kbd className="ml-auto hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 lg:inline-flex dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
+                      {item.shortcut}
+                    </kbd>
+                  )}
                 </NavLink>
               ))}
             </nav>

@@ -10,9 +10,11 @@ const sections: { title: string; shortcuts: { keys: string[]; description: strin
     shortcuts: [
       { keys: ['D'], description: 'Go to Dashboard' },
       { keys: ['B'], description: 'Go to Kanban Board' },
+      { keys: ['C'], description: 'Go to AI Chatbots' },
       { keys: ['T'], description: 'Go to Team' },
       { keys: ['W'], description: 'Go to Workload' },
       { keys: ['A'], description: 'Go to Activity' },
+      { keys: ['S'], description: 'Go to Settings' },
     ],
   },
   {
