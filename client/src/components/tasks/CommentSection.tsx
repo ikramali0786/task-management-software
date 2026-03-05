@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Send, CornerDownRight } from 'lucide-react';
 import { User, Comment } from '@/types';
@@ -150,6 +150,14 @@ const CommentBubble = ({
   );
 };
 
+/** Format the list of typing users into a readable string */
+const formatTypingText = (users: Record<string, string>): string => {
+  const names = Object.values(users);
+  if (names.length === 1) return `${names[0]} is typing…`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+  return `${names[0]} and ${names.length - 1} others are typing…`;
+};
+
 export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps) => {
   const { user } = useAuthStore();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -160,6 +168,98 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState('');
   const [replyMentions, setReplyMentions] = useState<string[]>([]);
+
+  // ── Typing indicator state ────────────────────────────────────────────────
+  // typingUsers maps userId → displayName for everyone currently typing
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  // Per-user auto-clear timers (fallback if typing:stop event is lost)
+  const typingTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Timer to emit typing:stop after 2 s of no keystrokes
+  const stopTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingActive = useRef(false);
+
+  // ── Typing emit helpers ───────────────────────────────────────────────────
+  const emitTypingStop = useCallback(() => {
+    const socket = getSocket();
+    if (!socket || !isTypingActive.current) return;
+    socket.emit('typing:stop', { taskId, teamId });
+    isTypingActive.current = false;
+  }, [taskId, teamId]);
+
+  const handleTypingInput = useCallback(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    if (!isTypingActive.current) {
+      isTypingActive.current = true;
+      socket.emit('typing:start', { taskId, teamId });
+    }
+    // Reset the idle timer on every keystroke
+    if (stopTypingTimer.current) clearTimeout(stopTypingTimer.current);
+    stopTypingTimer.current = setTimeout(emitTypingStop, 2000);
+  }, [taskId, teamId, emitTypingStop]);
+
+  // Stop typing when the component unmounts (e.g. panel closed while typing)
+  useEffect(() => {
+    return () => {
+      if (stopTypingTimer.current) clearTimeout(stopTypingTimer.current);
+      emitTypingStop();
+    };
+  }, [emitTypingStop]);
+
+  // ── Socket: listen for teammates' typing events ───────────────────────────
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const onTypingStart = ({
+      taskId: tid,
+      userId,
+      userName,
+    }: {
+      taskId: string;
+      userId: string;
+      userName: string;
+    }) => {
+      // Only react to events for THIS task; ignore our own echo (server excludes us anyway)
+      if (tid !== taskId || userId === user?._id) return;
+
+      // Reset this user's auto-clear timer
+      if (typingTimeouts.current[userId]) clearTimeout(typingTimeouts.current[userId]);
+      setTypingUsers((prev) => ({ ...prev, [userId]: userName }));
+
+      // Auto-remove after 4 s as a fallback if typing:stop is missed
+      typingTimeouts.current[userId] = setTimeout(() => {
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          delete next[userId];
+          return next;
+        });
+      }, 4000);
+    };
+
+    const onTypingStop = ({ taskId: tid, userId }: { taskId: string; userId: string }) => {
+      if (tid !== taskId) return;
+      if (typingTimeouts.current[userId]) {
+        clearTimeout(typingTimeouts.current[userId]);
+        delete typingTimeouts.current[userId];
+      }
+      setTypingUsers((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    };
+
+    socket.on('typing:start', onTypingStart);
+    socket.on('typing:stop', onTypingStop);
+
+    return () => {
+      socket.off('typing:start', onTypingStart);
+      socket.off('typing:stop', onTypingStop);
+      // Clean up any pending per-user timers
+      Object.values(typingTimeouts.current).forEach(clearTimeout);
+    };
+  }, [taskId, user?._id]);
 
   // Fetch on mount
   useEffect(() => {
@@ -265,6 +365,9 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
 
   const handleSubmit = async () => {
     if (!newBody.trim()) return;
+    // Stop typing indicator immediately — don't wait for the 2 s idle timer
+    if (stopTypingTimer.current) clearTimeout(stopTypingTimer.current);
+    emitTypingStop();
     setSubmitting(true);
     try {
       await commentService.createComment({
@@ -430,11 +533,46 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
         </AnimatePresence>
       )}
 
+      {/* Typing indicator — shows when one or more teammates are typing */}
+      <AnimatePresence>
+        {Object.keys(typingUsers).length > 0 && (
+          <motion.div
+            key="typing-indicator"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.18 }}
+            className="flex items-center gap-2 py-1"
+          >
+            {/* Three bouncing dots */}
+            <div className="flex items-center gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <motion.span
+                  key={i}
+                  className="block h-1.5 w-1.5 rounded-full bg-brand-400"
+                  animate={{ y: [0, -4, 0] }}
+                  transition={{
+                    duration: 0.65,
+                    repeat: Infinity,
+                    delay: i * 0.15,
+                    ease: 'easeInOut',
+                  }}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-slate-400">{formatTypingText(typingUsers)}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* New comment */}
       <div className="space-y-2 border-t border-slate-100 pt-4 dark:border-slate-800">
         <MentionInput
           value={newBody}
-          onChange={setNewBody}
+          onChange={(val) => {
+            setNewBody(val);
+            handleTypingInput();
+          }}
           onMentionsChange={setNewMentions}
           members={members}
           placeholder="Add a comment… use @ to mention teammates"

@@ -57,6 +57,23 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
       }
     );
 
+    // ── Typing indicators (comments) ──────────────────────────────────────
+    // Broadcast to the rest of the team so they see "X is typing…" in real time.
+    socket.on('typing:start', (data: { taskId: string; teamId: string }) => {
+      socket.to(`team:${data.teamId}`).emit('typing:start', {
+        taskId: data.taskId,
+        userId: (user._id as any).toString(),
+        userName: user.name,
+      });
+    });
+
+    socket.on('typing:stop', (data: { taskId: string; teamId: string }) => {
+      socket.to(`team:${data.teamId}`).emit('typing:stop', {
+        taskId: data.taskId,
+        userId: (user._id as any).toString(),
+      });
+    });
+
     socket.on('disconnect', () => {
       console.log(`Socket disconnected: ${user.name}`);
     });
