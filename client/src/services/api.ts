@@ -30,7 +30,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Never intercept 401s from auth endpoints themselves — a failed login or
+    // a missing refresh-token should surface directly to the caller, not trigger
+    // a token-refresh attempt that would then redirect to /login and wipe the page.
+    const isAuthRoute = originalRequest.url?.includes('/auth/');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
