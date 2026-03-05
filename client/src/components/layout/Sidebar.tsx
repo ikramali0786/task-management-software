@@ -15,10 +15,10 @@ import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/board', icon: Kanban, label: 'Kanban Board' },
+  { to: '/chatbots', icon: Bot, label: 'AI Chatbots' },
   { to: '/team', icon: Users, label: 'Team' },
   { to: '/workload', icon: BarChart2, label: 'Workload' },
   { to: '/activity', icon: Activity, label: 'Activity' },
-  { to: '/chatbots', icon: Bot, label: 'AI Chatbots' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

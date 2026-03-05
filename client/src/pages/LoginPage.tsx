@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Zap, AlertCircle, UserX, KeyRound } from 'lucide-react';
+import { Mail, Lock, Zap, AlertCircle, UserX, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -34,6 +34,7 @@ export const LoginPage = () => {
   const from = (location.state as any)?.from?.pathname || '/';
 
   const [apiError, setApiError] = useState<ApiError | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -193,9 +194,24 @@ export const LoginPage = () => {
             {/* Password — shows field-level error when server says "wrong password" */}
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               leftIcon={<Lock className="h-4 w-4" />}
+              rightIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              }
               error={
                 errors.password?.message ||
                 (apiError?.field === 'password' ? apiError.message : undefined)
