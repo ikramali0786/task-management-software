@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { JsonWebTokenError } from 'jsonwebtoken';
 import { ApiError } from '../utils/ApiError';
 
 export const errorHandler = (
@@ -34,6 +35,13 @@ export const errorHandler = (
       message: err.message,
       data: null,
     });
+    return;
+  }
+
+  // JWT errors (expired, malformed, bad signature) → 401, no stack trace needed
+  if (err instanceof JsonWebTokenError) {
+    const message = err.name === 'TokenExpiredError' ? 'Token expired.' : 'Invalid token.';
+    res.status(401).json({ success: false, message, data: null });
     return;
   }
 

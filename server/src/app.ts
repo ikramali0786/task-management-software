@@ -9,6 +9,10 @@ import { errorHandler } from './middleware/error.middleware';
 
 const app = express();
 
+// Trust Render / reverse-proxy's X-Forwarded-For header so that
+// express-rate-limit can correctly identify client IPs in production.
+app.set('trust proxy', 1);
+
 // Security
 app.use(helmet());
 app.use(
