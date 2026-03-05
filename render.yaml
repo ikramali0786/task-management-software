@@ -26,6 +26,18 @@ services:
       - key: CLIENT_URL
         sync: false           # Set this AFTER the frontend deploys
 
+      # ── Cloudflare R2 file storage ──────────────────────────────────────
+      - key: R2_ACCOUNT_ID
+        value: 5fdf59211fb8e0d2a8eb56123d1f2d85
+      - key: R2_BUCKET_NAME
+        value: taskflow
+      - key: R2_ACCESS_KEY_ID
+        sync: false           # R2 API token → Access Key ID
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false           # R2 API token → Secret Access Key
+      - key: R2_PUBLIC_URL
+        sync: false           # e.g. https://pub-XXXX.r2.dev (from bucket public access settings)
+
   # ─────────────────────────────────────────────
   # Frontend — React + Vite (Static Site)
   # ─────────────────────────────────────────────

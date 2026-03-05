@@ -13,6 +13,7 @@ import { cn, formatRelative } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
 import { MentionInput, extractMentions } from '@/components/ui/MentionInput';
 import { CommentSection } from '@/components/tasks/CommentSection';
+import { AttachmentPanel } from '@/components/tasks/AttachmentPanel';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 
 interface TaskDetailModalProps {
@@ -452,6 +453,13 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               </div>
             )}
           </div>
+
+          {/* Attachments */}
+          {activeTeam && (
+            <div className="border-t border-slate-100 pt-5 dark:border-slate-800">
+              <AttachmentPanel taskId={taskId} teamId={activeTeam._id} />
+            </div>
+          )}
 
           {/* Comments */}
           {activeTeam && (

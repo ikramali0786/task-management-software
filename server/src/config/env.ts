@@ -10,4 +10,13 @@ export const env = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
+
+  // ── Cloudflare R2 (S3-compatible object storage) ─────────────────────────
+  R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID || '',
+  R2_BUCKET_NAME: process.env.R2_BUCKET_NAME || 'taskflow',
+  R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID || '',
+  R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY || '',
+  // Public base URL for the bucket — found in Cloudflare dashboard under
+  // R2 → taskflow bucket → Settings → Public Access (e.g. https://pub-XXXX.r2.dev)
+  R2_PUBLIC_URL: process.env.R2_PUBLIC_URL || '',
 };

@@ -157,6 +157,20 @@ export interface Discussion {
   replies?: Discussion[];
 }
 
+export interface Attachment {
+  _id: string;
+  task: string;
+  team: string;
+  uploadedBy: User;
+  filename: string;
+  fileKey: string;
+  publicUrl: string;
+  contentType: string;
+  size: number;           // bytes
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProjectProgress {
   total: number;
   done: number;

@@ -6,6 +6,7 @@ import notificationRoutes from './notification.routes';
 import commentRoutes from './comment.routes';
 import reactionRoutes from './reaction.routes';
 import discussionRoutes from './discussion.routes';
+import uploadRoutes from './upload.routes';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/comments', commentRoutes);
 router.use('/reactions', reactionRoutes);
 router.use('/discussions', discussionRoutes);
+router.use('/uploads', uploadRoutes);
 
 export default router;
