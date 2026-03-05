@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ShortcutsModal } from '@/components/ui/ShortcutsModal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useTeamStore } from '@/store/teamStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -93,6 +94,7 @@ export const AppLayout = () => {
       </div>
 
       <ToastContainer />
+      <ConfirmDialog />
 
       {/* Keyboard shortcuts help modal — press ? anywhere to open */}
       <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />

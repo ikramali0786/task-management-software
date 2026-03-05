@@ -4,6 +4,7 @@ import { MessageCircle, Send, CornerDownRight, Pin, PinOff, Pencil, Trash2 } fro
 import { Discussion, User } from '@/types';
 import { discussionService } from '@/services/discussionService';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { MentionInput, extractMentions } from '@/components/ui/MentionInput';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
@@ -158,6 +159,7 @@ const DiscussionBubble = ({
 
 export const DiscussionSection = ({ teamId, members, isAdmin }: Props) => {
   const { user } = useAuthStore();
+  const { showConfirm } = useUIStore();
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [loading, setLoading] = useState(true);
   const [newBody, setNewBody] = useState('');
@@ -403,7 +405,13 @@ export const DiscussionSection = ({ teamId, members, isAdmin }: Props) => {
   };
 
   const handleDelete = async (id: string, parentId?: string) => {
-    if (!confirm('Delete this message?')) return;
+    const ok = await showConfirm({
+      title: 'Delete message',
+      message: 'Are you sure you want to delete this message? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
     // Optimistic
     if (parentId) {
       setDiscussions((prev) =>

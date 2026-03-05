@@ -7,6 +7,7 @@ import {
 import { Attachment } from '@/types';
 import { uploadService, UploadProgress } from '@/services/uploadService';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn, formatRelative } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
@@ -72,6 +73,7 @@ interface AttachmentPanelProps {
 // ── Component ────────────────────────────────────────────────────────────────
 export const AttachmentPanel = ({ taskId, teamId }: AttachmentPanelProps) => {
   const { user } = useAuthStore();
+  const { showConfirm } = useUIStore();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -190,7 +192,13 @@ export const AttachmentPanel = ({ taskId, teamId }: AttachmentPanelProps) => {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (attachment: Attachment) => {
-    if (!confirm(`Delete "${attachment.filename}"? This cannot be undone.`)) return;
+    const ok = await showConfirm({
+      title: 'Delete attachment',
+      message: `Delete "${attachment.filename}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeletingId(attachment._id);
     try {
       await uploadService.deleteAttachment(attachment._id);

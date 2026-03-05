@@ -69,7 +69,7 @@ const roleBadgeVariant = (role: string): 'warning' | 'info' | 'default' | 'dange
 export const TeamPage = () => {
   const { activeTeam, fetchTeams, updateTeam } = useTeamStore();
   const { user } = useAuthStore();
-  const { addToast } = useUIStore();
+  const { addToast, showConfirm } = useUIStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
@@ -187,7 +187,13 @@ export const TeamPage = () => {
   };
 
   const handleRemoveMember = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name} from the team?`)) return;
+    const ok = await showConfirm({
+      title: 'Remove member',
+      message: `Remove ${name} from the team? They will lose access to all team tasks.`,
+      confirmLabel: 'Remove',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await teamService.removeMember(activeTeam._id, userId);
       await fetchTeams();

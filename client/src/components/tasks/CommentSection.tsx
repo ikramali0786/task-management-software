@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { MentionInput } from '@/components/ui/MentionInput';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 import { cn, formatRelative } from '@/lib/utils';
+import { useUIStore } from '@/store/uiStore';
 import { getSocket } from '@/lib/socket';
 
 interface CommentSectionProps {
@@ -160,6 +161,7 @@ const formatTypingText = (users: Record<string, string>): string => {
 
 export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps) => {
   const { user } = useAuthStore();
+  const { showConfirm } = useUIStore();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newBody, setNewBody] = useState('');
@@ -409,7 +411,13 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
   };
 
   const handleDelete = async (commentId: string, parentId?: string) => {
-    if (!confirm('Delete this comment?')) return;
+    const ok = await showConfirm({
+      title: 'Delete comment',
+      message: 'Are you sure you want to delete this comment? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
     // Optimistic update immediately (don't wait for socket)
     if (parentId) {
       setComments((prev) =>

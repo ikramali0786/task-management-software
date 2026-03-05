@@ -1,12 +1,27 @@
 import { create } from 'zustand';
 import { Theme } from '../types';
 
+export interface ConfirmOptions {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'danger' | 'warning';
+}
+
+export interface ConfirmDialogState extends Required<ConfirmOptions> {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
 interface UIStore {
   theme: Theme;
   sidebarOpen: boolean;
   activeModal: string | null;
   activeTaskId: string | null;
   toasts: Toast[];
+  confirmDialog: ConfirmDialogState | null;
   setTheme: (theme: Theme) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -14,6 +29,7 @@ interface UIStore {
   closeModal: () => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
+  showConfirm: (options: ConfirmOptions) => Promise<boolean>;
 }
 
 export interface Toast {
@@ -46,6 +62,7 @@ export const useUIStore = create<UIStore>((set) => ({
   activeModal: null,
   activeTaskId: null,
   toasts: [],
+  confirmDialog: null,
 
   setTheme: (theme) => {
     localStorage.setItem('theme', theme);
@@ -69,4 +86,26 @@ export const useUIStore = create<UIStore>((set) => ({
 
   removeToast: (id) =>
     set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+
+  showConfirm: (options) =>
+    new Promise<boolean>((resolve) => {
+      set({
+        confirmDialog: {
+          isOpen: true,
+          title: options.title,
+          message: options.message,
+          confirmLabel: options.confirmLabel ?? 'Delete',
+          cancelLabel: options.cancelLabel ?? 'Cancel',
+          variant: options.variant ?? 'danger',
+          onConfirm: () => {
+            set({ confirmDialog: null });
+            resolve(true);
+          },
+          onCancel: () => {
+            set({ confirmDialog: null });
+            resolve(false);
+          },
+        },
+      });
+    }),
 }));
