@@ -85,10 +85,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password, rememberMe } = parsed.data;
 
   const user = await User.findOne({ email }).select('+password');
-  if (!user) throw new ApiError(401, 'Invalid email or password.');
+  if (!user) throw new ApiError(401, 'No account found with this email address.');
 
   const isMatch = await user.comparePassword(password);
-  if (!isMatch) throw new ApiError(401, 'Invalid email or password.');
+  if (!isMatch) throw new ApiError(401, 'Incorrect password. Please try again.');
 
   const accessToken = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());

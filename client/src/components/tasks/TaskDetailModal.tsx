@@ -38,6 +38,22 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   // Tracks whether the store-sync effect has run at least once (skip initial mount)
   const storeSyncMountedRef = useRef(false);
 
+  // ── Body scroll lock + Escape key to close ────────────────────────────────
+  // Locks background scroll while the panel is open and allows Escape to
+  // dismiss — prevents the "frozen UI" state where the backdrop stays on screen.
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose]);
+
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!task) {
@@ -186,7 +202,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50"
         />
         <motion.div
           initial={{ x: '100%' }}
@@ -214,7 +230,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
       />
       <motion.div
         initial={{ x: '100%' }}
