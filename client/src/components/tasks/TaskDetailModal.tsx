@@ -245,7 +245,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               className="rounded-full px-2.5 py-1 text-xs font-semibold text-white"
               style={{ backgroundColor: statusConfig.color }}
             >
-              {statusConfig.title ?? statusConfig.label}
+              {statusConfig.label}
             </span>
           )}
 
