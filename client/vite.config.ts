@@ -18,4 +18,23 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Raise warning threshold to 600 kB (from default 500 kB)
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        // Split large vendor libraries into separate cacheable chunks
+        manualChunks: {
+          // React runtime
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Animation / DnD
+          'vendor-motion': ['framer-motion', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          // State + networking
+          'vendor-state': ['zustand', 'axios'],
+          // UI icons
+          'vendor-icons': ['lucide-react'],
+        },
+      },
+    },
+  },
 });
