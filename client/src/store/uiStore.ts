@@ -36,9 +36,13 @@ const applyTheme = (theme: Theme) => {
 const savedTheme = (localStorage.getItem('theme') as Theme) || 'system';
 applyTheme(savedTheme);
 
+// Default sidebar open only on wide screens (≥ 1024 px = Tailwind "lg")
+const defaultSidebarOpen =
+  typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
+
 export const useUIStore = create<UIStore>((set) => ({
   theme: savedTheme,
-  sidebarOpen: true,
+  sidebarOpen: defaultSidebarOpen,
   activeModal: null,
   activeTaskId: null,
   toasts: [],
@@ -63,5 +67,6 @@ export const useUIStore = create<UIStore>((set) => ({
     }, 4000);
   },
 
-  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+  removeToast: (id) =>
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
 }));

@@ -1,14 +1,23 @@
+import { lazy } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthGuard } from '@/components/auth/AuthGuard';
-import { LoginPage } from '@/pages/LoginPage';
-import { RegisterPage } from '@/pages/RegisterPage';
-import { DashboardPage } from '@/pages/DashboardPage';
-import { KanbanPage } from '@/pages/KanbanPage';
-import { TeamPage } from '@/pages/TeamPage';
-import { SettingsPage } from '@/pages/SettingsPage';
-import { WorkloadPage } from '@/pages/WorkloadPage';
-import { ChatbotsPage } from '@/pages/ChatbotsPage';
+
+// ── Lazy-load every page so each becomes a separate JS chunk ─────────────────
+// Vite splits each dynamic import into its own chunk — only the first page
+// visited loads on start-up; all others are fetched on first navigation.
+
+const LoginPage    = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('@/pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const KanbanPage   = lazy(() => import('@/pages/KanbanPage').then(m => ({ default: m.KanbanPage })));
+const TeamPage     = lazy(() => import('@/pages/TeamPage').then(m => ({ default: m.TeamPage })));
+const WorkloadPage = lazy(() => import('@/pages/WorkloadPage').then(m => ({ default: m.WorkloadPage })));
+const ActivityPage = lazy(() => import('@/pages/ActivityPage').then(m => ({ default: m.ActivityPage })));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const ChatbotsPage = lazy(() => import('@/pages/ChatbotsPage').then(m => ({ default: m.ChatbotsPage })));
+
+// ── Router definition ─────────────────────────────────────────────────────────
 
 export const router = createBrowserRouter([
   {
@@ -27,10 +36,11 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'board', element: <KanbanPage /> },
-      { path: 'team', element: <TeamPage /> },
+      { index: true,      element: <DashboardPage /> },
+      { path: 'board',    element: <KanbanPage /> },
+      { path: 'team',     element: <TeamPage /> },
       { path: 'workload', element: <WorkloadPage /> },
+      { path: 'activity', element: <ActivityPage /> },
       { path: 'chatbots', element: <ChatbotsPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],

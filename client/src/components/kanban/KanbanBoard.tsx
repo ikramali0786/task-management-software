@@ -129,7 +129,8 @@ export const KanbanBoard = () => {
           ))}
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+        {/* dropAnimation={null} → card snaps instantly to its new column (no post-drop delay) */}
+        <DragOverlay dropAnimation={null}>
           {activeTask ? <TaskCard task={activeTask} isDragging /> : null}
         </DragOverlay>
       </DndContext>
