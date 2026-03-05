@@ -113,7 +113,6 @@ const TeamSchema = new Schema<ITeam>(
   { timestamps: true }
 );
 
-TeamSchema.index({ slug: 1 });
 TeamSchema.index({ 'members.user': 1 });
 TeamSchema.index({ owner: 1 });
 
