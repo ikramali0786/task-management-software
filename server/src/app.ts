@@ -42,9 +42,19 @@ app.get('/health', (_req: Request, res: Response) => {
 // API routes
 app.use('/api', routes);
 
-// 404 handler
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ success: false, message: 'Route not found.' });
+// Catch-all handler
+// • Unknown /api/* paths  → JSON 404 (standard REST behaviour)
+// • Everything else       → redirect the browser to the React SPA at CLIENT_URL
+//   This covers the case where someone refreshes on a client-side route while
+//   their browser is pointed at the Express server URL instead of the static-
+//   site / Vite dev-server URL (e.g. localhost:5000/login instead of localhost/login).
+app.use((req: Request, res: Response) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ success: false, message: 'Route not found.' });
+  }
+  // Strip trailing slash from CLIENT_URL so we don't double-up
+  const clientBase = env.CLIENT_URL.replace(/\/$/, '');
+  return res.redirect(302, `${clientBase}${req.path}`);
 });
 
 // Error handler (must be last)

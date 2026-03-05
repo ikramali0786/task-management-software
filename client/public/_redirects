@@ -1,0 +1,5 @@
+# SPA fallback — rewrite all routes to index.html so React Router handles them.
+# Render static sites and Netlify both honour this file.
+# The render.yaml `routes` block does the same thing; this file is a belt-and-
+# suspenders backup that works even if the infrastructure config is missing.
+/*    /index.html   200
