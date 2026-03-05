@@ -36,6 +36,9 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [descMentions, setDescMentions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [localDueDate, setLocalDueDate] = useState<string>(
+    task?.dueDate ? task.dueDate.slice(0, 10) : ''
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [liveUpdated, setLiveUpdated] = useState(false);
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments'>('comments');
@@ -74,6 +77,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       setFullTask(task);
       setTitle(task.title);
       setDescription(task.description);
+      setLocalDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '');
     }
   }, [taskId]);
 
@@ -87,6 +91,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       setFullTask((prev) => (prev ? { ...prev, ...changes } : prev));
       if (changes.title !== undefined) setTitle(changes.title);
       if (changes.description !== undefined) setDescription(changes.description);
+      if (changes.dueDate !== undefined) setLocalDueDate(changes.dueDate ? changes.dueDate.slice(0, 10) : '');
       setLiveUpdated(true);
       setTimeout(() => setLiveUpdated(false), 2000);
     };
@@ -429,8 +434,15 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   </label>
                   <input
                     type="date"
-                    value={fullTask.dueDate ? fullTask.dueDate.slice(0, 10) : ''}
-                    onChange={(e) => handleSave({ dueDate: e.target.value || null } as any)}
+                    value={localDueDate}
+                    onChange={(e) => setLocalDueDate(e.target.value)}
+                    onBlur={(e) => {
+                      const newDate = e.target.value || null;
+                      const currentDate = fullTask.dueDate ? fullTask.dueDate.slice(0, 10) : null;
+                      if (newDate !== currentDate) {
+                        handleSave({ dueDate: newDate } as any);
+                      }
+                    }}
                     className="input-field w-full"
                   />
                   {dueDateStatus && (
