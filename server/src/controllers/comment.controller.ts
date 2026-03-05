@@ -185,7 +185,9 @@ export const deleteComment = asyncHandler(async (req: Request, res: Response) =>
 
   comment.isDeleted = true;
   comment.body = '';
-  await comment.save();
+  // validateBeforeSave: false — Mongoose 8 rejects empty strings for required:true fields;
+  // soft-deleting by clearing the body is intentional so we bypass schema validation here.
+  await comment.save({ validateBeforeSave: false });
 
   const io = getIO();
   if (io) {

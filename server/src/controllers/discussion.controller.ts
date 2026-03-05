@@ -151,7 +151,9 @@ export const deleteDiscussion = asyncHandler(async (req: Request, res: Response)
 
   discussion.isDeleted = true;
   discussion.body = '';
-  await discussion.save();
+  // validateBeforeSave: false — Mongoose 8 rejects empty strings for required:true fields;
+  // soft-deleting by clearing the body is intentional so we bypass schema validation here.
+  await discussion.save({ validateBeforeSave: false });
 
   const io = getIO();
   if (io) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
@@ -35,6 +35,8 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [liveUpdated, setLiveUpdated] = useState(false);
+  // Tracks whether the store-sync effect has run at least once (skip initial mount)
+  const storeSyncMountedRef = useRef(false);
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -76,6 +78,40 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     // Re-subscribe when taskId or fullTask presence changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId, !!fullTask]);
+
+  // ── Sync from Zustand store ───────────────────────────────────────────────
+  // useSocketEvents keeps tasks[taskId] current for ALL event types (task:updated
+  // AND task:moved from Kanban drag-and-drop). Mirror scalar fields into fullTask
+  // so the panel reflects teammate changes even when the local socket handler above
+  // misses task:moved events (which never emit task:updated).
+  useEffect(() => {
+    if (!task) return;
+    // Skip the very first run on mount — only react to subsequent store changes
+    if (!storeSyncMountedRef.current) {
+      storeSyncMountedRef.current = true;
+      return;
+    }
+    setFullTask((prev) => {
+      if (!prev) return prev;
+      // Only update if something actually changed (avoids pointless re-renders)
+      if (
+        prev.status === task.status &&
+        prev.priority === task.priority &&
+        prev.dueDate === task.dueDate &&
+        prev.completedAt === task.completedAt
+      ) return prev;
+      return {
+        ...prev,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        completedAt: task.completedAt,
+      };
+    });
+    setLiveUpdated(true);
+    setTimeout(() => setLiveUpdated(false), 2000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.status, task?.priority, task?.dueDate, task?.completedAt]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSave = async (changes: Partial<Task>) => {
