@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, MessageSquare, Paperclip, GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
@@ -18,6 +19,7 @@ interface TaskCardProps {
 export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
   const { openTaskDetail } = useUIStore();
   const { activeTeam } = useTeamStore();
+  const [hasReactions, setHasReactions] = useState(false);
   const overdue = isOverdue(task.dueDate, task.status);
   // Guard: priority badge crashes if priority is undefined
   const priority = task.priority ?? 'medium';
@@ -31,7 +33,7 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
       // the DragOverlay simultaneously causes a Framer Motion charCodeAt crash
       onClick={() => !isDragging && openTaskDetail(task._id)}
       className={cn(
-        'cursor-pointer rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800',
+        'group cursor-pointer rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800',
         isDragging && 'shadow-2xl ring-2 ring-brand-400/40 rotate-1 opacity-95',
         overdue && 'border-red-200 dark:border-red-800/50'
       )}
@@ -80,10 +82,23 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
       {/* Emoji reactions — stopPropagation prevents opening the detail modal */}
       {teamId && (
         <div
-          className="mt-2.5 border-t border-slate-100 pt-2 dark:border-slate-700"
+          className={cn(
+            'mt-2.5 pt-2 transition-colors',
+            // Always show border when reactions exist; on hover show it even when empty
+            hasReactions
+              ? 'border-t border-slate-100 dark:border-slate-700'
+              : 'border-t border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700'
+          )}
           onClick={(e) => e.stopPropagation()}
         >
-          <EmojiReactionBar resourceId={task._id} resourceType="task" teamId={teamId} size="sm" />
+          <EmojiReactionBar
+            resourceId={task._id}
+            resourceType="task"
+            teamId={teamId}
+            size="sm"
+            compact
+            onReactionsChange={setHasReactions}
+          />
         </div>
       )}
     </motion.div>

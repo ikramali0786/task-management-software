@@ -18,9 +18,13 @@ interface Props {
   resourceType: 'task' | 'comment' | 'discussion';
   teamId: string;
   size?: 'sm' | 'md';
+  /** compact mode: hides the "React" button until the parent `group` is hovered */
+  compact?: boolean;
+  /** called whenever the reactions count changes — useful for conditional parent styling */
+  onReactionsChange?: (hasReactions: boolean) => void;
 }
 
-export const EmojiReactionBar = ({ resourceId, resourceType, teamId, size = 'sm' }: Props) => {
+export const EmojiReactionBar = ({ resourceId, resourceType, teamId, size = 'sm', compact = false, onReactionsChange }: Props) => {
   const [reactions, setReactions] = useState<ReactionGroup[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -29,6 +33,11 @@ export const EmojiReactionBar = ({ resourceId, resourceType, teamId, size = 'sm'
   useEffect(() => {
     reactionService.getReactions(resourceId).then(setReactions).catch(() => {});
   }, [resourceId]);
+
+  // Notify parent when reaction count changes (e.g. for conditional border on kanban cards)
+  useEffect(() => {
+    onReactionsChange?.(reactions.length > 0);
+  }, [reactions.length, onReactionsChange]);
 
   // Socket: real-time reaction updates
   useEffect(() => {
@@ -106,8 +115,8 @@ export const EmojiReactionBar = ({ resourceId, resourceType, teamId, size = 'sm'
         </button>
       ))}
 
-      {/* Add reaction button */}
-      <div ref={pickerRef} className="relative">
+      {/* Add reaction button — hidden until card hover in compact mode */}
+      <div ref={pickerRef} className={cn('relative', compact && 'opacity-0 group-hover:opacity-100 transition-opacity duration-150')}>
         <button
           type="button"
           onClick={() => setShowPicker((v) => !v)}
