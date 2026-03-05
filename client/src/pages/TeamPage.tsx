@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { RolesManager } from '@/components/team/RolesManager';
 import { DiscussionSection } from '@/components/team/DiscussionSection';
-import { cn } from '@/lib/utils';
+import { cn, formatLastSeen } from '@/lib/utils';
 import { UserRole, TaskStats, TaskPriority } from '@/types';
 
 type Tab = 'overview' | 'members' | 'discussions' | 'settings';
@@ -461,12 +461,21 @@ export const TeamPage = () => {
                     const isSelf = m.user._id === user?._id;
                     const displayRole = memberIsOwner ? 'owner' : m.role;
 
+                    const { label: activeLabel, isActive } = formatLastSeen(m.user.lastSeenAt);
+
                     return (
                       <div
                         key={m.user._id}
                         className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 dark:border-slate-800"
                       >
-                        <Avatar name={m.user.name} src={m.user.avatar} size="md" />
+                        <div className="relative flex-shrink-0">
+                          <Avatar name={m.user.name} src={m.user.avatar} size="md" />
+                          <div
+                            className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 ${
+                              isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'
+                            }`}
+                          />
+                        </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -476,6 +485,9 @@ export const TeamPage = () => {
                             {memberIsOwner && <Crown className="h-3.5 w-3.5 text-amber-500" />}
                           </div>
                           <p className="text-xs text-slate-400">{m.user.email}</p>
+                          <p className={`text-xs font-medium ${isActive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {activeLabel}
+                          </p>
                         </div>
 
                         <Badge variant={roleBadgeVariant(displayRole)}>

@@ -47,3 +47,31 @@ export const truncate = (str: string, length: number): string => {
   if (str.length <= length) return str;
   return str.slice(0, length) + '...';
 };
+
+/**
+ * Returns a human-readable "last active" string and whether the user is currently active.
+ * - Within 5 min  → { label: 'Active now', isActive: true }
+ * - Within 1 hour → { label: 'Active · 12 min ago', isActive: false }
+ * - Within 24 h   → { label: 'Active · 3 hr ago',  isActive: false }
+ * - Older         → { label: 'Active · Jan 5',       isActive: false }
+ */
+export const formatLastSeen = (
+  lastSeenAt: string | Date | null | undefined
+): { label: string; isActive: boolean } => {
+  if (!lastSeenAt) return { label: 'Never active', isActive: false };
+
+  const diff = Date.now() - new Date(lastSeenAt).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(diff / 86_400_000);
+
+  if (minutes < 5) return { label: 'Active now', isActive: true };
+  if (minutes < 60) return { label: `Active · ${minutes} min ago`, isActive: false };
+  if (hours < 24) return { label: `Active · ${hours} hr ago`, isActive: false };
+  if (days === 1) return { label: 'Active · 1 day ago', isActive: false };
+  if (days < 7) return { label: `Active · ${days} days ago`, isActive: false };
+  return {
+    label: `Active · ${format(new Date(lastSeenAt), 'MMM d')}`,
+    isActive: false,
+  };
+};

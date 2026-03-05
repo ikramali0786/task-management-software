@@ -30,9 +30,12 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
     }
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const user = (socket as any).user;
     console.log(`Socket connected: ${user.name} (${socket.id})`);
+
+    // Track activity — update lastSeenAt on connect
+    await User.findByIdAndUpdate(user._id, { lastSeenAt: new Date() });
 
     // Join personal user room for notifications
     socket.join(`user:${user._id}`);
@@ -74,8 +77,10 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
       });
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       console.log(`Socket disconnected: ${user.name}`);
+      // Update lastSeenAt on disconnect so teammates see accurate "last active" time
+      await User.findByIdAndUpdate(user._id, { lastSeenAt: new Date() });
     });
   });
 

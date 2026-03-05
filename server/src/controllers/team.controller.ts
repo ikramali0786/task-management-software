@@ -47,7 +47,7 @@ export const createTeam = asyncHandler(async (req: Request, res: Response) => {
 export const getMyTeams = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!._id;
   const teams = await Team.find({ 'members.user': userId, isArchived: false })
-    .populate('members.user', 'name avatar email')
+    .populate('members.user', 'name avatar email lastSeenAt')
     .populate('owner', 'name avatar');
 
   sendSuccess(res, { teams });

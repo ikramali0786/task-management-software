@@ -21,7 +21,7 @@ import { taskService } from '@/services/taskService';
 import { Task, TaskStats, PRIORITY_CONFIG, TASK_STATUSES } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { formatRelative, cn } from '@/lib/utils';
+import { formatRelative, formatLastSeen, cn } from '@/lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 /* ─── Motion variants ──────────────────────────────────────────────────── */
@@ -580,20 +580,27 @@ export const DashboardPage = () => {
             </button>
           </div>
           <div className="space-y-3">
-            {activeTeam.members.slice(0, 7).map((m) => (
-              <div key={m.user._id} className="flex items-center gap-3">
-                <div className="relative">
-                  <Avatar name={m.user.name} src={m.user.avatar} size="sm" />
-                  <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-900" />
+            {activeTeam.members.slice(0, 7).map((m) => {
+              const { label: activeLabel, isActive } = formatLastSeen(m.user.lastSeenAt);
+              return (
+                <div key={m.user._id} className="flex items-center gap-3">
+                  <div className="relative">
+                    <Avatar name={m.user.name} src={m.user.avatar} size="sm" />
+                    <div
+                      className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900 ${
+                        isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'
+                      }`}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {m.user.name}
+                    </p>
+                    <p className="text-xs text-slate-400">{activeLabel}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {m.user.name}
-                  </p>
-                  <p className="text-xs capitalize text-slate-400">{m.role}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {activeTeam.members.length > 7 && (
               <button
                 onClick={() => navigate('/team')}

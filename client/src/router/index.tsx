@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { GuestGuard } from '@/components/auth/GuestGuard';
 
 // ── Lazy-load every page so each becomes a separate JS chunk ─────────────────
 // Vite splits each dynamic import into its own chunk — only the first page
@@ -22,11 +23,11 @@ const ChatbotsPage = lazy(() => import('@/pages/ChatbotsPage').then(m => ({ defa
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <LoginPage />,
+    element: <GuestGuard><LoginPage /></GuestGuard>,
   },
   {
     path: '/register',
-    element: <RegisterPage />,
+    element: <GuestGuard><RegisterPage /></GuestGuard>,
   },
   {
     path: '/',
