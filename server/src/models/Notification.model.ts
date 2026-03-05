@@ -7,7 +7,8 @@ export type NotificationType =
   | 'task_due_soon'
   | 'task_overdue'
   | 'team_invite'
-  | 'member_joined';
+  | 'member_joined'
+  | 'mention';
 
 export interface INotification extends Document {
   _id: mongoose.Types.ObjectId;
@@ -38,6 +39,7 @@ const NotificationSchema = new Schema<INotification>(
         'task_overdue',
         'team_invite',
         'member_joined',
+        'mention',
       ],
       required: true,
     },

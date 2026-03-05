@@ -5,7 +5,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
 import { PriorityBadge } from '@/components/ui/Badge';
 import { AvatarGroup } from '@/components/ui/Avatar';
+import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 import { useUIStore } from '@/store/uiStore';
+import { useTeamStore } from '@/store/teamStore';
 import { formatDate, isOverdue, cn } from '@/lib/utils';
 
 interface TaskCardProps {
@@ -15,9 +17,12 @@ interface TaskCardProps {
 
 export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
   const { openTaskDetail } = useUIStore();
+  const { activeTeam } = useTeamStore();
   const overdue = isOverdue(task.dueDate, task.status);
   // Guard: priority badge crashes if priority is undefined
   const priority = task.priority ?? 'medium';
+  // task.team may be a string ID (not populated in list endpoint)
+  const teamId = typeof task.team === 'string' ? task.team : (task.team as any)?._id || activeTeam?._id || '';
 
   return (
     <motion.div
@@ -71,6 +76,16 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
           <Paperclip className="h-3 w-3" />
         </div>
       </div>
+
+      {/* Emoji reactions — stopPropagation prevents opening the detail modal */}
+      {teamId && (
+        <div
+          className="mt-2.5 border-t border-slate-100 pt-2 dark:border-slate-700"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <EmojiReactionBar resourceId={task._id} resourceType="task" teamId={teamId} size="sm" />
+        </div>
+      )}
     </motion.div>
   );
 };

@@ -6,6 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { getIO } from '../config/socket';
+import { createNotification } from '../services/notification.service';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -80,6 +81,25 @@ export const createDiscussion = asyncHandler(async (req: Request, res: Response)
       discussion: { ...populated.toObject(), replies: [] },
       teamId: parsed.data.teamId,
     });
+  }
+
+  // Send mention notifications (skip sender, skip duplicates)
+  if (parsed.data.mentionedUserIds && parsed.data.mentionedUserIds.length > 0) {
+    const uniqueMentions = [...new Set(parsed.data.mentionedUserIds)].filter(
+      (uid) => uid !== userId
+    );
+    await Promise.allSettled(
+      uniqueMentions.map((mentionedId) =>
+        createNotification({
+          recipientId: mentionedId,
+          actorId: userId,
+          type: 'mention',
+          teamId: parsed.data.teamId,
+          message: `mentioned you in a team discussion`,
+          metadata: { discussionId: discussion._id.toString() },
+        })
+      )
+    );
   }
 
   sendSuccess(res, { discussion: populated }, 'Discussion created.', 201);

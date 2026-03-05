@@ -182,23 +182,39 @@ export const DiscussionSection = ({ teamId, members, isAdmin }: Props) => {
 
     const handleCreated = ({ discussion }: { discussion: Discussion }) => {
       if (discussion.parentDiscussion) {
+        // New reply — append to parent's replies
         setDiscussions((prev) =>
-          prev.map((d) =>
-            d._id === discussion.parentDiscussion
-              ? { ...d, replies: [...(d.replies || []), discussion] }
-              : d
-          )
+          prev.map((d) => {
+            if (d._id === discussion.parentDiscussion) {
+              // Skip if already present (optimistic duplicate)
+              if ((d.replies || []).find((r) => r._id === discussion._id)) return d;
+              return { ...d, replies: [...(d.replies || []), discussion] };
+            }
+            return d;
+          })
         );
       } else {
         setDiscussions((prev) => {
-          if (prev.find((d) => d._id === discussion._id)) return prev;
-          const newList = [...prev, { ...discussion, replies: [] }];
-          // Re-sort: pinned first
-          return newList.sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
+          // Skip if already present (from optimistic insert or same event firing twice)
+          // Also handle temp IDs: optimistic messages have _id starting with 'temp-'
+          const alreadyExists = prev.find((d) => d._id === discussion._id);
+          if (alreadyExists) return prev;
+
+          // Replace optimistic temp entry if body matches (same author)
+          const tempIdx = prev.findIndex(
+            (d) => d._id.startsWith('temp-') && d.body === discussion.body
+          );
+          if (tempIdx !== -1) {
+            const updated = [...prev];
+            updated[tempIdx] = { ...discussion, replies: [] };
+            return updated;
+          }
+
+          // Pinned messages go to the top, others go to the bottom (chronological)
+          if (discussion.isPinned) {
+            return [{ ...discussion, replies: [] }, ...prev];
+          }
+          return [...prev, { ...discussion, replies: [] }];
         });
       }
     };
@@ -236,10 +252,11 @@ export const DiscussionSection = ({ teamId, members, isAdmin }: Props) => {
         const updated = prev.map((d) =>
           d._id === discussionId ? { ...d, isPinned } : d
         );
+        // Sort: pinned first, then oldest→newest (matches API sort)
         return updated.sort((a, b) => {
           if (a.isPinned && !b.isPinned) return -1;
           if (!a.isPinned && b.isPinned) return 1;
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
       });
     };
@@ -258,38 +275,113 @@ export const DiscussionSection = ({ teamId, members, isAdmin }: Props) => {
   }, [teamId]);
 
   const handleSubmit = async () => {
-    if (!newBody.trim()) return;
+    if (!newBody.trim() || !user) return;
     setSubmitting(true);
+
+    // Optimistic insert — shows message instantly without waiting for socket
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: Discussion = {
+      _id: tempId,
+      team: teamId,
+      author: user as any,
+      body: newBody.trim(),
+      parentDiscussion: null,
+      mentions: [],
+      editedAt: null,
+      isDeleted: false,
+      isPinned: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      replies: [],
+    };
+    setDiscussions((prev) => [...prev, optimistic]);
+
+    const bodyToSend = newBody.trim();
+    const mentionsToSend = [...newMentions];
+    setNewBody('');
+    setNewMentions([]);
+
     try {
-      await discussionService.createDiscussion({
+      const created = await discussionService.createDiscussion({
         teamId,
-        body: newBody.trim(),
-        mentionedUserIds: newMentions,
+        body: bodyToSend,
+        mentionedUserIds: mentionsToSend,
       });
-      setNewBody('');
-      setNewMentions([]);
+      // Replace temp entry with real one (socket may also do this, duplicate check handles it)
+      setDiscussions((prev) =>
+        prev.map((d) => (d._id === tempId ? { ...created, replies: [] } : d))
+      );
     } catch {
-      //
+      // Revert optimistic insert
+      setDiscussions((prev) => prev.filter((d) => d._id !== tempId));
+      setNewBody(bodyToSend);
+      setNewMentions(mentionsToSend);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleReply = async (parentDiscussionId: string) => {
-    if (!replyBody.trim()) return;
+    if (!replyBody.trim() || !user) return;
     setSubmitting(true);
+
+    // Optimistic reply insert
+    const tempId = `temp-reply-${Date.now()}`;
+    const optimisticReply: Discussion = {
+      _id: tempId,
+      team: teamId,
+      author: user as any,
+      body: replyBody.trim(),
+      parentDiscussion: parentDiscussionId,
+      mentions: [],
+      editedAt: null,
+      isDeleted: false,
+      isPinned: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      replies: [],
+    };
+    setDiscussions((prev) =>
+      prev.map((d) =>
+        d._id === parentDiscussionId
+          ? { ...d, replies: [...(d.replies || []), optimisticReply] }
+          : d
+      )
+    );
+
+    const bodyToSend = replyBody.trim();
+    const mentionsToSend = [...replyMentions];
+    setReplyBody('');
+    setReplyMentions([]);
+    setReplyingTo(null);
+
     try {
-      await discussionService.createDiscussion({
+      const created = await discussionService.createDiscussion({
         teamId,
-        body: replyBody.trim(),
+        body: bodyToSend,
         parentDiscussionId,
-        mentionedUserIds: replyMentions,
+        mentionedUserIds: mentionsToSend,
       });
-      setReplyBody('');
-      setReplyMentions([]);
-      setReplyingTo(null);
+      // Replace temp reply with real one
+      setDiscussions((prev) =>
+        prev.map((d) =>
+          d._id === parentDiscussionId
+            ? { ...d, replies: (d.replies || []).map((r) => r._id === tempId ? created : r) }
+            : d
+        )
+      );
     } catch {
-      //
+      // Revert
+      setDiscussions((prev) =>
+        prev.map((d) =>
+          d._id === parentDiscussionId
+            ? { ...d, replies: (d.replies || []).filter((r) => r._id !== tempId) }
+            : d
+        )
+      );
+      setReplyBody(bodyToSend);
+      setReplyMentions(mentionsToSend);
+      setReplyingTo(parentDiscussionId);
     } finally {
       setSubmitting(false);
     }
@@ -339,7 +431,7 @@ export const DiscussionSection = ({ teamId, members, isAdmin }: Props) => {
         return updated.sort((a, b) => {
           if (a.isPinned && !b.isPinned) return -1;
           if (!a.isPinned && b.isPinned) return 1;
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
       });
     } catch {

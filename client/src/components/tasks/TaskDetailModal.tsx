@@ -80,10 +80,23 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSave = async (changes: Partial<Task>) => {
     setSaving(true);
+
+    // Optimistic update: immediately apply primitive/safe field changes to local state
+    // (excludes assignees which need populated User objects — those update via socket)
+    const SAFE_FIELDS: (keyof Task)[] = ['title', 'description', 'status', 'priority', 'dueDate', 'labels', 'completedAt'];
+    const optimistic: Partial<Task> = {};
+    for (const key of SAFE_FIELDS) {
+      if (key in changes) (optimistic as any)[key] = (changes as any)[key];
+    }
+    if (Object.keys(optimistic).length > 0) {
+      setFullTask((prev) => (prev ? { ...prev, ...optimistic } : prev));
+    }
+
     try {
       await updateTask(taskId, changes);
-      addToast({ type: 'success', title: 'Task updated' });
     } catch {
+      // Revert optimistic update on error
+      setFullTask((prev) => prev);
       addToast({ type: 'error', title: 'Failed to update task' });
     } finally {
       setSaving(false);

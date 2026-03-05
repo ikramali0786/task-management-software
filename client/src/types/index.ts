@@ -97,7 +97,8 @@ export type NotificationType =
   | 'task_due_soon'
   | 'task_overdue'
   | 'team_invite'
-  | 'member_joined';
+  | 'member_joined'
+  | 'mention';
 
 export interface Notification {
   _id: string;
