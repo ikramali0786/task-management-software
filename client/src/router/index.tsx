@@ -8,6 +8,7 @@ import { KanbanPage } from '@/pages/KanbanPage';
 import { TeamPage } from '@/pages/TeamPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { WorkloadPage } from '@/pages/WorkloadPage';
+import { ChatbotsPage } from '@/pages/ChatbotsPage';
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: 'board', element: <KanbanPage /> },
       { path: 'team', element: <TeamPage /> },
       { path: 'workload', element: <WorkloadPage /> },
+      { path: 'chatbots', element: <ChatbotsPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },

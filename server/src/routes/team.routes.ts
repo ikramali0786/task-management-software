@@ -11,6 +11,10 @@ import {
   removeMember,
   updateMemberRole,
   leaveTeam,
+  getTeamRoles,
+  createCustomRole,
+  updateCustomRole,
+  deleteCustomRole,
 } from '../controllers/team.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -29,5 +33,11 @@ router.patch('/:teamId/lock', toggleTeamLock); // toggle lock
 router.delete('/:teamId/leave', leaveTeam);
 router.patch('/:teamId/members/:userId', updateMemberRole);
 router.delete('/:teamId/members/:userId', removeMember);
+
+// Custom Roles
+router.get('/:teamId/roles', getTeamRoles);
+router.post('/:teamId/roles', createCustomRole);
+router.patch('/:teamId/roles/:roleId', updateCustomRole);
+router.delete('/:teamId/roles/:roleId', deleteCustomRole);
 
 export default router;

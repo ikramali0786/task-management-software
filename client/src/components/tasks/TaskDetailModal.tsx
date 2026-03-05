@@ -13,6 +13,7 @@ import { cn, formatRelative } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
 import { MentionInput, extractMentions } from '@/components/ui/MentionInput';
 import { CommentSection } from '@/components/tasks/CommentSection';
+import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 
 interface TaskDetailModalProps {
   taskId: string;
@@ -239,6 +240,14 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               {fullTask.title}
             </h2>
           )}
+
+          {/* Emoji Reactions */}
+          <EmojiReactionBar
+            resourceId={fullTask._id}
+            resourceType="task"
+            teamId={typeof fullTask.team === 'string' ? fullTask.team : fullTask.team._id}
+            size="sm"
+          />
 
           {/* Description with @mention support */}
           <div>

@@ -1,6 +1,6 @@
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
-export type UserRole = 'owner' | 'admin' | 'moderator' | 'member' | 'viewer';
+export type UserRole = 'owner' | 'admin' | 'moderator' | 'member' | 'viewer' | string;
 export type Theme = 'light' | 'dark' | 'system';
 
 export interface User {
@@ -23,9 +23,29 @@ export interface TaskActivity {
   icon?: 'task' | 'member';
 }
 
+export interface RolePermissions {
+  createTask: boolean;
+  editOwnTask: boolean;
+  editAnyTask: boolean;
+  deleteOwnTask: boolean;
+  deleteAnyTask: boolean;
+  manageMembers: boolean;
+  manageTeamSettings: boolean;
+  inviteMembers: boolean;
+  commentOnTasks: boolean;
+  viewWorkload: boolean;
+}
+
+export interface CustomRole {
+  _id: string;
+  name: string;
+  color: string;
+  permissions: RolePermissions;
+}
+
 export interface TeamMember {
   user: User;
-  role: UserRole;
+  role: string;
   joinedAt: string;
 }
 
@@ -42,6 +62,7 @@ export interface Team {
     isLocked: boolean;
     defaultTaskPriority: TaskPriority;
   };
+  customRoles: CustomRole[];
   createdAt: string;
 }
 
@@ -109,7 +130,35 @@ export interface Comment {
 export interface WorkloadEntry {
   user: User;
   total: number;
+  completedToday: number;
   statusBreakdown: { status: TaskStatus; count: number }[];
+}
+
+export interface ReactionGroup {
+  emoji: string;
+  count: number;
+  users: string[];
+  reacted: boolean;
+}
+
+export interface Discussion {
+  _id: string;
+  team: string;
+  author: User;
+  body: string;
+  parentDiscussion: string | null;
+  mentions: User[];
+  editedAt: string | null;
+  isDeleted: boolean;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  replies?: Discussion[];
+}
+
+export interface ProjectProgress {
+  total: number;
+  done: number;
 }
 
 export interface TaskStats {

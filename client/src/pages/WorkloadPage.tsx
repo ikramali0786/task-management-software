@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart2, Users } from 'lucide-react';
+import { BarChart2, Users, Target, CheckCircle2 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { taskService } from '@/services/taskService';
-import { WorkloadEntry, TASK_STATUSES } from '@/types';
+import { WorkloadEntry, ProjectProgress, TASK_STATUSES } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -26,6 +26,7 @@ const item = {
 export const WorkloadPage = () => {
   const { activeTeam } = useTeamStore();
   const [workload, setWorkload] = useState<WorkloadEntry[]>([]);
+  const [projectProgress, setProjectProgress] = useState<ProjectProgress>({ total: 0, done: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,14 +34,21 @@ export const WorkloadPage = () => {
     setLoading(true);
     taskService
       .getWorkload(activeTeam._id)
-      .then(setWorkload)
+      .then(({ workload: w, projectProgress: pp }) => {
+        setWorkload(w);
+        setProjectProgress(pp);
+      })
       .finally(() => setLoading(false));
   }, [activeTeam?._id]);
+
+  const progressPct = projectProgress.total > 0
+    ? Math.round((projectProgress.done / projectProgress.total) * 100)
+    : 0;
 
   return (
     <div className="mx-auto max-w-4xl p-6 md:p-8">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="flex items-center gap-2.5 text-2xl font-bold text-slate-900 dark:text-white">
           <BarChart2 className="h-6 w-6 text-brand-500" />
           Team Workload
@@ -49,6 +57,47 @@ export const WorkloadPage = () => {
           Task distribution across your team members.
         </p>
       </div>
+
+      {/* Project Progress Bar */}
+      {!loading && projectProgress.total > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-brand-500" />
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                Project Progress
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
+                {progressPct}%
+              </span>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="relative h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ duration: 0.9, ease: 'easeOut', delay: 0.1 }}
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 to-brand-400"
+            />
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between text-xs text-slate-400">
+            <span>{projectProgress.done} of {projectProgress.total} tasks completed</span>
+            <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {projectProgress.done} done
+            </span>
+          </div>
+        </motion.div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -100,9 +149,17 @@ export const WorkloadPage = () => {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-500">
-                      {entry.total} task{entry.total !== 1 ? 's' : ''}
-                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-slate-500">
+                        {entry.total} task{entry.total !== 1 ? 's' : ''}
+                      </p>
+                      {entry.completedToday > 0 && (
+                        <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          🎯 {entry.completedToday} completed today
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {/* Total badge */}
                   <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">

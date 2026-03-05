@@ -299,44 +299,58 @@ export const getWorkload = asyncHandler(async (req: Request, res: Response) => {
   await verifyTeamMember(teamId, req.user!._id.toString());
 
   const { Types } = require('mongoose');
+  const teamOid = new Types.ObjectId(teamId);
 
-  const workload = await Task.aggregate([
-    { $match: { team: new Types.ObjectId(teamId), isArchived: false } },
-    { $unwind: { path: '$assignees', preserveNullAndEmptyArrays: false } },
-    {
-      $group: {
-        _id: { user: '$assignees', status: '$status' },
-        count: { $sum: 1 },
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const [workload, completedTodayRaw, progressRaw] = await Promise.all([
+    Task.aggregate([
+      { $match: { team: teamOid, isArchived: false } },
+      { $unwind: { path: '$assignees', preserveNullAndEmptyArrays: false } },
+      { $group: { _id: { user: '$assignees', status: '$status' }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: '$_id.user',
+          statusBreakdown: { $push: { status: '$_id.status', count: '$count' } },
+          total: { $sum: '$count' },
+        },
       },
-    },
-    {
-      $group: {
-        _id: '$_id.user',
-        statusBreakdown: { $push: { status: '$_id.status', count: '$count' } },
-        total: { $sum: '$count' },
-      },
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: '_id',
-        foreignField: '_id',
-        as: 'user',
-      },
-    },
-    { $unwind: '$user' },
-    { $sort: { total: -1 } },
-    {
-      $project: {
-        _id: 0,
-        user: { _id: 1, name: 1, avatar: 1, email: 1, username: 1 },
-        total: 1,
-        statusBreakdown: 1,
-      },
-    },
+      { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      { $sort: { total: -1 } },
+      { $project: { _id: 0, user: { _id: 1, name: 1, avatar: 1, email: 1, username: 1 }, total: 1, statusBreakdown: 1 } },
+    ]),
+    // Tasks completed today per assignee
+    Task.aggregate([
+      { $match: { team: teamOid, isArchived: false, status: 'done', completedAt: { $gte: todayStart, $lte: todayEnd } } },
+      { $unwind: { path: '$assignees', preserveNullAndEmptyArrays: false } },
+      { $group: { _id: '$assignees', count: { $sum: 1 } } },
+    ]),
+    // Overall progress (done / total)
+    Task.aggregate([
+      { $match: { team: teamOid, isArchived: false } },
+      { $group: { _id: null, total: { $sum: 1 }, done: { $sum: { $cond: [{ $eq: ['$status', 'done'] }, 1, 0] } } } },
+    ]),
   ]);
 
-  sendSuccess(res, { workload });
+  // Build map { userId -> completedToday }
+  const completedTodayMap: Record<string, number> = {};
+  for (const r of completedTodayRaw) {
+    completedTodayMap[r._id.toString()] = r.count;
+  }
+
+  // Enrich workload with completedToday
+  const enriched = workload.map((w: any) => ({
+    ...w,
+    completedToday: completedTodayMap[w.user._id.toString()] || 0,
+  }));
+
+  const projectProgress = progressRaw[0] || { total: 0, done: 0 };
+
+  sendSuccess(res, { workload: enriched, projectProgress: { total: projectProgress.total, done: projectProgress.done } });
 });
 
 export const getTaskStats = asyncHandler(async (req: Request, res: Response) => {

@@ -1,10 +1,30 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type TeamRole = 'admin' | 'moderator' | 'member' | 'viewer';
+export type TeamRole = 'owner' | 'admin' | 'moderator' | 'member' | 'viewer';
+
+export interface IRolePermissions {
+  createTask: boolean;
+  editOwnTask: boolean;
+  editAnyTask: boolean;
+  deleteOwnTask: boolean;
+  deleteAnyTask: boolean;
+  manageMembers: boolean;
+  manageTeamSettings: boolean;
+  inviteMembers: boolean;
+  commentOnTasks: boolean;
+  viewWorkload: boolean;
+}
+
+export interface ICustomRole {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  color: string;
+  permissions: IRolePermissions;
+}
 
 export interface IMember {
   user: mongoose.Types.ObjectId;
-  role: TeamRole;
+  role: string; // built-in TeamRole or custom role name
   joinedAt: Date;
 }
 
@@ -16,6 +36,7 @@ export interface ITeam extends Document {
   avatar: string | null;
   members: IMember[];
   owner: mongoose.Types.ObjectId;
+  customRoles: ICustomRole[];
   inviteCodes: Array<{
     code: string;
     expiresAt: Date;
@@ -31,10 +52,32 @@ export interface ITeam extends Document {
   updatedAt: Date;
 }
 
+const PermissionsSchema = new Schema<IRolePermissions>(
+  {
+    createTask: { type: Boolean, default: true },
+    editOwnTask: { type: Boolean, default: true },
+    editAnyTask: { type: Boolean, default: false },
+    deleteOwnTask: { type: Boolean, default: true },
+    deleteAnyTask: { type: Boolean, default: false },
+    manageMembers: { type: Boolean, default: false },
+    manageTeamSettings: { type: Boolean, default: false },
+    inviteMembers: { type: Boolean, default: false },
+    commentOnTasks: { type: Boolean, default: true },
+    viewWorkload: { type: Boolean, default: true },
+  },
+  { _id: false }
+);
+
+const CustomRoleSchema = new Schema<ICustomRole>({
+  name: { type: String, required: true, maxlength: 40 },
+  color: { type: String, default: '#6366f1' },
+  permissions: { type: PermissionsSchema, default: () => ({}) },
+});
+
 const MemberSchema = new Schema<IMember>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    role: { type: String, enum: ['admin', 'moderator', 'member', 'viewer'], default: 'member' },
+    role: { type: String, default: 'member' },
     joinedAt: { type: Date, default: Date.now },
   },
   { _id: false }
@@ -48,6 +91,7 @@ const TeamSchema = new Schema<ITeam>(
     avatar: { type: String, default: null },
     members: [MemberSchema],
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    customRoles: { type: [CustomRoleSchema], default: [] },
     inviteCodes: [
       {
         code: String,
@@ -57,7 +101,7 @@ const TeamSchema = new Schema<ITeam>(
     ],
     settings: {
       allowMemberInvite: { type: Boolean, default: false },
-      isLocked: { type: Boolean, default: false }, // when true, only admins can create/edit tasks
+      isLocked: { type: Boolean, default: false },
       defaultTaskPriority: {
         type: String,
         enum: ['urgent', 'high', 'medium', 'low'],

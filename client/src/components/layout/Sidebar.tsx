@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
-  Plus, ChevronDown, ChevronRight, BarChart2
+  Plus, ChevronDown, ChevronRight, BarChart2, Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/board', icon: Kanban, label: 'Kanban Board' },
   { to: '/team', icon: Users, label: 'Team' },
   { to: '/workload', icon: BarChart2, label: 'Workload' },
+  { to: '/chatbots', icon: Bot, label: 'AI Chatbots' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

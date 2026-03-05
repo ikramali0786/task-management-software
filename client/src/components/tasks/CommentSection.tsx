@@ -6,6 +6,7 @@ import { commentService } from '@/services/commentService';
 import { useAuthStore } from '@/store/authStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { MentionInput } from '@/components/ui/MentionInput';
+import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 import { cn, formatRelative } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
 
@@ -18,16 +19,20 @@ interface CommentSectionProps {
 interface CommentBubbleProps {
   comment: Comment;
   isReply?: boolean;
+  parentCommentId?: string;
   currentUserId: string;
+  teamId: string;
   onReply?: () => void;
   onEdit: (commentId: string, body: string) => void;
-  onDelete: (commentId: string) => void;
+  onDelete: (commentId: string, parentCommentId?: string) => void;
 }
 
 const CommentBubble = ({
   comment,
   isReply = false,
+  parentCommentId,
   currentUserId,
+  teamId,
   onReply,
   onEdit,
   onDelete,
@@ -107,33 +112,38 @@ const CommentBubble = ({
         )}
 
         {!isEditing && (
-          <div className="mt-1.5 flex items-center gap-3">
-            {!isReply && onReply && (
-              <button
-                onClick={onReply}
-                className="flex items-center gap-1 text-xs text-slate-400 transition-colors hover:text-brand-500"
-              >
-                <CornerDownRight className="h-3 w-3" />
-                Reply
-              </button>
-            )}
-            {isMe && (
-              <>
+          <>
+            <div className="mt-2">
+              <EmojiReactionBar resourceId={comment._id} resourceType="comment" teamId={teamId} size="sm" />
+            </div>
+            <div className="mt-1.5 flex items-center gap-3">
+              {!isReply && onReply && (
                 <button
-                  onClick={startEdit}
-                  className="text-xs text-slate-400 transition-colors hover:text-brand-500"
+                  onClick={onReply}
+                  className="flex items-center gap-1 text-xs text-slate-400 transition-colors hover:text-brand-500"
                 >
-                  Edit
+                  <CornerDownRight className="h-3 w-3" />
+                  Reply
                 </button>
-                <button
-                  onClick={() => onDelete(comment._id)}
-                  className="text-xs text-slate-400 transition-colors hover:text-red-500"
-                >
-                  Delete
-                </button>
-              </>
-            )}
-          </div>
+              )}
+              {isMe && (
+                <>
+                  <button
+                    onClick={startEdit}
+                    className="text-xs text-slate-400 transition-colors hover:text-brand-500"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onDelete(comment._id, parentCommentId)}
+                    className="text-xs text-slate-400 transition-colors hover:text-red-500"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -295,11 +305,33 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
     }
   };
 
-  const handleDelete = async (commentId: string) => {
+  const handleDelete = async (commentId: string, parentId?: string) => {
     if (!confirm('Delete this comment?')) return;
+    // Optimistic update immediately (don't wait for socket)
+    if (parentId) {
+      setComments((prev) =>
+        prev.map((c) =>
+          c._id === parentId
+            ? {
+                ...c,
+                replies: (c.replies || []).map((r) =>
+                  r._id === commentId ? { ...r, isDeleted: true, body: '' } : r
+                ),
+              }
+            : c
+        )
+      );
+    } else {
+      setComments((prev) =>
+        prev.map((c) => (c._id === commentId ? { ...c, isDeleted: true, body: '' } : c))
+      );
+    }
     try {
       await commentService.deleteComment(commentId);
-    } catch {}
+    } catch {
+      // Revert on failure — refetch
+      commentService.getComments(taskId).then(setComments);
+    }
   };
 
   return (
@@ -330,6 +362,7 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
                 <CommentBubble
                   comment={comment}
                   currentUserId={user?._id || ''}
+                  teamId={teamId}
                   onReply={() =>
                     setReplyingTo(replyingTo === comment._id ? null : comment._id)
                   }
@@ -345,7 +378,9 @@ export const CommentSection = ({ taskId, teamId, members }: CommentSectionProps)
                         key={reply._id}
                         comment={reply}
                         isReply
+                        parentCommentId={comment._id}
                         currentUserId={user?._id || ''}
+                        teamId={teamId}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                       />

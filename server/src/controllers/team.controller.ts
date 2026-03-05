@@ -318,3 +318,173 @@ export const leaveTeam = asyncHandler(async (req: Request, res: Response) => {
 
   sendSuccess(res, null, 'Left team.');
 });
+
+// ── Custom Roles ──────────────────────────────────────────────────────────────
+
+const BUILT_IN_ROLES = [
+  {
+    _id: 'owner',
+    name: 'Owner',
+    color: '#ef4444',
+    isBuiltIn: true,
+    permissions: {
+      createTask: true, editOwnTask: true, editAnyTask: true,
+      deleteOwnTask: true, deleteAnyTask: true, manageMembers: true,
+      manageTeamSettings: true, inviteMembers: true, commentOnTasks: true, viewWorkload: true,
+    },
+  },
+  {
+    _id: 'admin',
+    name: 'Admin',
+    color: '#f97316',
+    isBuiltIn: true,
+    permissions: {
+      createTask: true, editOwnTask: true, editAnyTask: true,
+      deleteOwnTask: true, deleteAnyTask: true, manageMembers: true,
+      manageTeamSettings: true, inviteMembers: true, commentOnTasks: true, viewWorkload: true,
+    },
+  },
+  {
+    _id: 'moderator',
+    name: 'Moderator',
+    color: '#6366f1',
+    isBuiltIn: true,
+    permissions: {
+      createTask: true, editOwnTask: true, editAnyTask: true,
+      deleteOwnTask: true, deleteAnyTask: true, manageMembers: false,
+      manageTeamSettings: false, inviteMembers: true, commentOnTasks: true, viewWorkload: true,
+    },
+  },
+  {
+    _id: 'member',
+    name: 'Member',
+    color: '#22c55e',
+    isBuiltIn: true,
+    permissions: {
+      createTask: true, editOwnTask: true, editAnyTask: false,
+      deleteOwnTask: true, deleteAnyTask: false, manageMembers: false,
+      manageTeamSettings: false, inviteMembers: false, commentOnTasks: true, viewWorkload: true,
+    },
+  },
+  {
+    _id: 'viewer',
+    name: 'Viewer',
+    color: '#94a3b8',
+    isBuiltIn: true,
+    permissions: {
+      createTask: false, editOwnTask: false, editAnyTask: false,
+      deleteOwnTask: false, deleteAnyTask: false, manageMembers: false,
+      manageTeamSettings: false, inviteMembers: false, commentOnTasks: false, viewWorkload: true,
+    },
+  },
+];
+
+export const getTeamRoles = asyncHandler(async (req: Request, res: Response) => {
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+  sendSuccess(res, { builtIn: BUILT_IN_ROLES, custom: team.customRoles });
+});
+
+export const createCustomRole = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    name: z.string().min(1).max(40),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#6366f1'),
+    permissions: z.object({
+      createTask: z.boolean(), editOwnTask: z.boolean(), editAnyTask: z.boolean(),
+      deleteOwnTask: z.boolean(), deleteAnyTask: z.boolean(), manageMembers: z.boolean(),
+      manageTeamSettings: z.boolean(), inviteMembers: z.boolean(),
+      commentOnTasks: z.boolean(), viewWorkload: z.boolean(),
+    }).optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const userId = req.user!._id.toString();
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+
+  const member = team.members.find((m) => m.user.toString() === userId);
+  if (!member || !['owner', 'admin'].includes(member.role))
+    throw new ApiError(403, 'Only admins can manage roles.');
+
+  const nameConflict = [
+    ...BUILT_IN_ROLES.map((r) => r.name.toLowerCase()),
+    ...team.customRoles.map((r) => r.name.toLowerCase()),
+  ].includes(parsed.data.name.toLowerCase());
+  if (nameConflict) throw new ApiError(409, 'A role with this name already exists.');
+
+  team.customRoles.push({
+    name: parsed.data.name,
+    color: parsed.data.color,
+    permissions: parsed.data.permissions || {
+      createTask: true, editOwnTask: true, editAnyTask: false,
+      deleteOwnTask: true, deleteAnyTask: false, manageMembers: false,
+      manageTeamSettings: false, inviteMembers: false, commentOnTasks: true, viewWorkload: true,
+    },
+  } as any);
+  await team.save();
+
+  sendSuccess(res, { customRoles: team.customRoles }, 'Custom role created.', 201);
+});
+
+export const updateCustomRole = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    name: z.string().min(1).max(40).optional(),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    permissions: z.object({
+      createTask: z.boolean(), editOwnTask: z.boolean(), editAnyTask: z.boolean(),
+      deleteOwnTask: z.boolean(), deleteAnyTask: z.boolean(), manageMembers: z.boolean(),
+      manageTeamSettings: z.boolean(), inviteMembers: z.boolean(),
+      commentOnTasks: z.boolean(), viewWorkload: z.boolean(),
+    }).partial().optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const userId = req.user!._id.toString();
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+
+  const member = team.members.find((m) => m.user.toString() === userId);
+  if (!member || !['owner', 'admin'].includes(member.role))
+    throw new ApiError(403, 'Only admins can manage roles.');
+
+  const roleIdx = team.customRoles.findIndex((r) => r._id.toString() === req.params.roleId);
+  if (roleIdx === -1) throw new ApiError(404, 'Custom role not found.');
+
+  if (parsed.data.name) team.customRoles[roleIdx].name = parsed.data.name;
+  if (parsed.data.color) team.customRoles[roleIdx].color = parsed.data.color;
+  if (parsed.data.permissions) {
+    team.customRoles[roleIdx].permissions = {
+      ...team.customRoles[roleIdx].permissions,
+      ...parsed.data.permissions,
+    } as any;
+  }
+
+  await team.save();
+  sendSuccess(res, { customRoles: team.customRoles });
+});
+
+export const deleteCustomRole = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+
+  const member = team.members.find((m) => m.user.toString() === userId);
+  if (!member || !['owner', 'admin'].includes(member.role))
+    throw new ApiError(403, 'Only admins can manage roles.');
+
+  const role = team.customRoles.find((r) => r._id.toString() === req.params.roleId);
+  if (!role) throw new ApiError(404, 'Custom role not found.');
+
+  // Reassign members using this role back to 'member'
+  team.members.forEach((m) => {
+    if (m.role === role.name) m.role = 'member';
+  });
+  team.customRoles = team.customRoles.filter((r) => r._id.toString() !== req.params.roleId) as any;
+  await team.save();
+
+  sendSuccess(res, { customRoles: team.customRoles }, 'Custom role deleted.');
+});

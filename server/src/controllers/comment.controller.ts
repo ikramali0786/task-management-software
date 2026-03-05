@@ -95,11 +95,13 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
     ] as any;
     await task.save();
 
+    // Re-populate assignees so clients receive full User objects (not raw IDs)
+    const updatedTask = await Task.findById(task._id).populate('assignees', 'name avatar username email');
     const io = getIO();
-    if (io) {
+    if (io && updatedTask) {
       io.to(`team:${team._id}`).emit('task:updated', {
         taskId: task._id,
-        changes: { assignees: [...currentAssignees, ...newAssignees] },
+        changes: { assignees: updatedTask.assignees },
       });
     }
 

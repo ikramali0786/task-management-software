@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { getSocket } from '@/lib/socket';
 import { useTaskStore } from '@/store/taskStore';
 import { useNotificationStore } from '@/store/notificationStore';
+import { usePrefsStore } from '@/store/prefsStore';
 import { Task, Notification } from '@/types';
 
 // ── Sound synthesiser ────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ export const useSocketEvents = () => {
   const lastSoundAt = useRef<Record<SoundType, number>>({ task: 0, member: 0, notification: 0 });
 
   const throttledSound = (type: SoundType) => {
+    const { soundEnabled } = usePrefsStore.getState();
+    if (!soundEnabled) return;
     const now = Date.now();
     if (now - lastSoundAt.current[type] > 1500) {
       lastSoundAt.current[type] = now;
@@ -152,6 +155,18 @@ export const useSocketEvents = () => {
     };
 
     const handleNotification = ({ notification }: { notification: Notification }) => {
+      const prefs = usePrefsStore.getState();
+      // Filter by notification type preference
+      const typeMap: Record<string, keyof typeof prefs> = {
+        task_assigned: 'notifyTaskAssigned',
+        task_updated: 'notifyTaskUpdated',
+        task_completed: 'notifyTaskCompleted',
+        team_invite: 'notifyTeamEvents',
+        member_joined: 'notifyTeamEvents',
+      };
+      const prefKey = typeMap[notification.type];
+      if (prefKey && prefs[prefKey] === false) return;
+
       addNotification(notification);
       // Use distinct sound for new member joining, standard for everything else
       if (notification.type === 'member_joined') {
