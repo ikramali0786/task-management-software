@@ -17,7 +17,10 @@ const refreshCookieOptions = (rememberMe = true) => ({
 const registerSchema = z.object({
   name: z.string().min(2).max(60),
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters.')
+    .max(14, 'Password must be no more than 14 characters.'),
 });
 
 const loginSchema = z.object({
