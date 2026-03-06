@@ -207,9 +207,16 @@ export interface Chatbot {
   updatedAt: string;
 }
 
+export interface ChatMessageAttachment {
+  name: string;
+  mimeType: string;
+  previewUrl?: string; // object URL for image preview (client-side only)
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  attachment?: ChatMessageAttachment;
 }
 
 export interface TaskStats {

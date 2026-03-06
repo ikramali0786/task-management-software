@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot, Plus, Send, Settings2, Trash2, X, RotateCcw, AlertTriangle,
-  ChevronDown, Save, Loader2, Sparkles,
+  ChevronDown, Save, Loader2, Sparkles, Paperclip, FileText, ImageIcon, File,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { chatbotService } from '@/services/chatbotService';
-import { Chatbot, ChatMessage } from '@/types';
+import { Chatbot, ChatMessage, ChatMessageAttachment } from '@/types';
 import { cn } from '@/lib/utils';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -39,6 +39,27 @@ const COLOR_CLASSES: Record<string, { bg: string; text: string; ring: string }> 
   pink:   { bg: 'bg-pink-500',     text: 'text-pink-600 dark:text-pink-400',      ring: 'ring-pink-400' },
 };
 
+const ACCEPTED_FILE_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain', 'text/csv',
+].join(',');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getFileIcon(mimeType: string) {
+  if (mimeType.startsWith('image/')) return ImageIcon;
+  if (mimeType === 'application/pdf') return FileText;
+  return File;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 // ── Typing indicator ──────────────────────────────────────────────────────────
 
 const TypingIndicator = () => (
@@ -61,10 +82,95 @@ const TypingIndicator = () => (
   </div>
 );
 
+// ── Attachment chip (for file preview in the input bar) ───────────────────────
+
+interface AttachmentChipProps {
+  file: File;
+  previewUrl: string | null;
+  onRemove: () => void;
+}
+
+const AttachmentChip = ({ file, previewUrl, onRemove }: AttachmentChipProps) => {
+  const isImage = file.type.startsWith('image/');
+  const Icon = getFileIcon(file.type);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: 4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 4 }}
+      className="relative flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 pr-8 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+    >
+      {isImage && previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={file.name}
+          className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
+        />
+      ) : (
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+          <Icon className="h-5 w-5 text-brand-500" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="max-w-[160px] truncate text-xs font-medium text-slate-700 dark:text-slate-200">
+          {file.name}
+        </p>
+        <p className="text-[10px] text-slate-400">{formatBytes(file.size)}</p>
+      </div>
+      <button
+        onClick={onRemove}
+        className="absolute right-1.5 top-1.5 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </motion.div>
+  );
+};
+
+// ── Message attachment display (inside chat bubbles) ──────────────────────────
+
+const MessageAttachment = ({
+  attachment,
+  isUser,
+}: {
+  attachment: ChatMessageAttachment;
+  isUser: boolean;
+}) => {
+  const isImage = attachment.mimeType.startsWith('image/');
+  const Icon = getFileIcon(attachment.mimeType);
+
+  if (isImage && attachment.previewUrl) {
+    return (
+      <div className="mb-2">
+        <img
+          src={attachment.previewUrl}
+          alt={attachment.name}
+          className="max-h-56 max-w-full rounded-xl object-contain"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs',
+        isUser
+          ? 'bg-white/20'
+          : 'bg-slate-100 dark:bg-slate-700'
+      )}
+    >
+      <Icon className="h-4 w-4 flex-shrink-0 opacity-80" />
+      <span className="max-w-[200px] truncate font-medium">{attachment.name}</span>
+    </div>
+  );
+};
+
 // ── Bot Drawer (create / edit) ────────────────────────────────────────────────
 
 interface BotDrawerProps {
-  bot: Chatbot | null; // null = create mode
+  bot: Chatbot | null;
   teamId: string;
   onSave: (bot: Chatbot) => void;
   onDelete: (botId: string) => void;
@@ -286,8 +392,13 @@ export const ChatbotsPage = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<Chatbot | null>(null);
 
+  // File attachment state
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedPreviewUrl, setAttachedPreviewUrl] = useState<string | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentMember = activeTeam?.members.find((m) => m.user._id === user?._id);
   const isOwner = activeTeam?.owner._id === user?._id;
@@ -308,26 +419,78 @@ export const ChatbotsPage = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, sending]);
 
+  const clearAttachedFile = useCallback(() => {
+    if (attachedPreviewUrl) URL.revokeObjectURL(attachedPreviewUrl);
+    setAttachedFile(null);
+    setAttachedPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [attachedPreviewUrl]);
+
   const handleSelectBot = (bot: Chatbot) => {
     setSelectedBot(bot);
     setChatHistory([]);
     setNoKeyError(false);
     setInput('');
+    clearAttachedFile();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const handleSend = useCallback(async () => {
-    if (!input.trim() || !selectedBot || !activeTeam || sending) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const userMsg: ChatMessage = { role: 'user', content: input.trim() };
+    if (file.size > 10 * 1024 * 1024) {
+      addToast({ type: 'error', title: 'File too large', message: 'Maximum file size is 10 MB.' });
+      return;
+    }
+
+    // Create object URL for image previews
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    setAttachedFile(file);
+    setAttachedPreviewUrl(previewUrl);
+    inputRef.current?.focus();
+  };
+
+  const handleSend = useCallback(async () => {
+    const hasText = input.trim().length > 0;
+    const hasFile = !!attachedFile;
+    if ((!hasText && !hasFile) || !selectedBot || !activeTeam || sending) return;
+
+    const attachment = attachedFile
+      ? {
+          name: attachedFile.name,
+          mimeType: attachedFile.type,
+          previewUrl: attachedPreviewUrl || undefined,
+        }
+      : undefined;
+
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: input.trim(),
+      attachment,
+    };
+
     const newHistory = [...chatHistory, userMsg];
     setChatHistory(newHistory);
     setInput('');
+
+    // Capture file ref before clearing (service needs it)
+    const fileToSend = attachedFile;
+    // Clear file chip immediately for good UX
+    setAttachedFile(null);
+    setAttachedPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
     setSending(true);
     setNoKeyError(false);
 
     try {
-      const reply = await chatbotService.sendMessage(selectedBot._id, activeTeam._id, newHistory);
+      const reply = await chatbotService.sendMessage(
+        selectedBot._id,
+        activeTeam._id,
+        newHistory,
+        fileToSend
+      );
       setChatHistory([...newHistory, reply]);
     } catch (err: any) {
       const status = err.response?.status;
@@ -335,14 +498,18 @@ export const ChatbotsPage = () => {
       if (status === 400 && msg.toLowerCase().includes('api key')) {
         setNoKeyError(true);
       } else {
-        addToast({ type: 'error', title: 'Failed to get response', message: msg || 'Please try again.' });
+        addToast({
+          type: 'error',
+          title: 'Failed to get response',
+          message: msg || 'Please try again.',
+        });
       }
-      // Remove the user message we added optimistically if send failed
+      // Roll back optimistic user message
       setChatHistory(chatHistory);
     } finally {
       setSending(false);
     }
-  }, [input, selectedBot, activeTeam, sending, chatHistory, addToast]);
+  }, [input, attachedFile, attachedPreviewUrl, selectedBot, activeTeam, sending, chatHistory, addToast]);
 
   const handleDrawerSave = (saved: Chatbot) => {
     setBots((prev) => {
@@ -362,6 +529,8 @@ export const ChatbotsPage = () => {
   const closeDrawer = () => { setDrawerOpen(false); setEditingBot(null); };
 
   const colorClasses = selectedBot ? (COLOR_CLASSES[selectedBot.color] || COLOR_CLASSES['indigo']) : COLOR_CLASSES['indigo'];
+
+  const canSend = (input.trim().length > 0 || !!attachedFile) && !sending;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -554,6 +723,9 @@ export const ChatbotsPage = () => {
                     <p className="max-w-xs text-sm text-slate-400">
                       {selectedBot.description || 'Start a conversation below.'}
                     </p>
+                    <p className="mt-1 text-xs text-slate-300 dark:text-slate-600">
+                      📎 You can attach images, PDFs, Word docs, or text files
+                    </p>
                   </div>
                 )}
 
@@ -578,7 +750,17 @@ export const ChatbotsPage = () => {
                           : 'rounded-bl-sm bg-white text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100'
                       )}
                     >
-                      {msg.content}
+                      {/* Attachment preview inside bubble */}
+                      {msg.attachment && (
+                        <MessageAttachment
+                          attachment={msg.attachment}
+                          isUser={msg.role === 'user'}
+                        />
+                      )}
+                      {/* Message text (may be empty if only file was sent) */}
+                      {msg.content && (
+                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -589,7 +771,47 @@ export const ChatbotsPage = () => {
 
               {/* Input bar */}
               <div className="flex-shrink-0 border-t border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-end gap-3">
+
+                {/* Attached file chip */}
+                <AnimatePresence>
+                  {attachedFile && (
+                    <div className="mb-3">
+                      <AttachmentChip
+                        file={attachedFile}
+                        previewUrl={attachedPreviewUrl}
+                        onRemove={clearAttachedFile}
+                      />
+                    </div>
+                  )}
+                </AnimatePresence>
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_FILE_TYPES}
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+
+                <div className="flex items-end gap-2">
+                  {/* Attach button */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending}
+                    title="Attach file (images, PDF, DOCX, TXT — max 10 MB)"
+                    className={cn(
+                      'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-all',
+                      attachedFile
+                        ? 'border-brand-300 bg-brand-50 text-brand-500 dark:border-brand-700 dark:bg-brand-500/10'
+                        : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-brand-300 hover:text-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-700',
+                      sending && 'cursor-not-allowed opacity-40'
+                    )}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </button>
+
+                  {/* Text input */}
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -601,7 +823,11 @@ export const ChatbotsPage = () => {
                       }
                     }}
                     rows={1}
-                    placeholder={`Message ${selectedBot.name}… (Ctrl+Enter to send)`}
+                    placeholder={
+                      attachedFile
+                        ? `Add a message about this file… (Ctrl+Enter to send)`
+                        : `Message ${selectedBot.name}… (Ctrl+Enter to send)`
+                    }
                     className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                     style={{ maxHeight: '120px', overflowY: 'auto' }}
                     onInput={(e) => {
@@ -610,12 +836,14 @@ export const ChatbotsPage = () => {
                       t.style.height = Math.min(t.scrollHeight, 120) + 'px';
                     }}
                   />
+
+                  {/* Send button */}
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim() || sending}
+                    disabled={!canSend}
                     className={cn(
                       'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition-all',
-                      input.trim() && !sending
+                      canSend
                         ? colorClasses.bg + ' hover:opacity-90'
                         : 'bg-slate-200 dark:bg-slate-700'
                     )}
@@ -627,6 +855,7 @@ export const ChatbotsPage = () => {
                     }
                   </button>
                 </div>
+
                 <p className="mt-1.5 text-center text-[10px] text-slate-300 dark:text-slate-600">
                   Conversations are not saved — they reset when you leave this page.
                 </p>

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import OpenAI from 'openai';
+import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
 import { Chatbot } from '../models/Chatbot.model';
 import { Team } from '../models/Team.model';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -51,7 +53,7 @@ export const createChatbot = asyncHandler(async (req: Request, res: Response) =>
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const userId = req.user!._id.toString();
-  const { team, member } = await verifyMember(parsed.data.teamId, userId);
+  const { member } = await verifyMember(parsed.data.teamId, userId);
   requireAdmin(member);
 
   const chatbot = await Chatbot.create({
@@ -112,16 +114,37 @@ export const deleteChatbot = asyncHandler(async (req: Request, res: Response) =>
 
 /* ── SEND MESSAGE ────────────────────────────────────────────────────────── */
 export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
+  // Parse body — supports both JSON (no file) and multipart/form-data (with file)
+  let teamId: string;
+  let rawMessages: unknown;
+
+  const isMultipart = req.is('multipart/form-data');
+  if (isMultipart) {
+    teamId = req.body.teamId;
+    try {
+      rawMessages = JSON.parse(req.body.messages || '[]');
+    } catch {
+      throw new ApiError(400, 'Invalid messages JSON in form data.');
+    }
+  } else {
+    teamId = req.body.teamId;
+    rawMessages = req.body.messages;
+  }
+
   const schema = z.object({
     teamId: z.string(),
-    messages: z.array(
-      z.object({
-        role: z.enum(['user', 'assistant']),
-        content: z.string().max(8000),
-      })
-    ).min(1).max(50),
+    messages: z
+      .array(
+        z.object({
+          role: z.enum(['user', 'assistant']),
+          content: z.string().max(8000),
+        })
+      )
+      .min(1)
+      .max(50),
   });
-  const parsed = schema.safeParse(req.body);
+
+  const parsed = schema.safeParse({ teamId, messages: rawMessages });
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const chatbot = await Chatbot.findById(req.params.chatbotId);
@@ -129,24 +152,100 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
 
   await verifyMember(parsed.data.teamId, req.user!._id.toString());
 
-  // Get decrypted API key for this team
   const apiKeyPlain = await getDecryptedKey(parsed.data.teamId);
   if (!apiKeyPlain) {
-    throw new ApiError(400, 'No OpenAI API key configured for this team. Ask an admin to add one in Team Settings → AI & API.');
+    throw new ApiError(
+      400,
+      'No OpenAI API key configured for this team. Ask an admin to add one in Team Settings → AI & API.'
+    );
+  }
+
+  // ── Process attached file ────────────────────────────────────────────────
+  const file = (req as any).file as Express.Multer.File | undefined;
+  let fileContentText: string | null = null;
+  let fileImageBase64: string | null = null;
+  let fileMimeType: string | null = null;
+
+  if (file) {
+    if (file.mimetype.startsWith('image/')) {
+      // Vision — only GPT-4o family supports it
+      if (chatbot.model === 'gpt-3.5-turbo') {
+        throw new ApiError(
+          400,
+          'Image analysis requires GPT-4o or GPT-4o Mini. Update the bot\'s model in settings.'
+        );
+      }
+      fileImageBase64 = file.buffer.toString('base64');
+      fileMimeType = file.mimetype;
+    } else if (file.mimetype === 'application/pdf') {
+      try {
+        const data = await pdfParse(file.buffer);
+        fileContentText = data.text.trim().slice(0, 30000);
+      } catch {
+        throw new ApiError(422, 'Could not parse the PDF. Make sure it contains readable text.');
+      }
+    } else if (
+      file.mimetype ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+      try {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        fileContentText = result.value.trim().slice(0, 30000);
+      } catch {
+        throw new ApiError(422, 'Could not parse the Word document.');
+      }
+    } else if (file.mimetype.startsWith('text/')) {
+      fileContentText = file.buffer.toString('utf-8').trim().slice(0, 30000);
+    }
+
+    if (fileContentText !== null && fileContentText.length === 0) {
+      throw new ApiError(422, 'The attached file appears to be empty or contains no readable text.');
+    }
   }
 
   const openai = new OpenAI({ apiKey: apiKeyPlain });
 
-  // Build messages array: system prompt first
+  // ── Build OpenAI messages array ──────────────────────────────────────────
   const systemMessages: OpenAI.Chat.ChatCompletionMessageParam[] = chatbot.systemPrompt
     ? [{ role: 'system', content: chatbot.systemPrompt }]
     : [];
 
-  const userMessages: OpenAI.Chat.ChatCompletionMessageParam[] = parsed.data.messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const userMessages: OpenAI.Chat.ChatCompletionMessageParam[] = parsed.data.messages.map(
+    (m, idx) => {
+      const isLastMsg = idx === parsed.data.messages.length - 1;
+      const isUserMsg = m.role === 'user';
 
+      if (isLastMsg && isUserMsg && (fileImageBase64 || fileContentText)) {
+        if (fileImageBase64 && fileMimeType) {
+          // Vision: multimodal content parts
+          const text = m.content.trim() || 'Please analyze this image.';
+          const contentParts: OpenAI.Chat.ChatCompletionContentPart[] = [
+            { type: 'text', text },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${fileMimeType};base64,${fileImageBase64}`,
+                detail: 'auto',
+              },
+            },
+          ];
+          return { role: 'user' as const, content: contentParts };
+        } else if (fileContentText) {
+          // Text document: inject extracted content before user's question
+          const userText = m.content.trim();
+          const fileName = file?.originalname || 'file';
+          const combined = `[Attached file: ${fileName}]\n\n${fileContentText}${
+            userText ? `\n\n---\n${userText}` : ''
+          }`;
+          return { role: m.role, content: combined };
+        }
+      }
+
+      return { role: m.role, content: m.content };
+    }
+  );
+
+  // ── Call OpenAI ──────────────────────────────────────────────────────────
   try {
     const completion = await openai.chat.completions.create({
       model: chatbot.model,
@@ -164,7 +263,6 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     if (err instanceof ApiError) throw err;
-    // OpenAI API errors
     const msg = err?.message || 'OpenAI request failed.';
     throw new ApiError(502, `AI error: ${msg}`);
   }

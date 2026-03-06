@@ -23,9 +23,26 @@ export const chatbotService = {
   sendMessage: async (
     chatbotId: string,
     teamId: string,
-    messages: ChatMessage[]
+    messages: ChatMessage[],
+    file?: File | null
   ): Promise<ChatMessage> => {
-    const res = await api.post(`/chatbots/${chatbotId}/chat`, { teamId, messages });
+    // Strip client-only attachment metadata — only send role + content to API
+    const stripped = messages.map((m) => ({ role: m.role, content: m.content }));
+
+    if (file) {
+      // Multipart/form-data when a file is attached
+      const formData = new FormData();
+      formData.append('teamId', teamId);
+      formData.append('messages', JSON.stringify(stripped));
+      formData.append('file', file, file.name);
+      const res = await api.post(`/chatbots/${chatbotId}/chat`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data.data.message as ChatMessage;
+    }
+
+    // Regular JSON request
+    const res = await api.post(`/chatbots/${chatbotId}/chat`, { teamId, messages: stripped });
     return res.data.data.message as ChatMessage;
   },
 };
