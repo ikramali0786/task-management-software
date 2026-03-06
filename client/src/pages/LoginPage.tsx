@@ -28,22 +28,16 @@ const FEATURES = [
 
 const MOCK_CARDS = [
   {
-    status: 'Done',        statusCls: 'bg-emerald-500/20 text-emerald-300', dot: 'bg-emerald-400',
-    title: 'Auth flow & JWT token refresh',  meta: 'Completed · 4 members',
-    progress: 100, barCls: 'bg-emerald-500',
-    rotate: '-2deg', tx: '0px',   ty: '0px',  z: 10, delay: 1.1,
+    status: 'Done',      statusCls: 'bg-white/20 text-white', dot: 'bg-emerald-300',
+    title: 'Auth flow & JWT token refresh', meta: 'Completed · 4 members',
+    progress: 100, barCls: 'bg-emerald-400',
+    rotate: '-1.5deg', tx: '0px',  ty: '0px',  z: 10, delay: 1.0,
   },
   {
-    status: 'In Review',   statusCls: 'bg-amber-500/20 text-amber-300',   dot: 'bg-amber-400',
+    status: 'In Review', statusCls: 'bg-white/20 text-white', dot: 'bg-amber-300',
     title: 'API rate limiting & throttling', meta: 'Sarah · High priority · 2d left',
-    progress: 55,  barCls: 'bg-amber-500',
-    rotate: '1deg', tx: '20px', ty: '12px', z: 20, delay: 0.8,
-  },
-  {
-    status: 'In Progress', statusCls: 'bg-brand-500/20 text-brand-300',   dot: 'bg-brand-400',
-    title: 'Redesign onboarding flow',       meta: '3 subtasks · Due in 2 days',
-    progress: 66,  barCls: 'bg-brand-500',
-    rotate: '2.5deg', tx: '40px', ty: '22px', z: 30, delay: 0.5,
+    progress: 55,  barCls: 'bg-amber-300',
+    rotate: '2deg',    tx: '28px', ty: '14px', z: 20, delay: 0.6,
   },
 ];
 
@@ -98,30 +92,18 @@ export const LoginPage = () => {
     : AlertCircle;
 
   return (
-    <div className="dark">
-      <div className="relative flex min-h-screen overflow-hidden bg-[#07080f]">
-
-        {/* ── Animated background orbs ──────────────────────────────────── */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <Orb cls="left-[-12%] top-[-12%] h-[680px] w-[680px] bg-brand-600/[0.18]"
-               anim={{ x: [0, 55, 0], y: [0, 40, 0] }} dur={14} />
-          <Orb cls="bottom-[-15%] right-[-10%] h-[620px] w-[620px] bg-violet-600/[0.13]"
-               anim={{ x: [0, -40, 0], y: [0, -50, 0] }} dur={17} delay={3} />
-          <Orb cls="left-[42%] top-[28%] h-[340px] w-[340px] bg-indigo-400/[0.09]"
-               anim={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }} dur={9} delay={1.5} />
-        </div>
-
-        {/* Subtle dot-grid overlay */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.022]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}
-        />
+    <div className="flex min-h-screen">
 
         {/* ── LEFT PANEL — branding & product preview ───────────────────── */}
-        <div className="relative hidden flex-col px-14 py-12 xl:px-20 xl:py-16 lg:flex lg:flex-1">
+        <div className="gradient-brand relative hidden flex-col px-14 py-12 xl:px-20 xl:py-16 lg:flex lg:flex-1 overflow-hidden">
+
+          {/* Subtle animated rings in the gradient bg */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <Orb cls="left-[-10%] top-[-10%] h-[500px] w-[500px] bg-white/[0.06]"
+                 anim={{ x: [0, 40, 0], y: [0, 30, 0] }} dur={14} />
+            <Orb cls="bottom-[-15%] right-[-10%] h-[450px] w-[450px] bg-violet-900/[0.25]"
+                 anim={{ x: [0, -30, 0], y: [0, -40, 0] }} dur={17} delay={3} />
+          </div>
 
           {/* Logo */}
           <motion.div
@@ -136,7 +118,7 @@ export const LoginPage = () => {
                 <Zap className="h-5 w-5 text-white" />
               </div>
             </div>
-            <span className="text-xl font-bold tracking-tight text-white">TaskFlow</span>
+            <span className="text-xl font-bold tracking-tight text-white drop-shadow-sm">TaskFlow</span>
           </motion.div>
 
           {/* Headline block */}
@@ -146,19 +128,19 @@ export const LoginPage = () => {
             transition={{ delay: 0.15, duration: 0.65 }}
             className="mt-auto"
           >
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-3.5 py-1.5 text-xs font-medium text-brand-300">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/80 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/70" />
               Built for modern teams
             </p>
 
             <h1 className="text-4xl font-extrabold leading-[1.15] tracking-tight text-white xl:text-[2.75rem]">
               Manage your team's
               <br />
-              <span className="bg-gradient-to-r from-brand-400 via-violet-400 to-indigo-300 bg-clip-text text-transparent">
+              <span className="text-white/80">
                 work with clarity.
               </span>
             </h1>
-            <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-slate-400">
+            <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-white/60">
               Everything your team needs — kanban boards, subtask checklists,
               real-time collaboration, and AI-powered chatbots.
             </p>
@@ -179,12 +161,12 @@ export const LoginPage = () => {
                 transition={{ delay: 0.4 + i * 0.09, duration: 0.45 }}
                 className="flex items-start gap-3"
               >
-                <div className={cn('mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg', glow)}>
-                  <Icon className={cn('h-4 w-4', color)} />
+                <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
+                  <Icon className="h-4 w-4 text-white" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">{label}</p>
-                  <p className="text-xs leading-relaxed text-slate-500">{sub}</p>
+                  <p className="text-xs leading-relaxed text-white/55">{sub}</p>
                 </div>
               </motion.div>
             ))}
@@ -207,15 +189,15 @@ export const LoginPage = () => {
                 <motion.div
                   animate={{ y: [0, -5, 0] }}
                   transition={{ duration: 4 + i * 0.8, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
-                  className="w-64 rounded-2xl border border-white/[0.07] bg-slate-800/75 p-3.5 shadow-2xl backdrop-blur-md"
+                  className="w-64 rounded-2xl border border-white/20 bg-white/15 p-3.5 shadow-xl backdrop-blur-md"
                 >
                   <div className={cn('mb-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold', card.statusCls)}>
                     <span className={cn('h-1.5 w-1.5 rounded-full', card.dot)} />
                     {card.status}
                   </div>
                   <p className="text-sm font-medium leading-snug text-white">{card.title}</p>
-                  <p className="mt-1 text-[10px] text-slate-500">{card.meta}</p>
-                  <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-slate-700/80">
+                  <p className="mt-1 text-[10px] text-white/50">{card.meta}</p>
+                  <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-white/20">
                     <div className={cn('h-full rounded-full', card.barCls)} style={{ width: `${card.progress}%` }} />
                   </div>
                 </motion.div>
@@ -228,14 +210,14 @@ export const LoginPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.5, duration: 0.6 }}
-            className="mt-auto pt-12 text-xs text-slate-700"
+            className="mt-auto pt-12 text-xs text-white/40"
           >
             Ship faster. Stay organised. Stay human.
           </motion.p>
         </div>
 
         {/* ── RIGHT PANEL — login form ──────────────────────────────────── */}
-        <div className="relative flex w-full flex-col items-center justify-center px-6 py-12 lg:w-[460px] lg:border-l lg:border-white/[0.04] lg:bg-white/[0.015] lg:backdrop-blur-3xl lg:px-12 lg:py-0">
+        <div className="relative flex w-full flex-col items-center justify-center bg-slate-50 px-6 py-12 dark:bg-slate-950 lg:w-[460px] lg:px-12 lg:py-0">
 
           <motion.div
             initial={{ opacity: 0, y: 28 }}
@@ -246,18 +228,18 @@ export const LoginPage = () => {
             {/* Mobile logo */}
             <div className="mb-10 flex items-center gap-3 lg:hidden">
               <div className="relative">
-                <div className="absolute inset-0 scale-150 rounded-xl bg-brand-500/30 blur-lg" />
+                <div className="absolute inset-0 scale-150 rounded-xl bg-brand-500/20 blur-lg" />
                 <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600">
                   <Zap className="h-4 w-4 text-white" />
                 </div>
               </div>
-              <span className="text-lg font-bold text-white">TaskFlow</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-white">TaskFlow</span>
             </div>
 
             {/* Heading */}
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-white">Welcome back</h2>
-              <p className="mt-1.5 text-sm text-slate-400">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h2>
+              <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
                 Sign in to continue to your workspace.
               </p>
             </div>
@@ -287,7 +269,7 @@ export const LoginPage = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="text-slate-500 transition-colors hover:text-slate-300"
+                    className="text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
                     tabIndex={-1}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
@@ -306,7 +288,7 @@ export const LoginPage = () => {
               <label className="flex cursor-pointer items-center gap-2.5">
                 <div className="relative flex-shrink-0">
                   <input type="checkbox" className="peer sr-only" {...register('rememberMe')} />
-                  <div className="h-4 w-4 rounded border border-slate-600 bg-slate-800/80 transition-all peer-checked:border-brand-500 peer-checked:bg-brand-500" />
+                  <div className="h-4 w-4 rounded border border-slate-300 bg-white transition-all peer-checked:border-brand-500 peer-checked:bg-brand-500 dark:border-slate-600 dark:bg-slate-800" />
                   <svg
                     className="pointer-events-none absolute inset-0 h-4 w-4 scale-0 text-white transition-transform peer-checked:scale-100"
                     fill="none"
@@ -315,7 +297,7 @@ export const LoginPage = () => {
                     <path d="M3.5 8l3 3 5.5-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-                <span className="text-sm text-slate-400">Remember me for 30 days</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">Remember me for 30 days</span>
               </label>
 
               {/* General error banner */}
@@ -343,9 +325,9 @@ export const LoginPage = () => {
 
             {/* Divider */}
             <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
-              <span className="text-xs text-slate-600">or</span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-700" />
+              <span className="text-xs text-slate-400">or</span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-700" />
             </div>
 
             {/* Register link */}
@@ -353,7 +335,7 @@ export const LoginPage = () => {
               Don&apos;t have an account?{' '}
               <Link
                 to="/register"
-                className="font-semibold text-brand-400 transition-colors hover:text-brand-300"
+                className="font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
               >
                 Create one free
               </Link>
@@ -361,7 +343,6 @@ export const LoginPage = () => {
           </motion.div>
         </div>
 
-      </div>
     </div>
   );
 };
