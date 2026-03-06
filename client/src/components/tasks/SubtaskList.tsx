@@ -112,9 +112,11 @@ const SortableSubtaskRow = ({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors',
+        'group flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-all duration-200',
         isDragging
           ? 'z-50 shadow-md bg-white dark:bg-slate-800 opacity-90'
+          : subtask.completed
+          ? 'bg-emerald-50/70 dark:bg-emerald-500/[0.07]'
           : 'hover:bg-slate-50 dark:hover:bg-slate-800/60',
       )}
     >

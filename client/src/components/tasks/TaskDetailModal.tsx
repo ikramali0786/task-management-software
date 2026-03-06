@@ -237,12 +237,6 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Status accent line */}
-        <div
-          className="h-1 w-full flex-shrink-0 rounded-t-2xl transition-colors duration-300"
-          style={{ backgroundColor: statusConfig?.color || '#94a3b8' }}
-        />
-
         {/* Header bar */}
         <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
           <button

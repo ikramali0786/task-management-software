@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { User, AtSign, Camera, Lock, LogOut, Sun, Moon, Monitor, Save, Eye, EyeOff } from 'lucide-react';
-import { Slideover } from '@/components/ui/Modal';
+import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  User, AtSign, Camera, Lock, LogOut, Sun, Moon, Monitor, Save,
+  Eye, EyeOff, X, KeyRound,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Avatar } from '@/components/ui/Avatar';
@@ -28,13 +30,13 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
 
   const [tab, setTab] = useState<'profile' | 'password'>('profile');
 
-  // Profile form state
+  // Profile form
   const [name, setName] = useState(user?.name || '');
   const [username, setUsername] = useState(user?.username || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || '');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Password form state
+  // Password form
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -42,6 +44,19 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
   const [pwError, setPwError] = useState('');
+
+  // Scroll lock + Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isOpen, onClose]);
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -87,173 +102,222 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
   };
 
   return (
-    <Slideover isOpen={isOpen} onClose={onClose} title="Profile" width="max-w-sm">
-      <div className="flex h-full flex-col">
-        {/* Avatar section */}
-        <div className="flex flex-col items-center gap-3 border-b border-slate-100 px-6 py-6 dark:border-slate-800">
-          <div className="relative">
-            <Avatar name={user?.name || 'User'} src={user?.avatar} size="xl" />
-            {user?.avatar && (
-              <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 ring-2 ring-white dark:ring-slate-900">
-                <Camera className="h-3.5 w-3.5 text-white" />
-              </div>
-            )}
-          </div>
-          <div className="text-center">
-            <p className="font-semibold text-slate-900 dark:text-white">{user?.name}</p>
-            {user?.username && (
-              <p className="text-sm text-slate-400">@{user.username}</p>
-            )}
-            <p className="text-xs text-slate-400">{user?.email}</p>
-          </div>
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100 dark:border-slate-800">
-          {(['profile', 'password'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                'flex-1 py-3 text-sm font-medium capitalize transition-colors',
-                tab === t
-                  ? 'border-b-2 border-brand-500 text-brand-600 dark:text-brand-400'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              )}
-            >
-              {t === 'profile' ? 'Edit Profile' : 'Change Password'}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {tab === 'profile' && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              <Input
-                label="Full Name"
-                leftIcon={<User className="h-4 w-4" />}
-                value={name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-                placeholder="Your full name"
-              />
-              <Input
-                label="Username"
-                leftIcon={<AtSign className="h-4 w-4" />}
-                value={username}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value.toLowerCase())}
-                placeholder="yourname1234"
-              />
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-500">Avatar URL (optional)</label>
-                <input
-                  type="url"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                />
-              </div>
-
-              {/* Theme */}
-              <div>
-                <label className="mb-2 block text-xs font-medium text-slate-500">Theme</label>
-                <div className="flex gap-2">
-                  {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-                    <button
-                      key={value}
-                      onClick={() => setTheme(value)}
-                      className={cn(
-                        'flex flex-1 flex-col items-center gap-1.5 rounded-xl border py-2.5 text-xs font-medium transition-all',
-                        theme === value
-                          ? 'border-brand-400 bg-brand-50 text-brand-600 dark:border-brand-500 dark:bg-brand-500/10 dark:text-brand-400'
-                          : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600'
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Button onClick={handleSaveProfile} isLoading={savingProfile} className="w-full gap-2">
-                <Save className="h-4 w-4" />
-                Save Changes
-              </Button>
-            </motion.div>
-          )}
-
-          {tab === 'password' && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              <div className="relative">
-                <Input
-                  label="Current Password"
-                  type={showCurrentPw ? 'text' : 'password'}
-                  leftIcon={<Lock className="h-4 w-4" />}
-                  value={currentPw}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentPw(e.target.value)}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPw(!showCurrentPw)}
-                  className="absolute right-3 top-8 text-slate-400 hover:text-slate-600"
-                >
-                  {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <div className="relative">
-                <Input
-                  label="New Password"
-                  type={showNewPw ? 'text' : 'password'}
-                  leftIcon={<Lock className="h-4 w-4" />}
-                  value={newPw}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPw(e.target.value)}
-                  placeholder="Min 8 characters"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPw(!showNewPw)}
-                  className="absolute right-3 top-8 text-slate-400 hover:text-slate-600"
-                >
-                  {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <Input
-                label="Confirm New Password"
-                type="password"
-                leftIcon={<Lock className="h-4 w-4" />}
-                value={confirmPw}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPw(e.target.value)}
-                placeholder="Re-enter new password"
-              />
-
-              {pwError && (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-500/10 dark:text-red-400">
-                  {pwError}
-                </p>
-              )}
-
-              <Button onClick={handleChangePassword} isLoading={savingPw} className="w-full gap-2">
-                <Lock className="h-4 w-4" />
-                Change Password
-              </Button>
-            </motion.div>
-          )}
-        </div>
-
-        {/* Logout */}
-        <div className="border-t border-slate-100 px-6 py-4 dark:border-slate-800">
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 16 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+            className="relative z-10 flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+            style={{ maxHeight: '90vh' }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
+            {/* Header */}
+            <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <div className="flex-1">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">My Profile</h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Avatar + identity hero */}
+            <div className="flex flex-shrink-0 items-center gap-4 border-b border-slate-100 bg-slate-50/60 px-5 py-5 dark:border-slate-800 dark:bg-slate-800/30">
+              <div className="relative flex-shrink-0">
+                <Avatar name={user?.name || 'User'} src={user?.avatar} size="xl" />
+                {user?.avatar && (
+                  <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-brand-500 ring-2 ring-white dark:ring-slate-900">
+                    <Camera className="h-3 w-3 text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-semibold text-slate-900 dark:text-white">{user?.name}</p>
+                {user?.username && (
+                  <p className="truncate text-sm text-slate-400">@{user.username}</p>
+                )}
+                <p className="truncate text-xs text-slate-400">{user?.email}</p>
+              </div>
+            </div>
+
+            {/* Tab bar */}
+            <div className="flex flex-shrink-0 border-b border-slate-100 dark:border-slate-800">
+              {(['profile', 'password'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 border-b-2 py-3 text-sm font-medium transition-colors',
+                    tab === t
+                      ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  )}
+                >
+                  {t === 'profile' ? (
+                    <><User className="h-3.5 w-3.5" /> Edit Profile</>
+                  ) : (
+                    <><KeyRound className="h-3.5 w-3.5" /> Password</>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Scrollable tab content */}
+            <div className="flex-1 overflow-y-auto px-5 py-5">
+              <AnimatePresence mode="wait">
+                {tab === 'profile' ? (
+                  <motion.div
+                    key="profile"
+                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="space-y-4"
+                  >
+                    <Input
+                      label="Full Name"
+                      leftIcon={<User className="h-4 w-4" />}
+                      value={name}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+                      placeholder="Your full name"
+                    />
+                    <Input
+                      label="Username"
+                      leftIcon={<AtSign className="h-4 w-4" />}
+                      value={username}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value.toLowerCase())}
+                      placeholder="yourname1234"
+                    />
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">Avatar URL (optional)</label>
+                      <input
+                        type="url"
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        placeholder="https://example.com/avatar.jpg"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+
+                    {/* Theme picker */}
+                    <div>
+                      <label className="mb-2 block text-xs font-medium text-slate-500">Appearance</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+                          <button
+                            key={value}
+                            onClick={() => setTheme(value)}
+                            className={cn(
+                              'flex flex-col items-center gap-2 rounded-xl border py-3 text-xs font-medium transition-all',
+                              theme === value
+                                ? 'border-brand-400 bg-brand-50 text-brand-600 dark:border-brand-500 dark:bg-brand-500/10 dark:text-brand-400'
+                                : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-600'
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Button onClick={handleSaveProfile} isLoading={savingProfile} className="w-full gap-2">
+                      <Save className="h-4 w-4" />
+                      Save Changes
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="password"
+                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="space-y-4"
+                  >
+                    <div className="relative">
+                      <Input
+                        label="Current Password"
+                        type={showCurrentPw ? 'text' : 'password'}
+                        leftIcon={<Lock className="h-4 w-4" />}
+                        value={currentPw}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentPw(e.target.value)}
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPw(!showCurrentPw)}
+                        className="absolute right-3 top-8 text-slate-400 hover:text-slate-600"
+                      >
+                        {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        label="New Password"
+                        type={showNewPw ? 'text' : 'password'}
+                        leftIcon={<Lock className="h-4 w-4" />}
+                        value={newPw}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPw(e.target.value)}
+                        placeholder="Min 8 characters"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPw(!showNewPw)}
+                        className="absolute right-3 top-8 text-slate-400 hover:text-slate-600"
+                      >
+                        {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <Input
+                      label="Confirm New Password"
+                      type="password"
+                      leftIcon={<Lock className="h-4 w-4" />}
+                      value={confirmPw}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPw(e.target.value)}
+                      placeholder="Re-enter new password"
+                    />
+
+                    {pwError && (
+                      <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:border-red-800/50 dark:bg-red-500/10 dark:text-red-400">
+                        {pwError}
+                      </p>
+                    )}
+
+                    <Button onClick={handleChangePassword} isLoading={savingPw} className="w-full gap-2">
+                      <Lock className="h-4 w-4" />
+                      Change Password
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Footer — sign out */}
+            <div className="flex-shrink-0 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </Slideover>
+      )}
+    </AnimatePresence>
   );
 };
