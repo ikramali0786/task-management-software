@@ -25,6 +25,8 @@ services:
         value: 7d
       - key: CLIENT_URL
         sync: false           # Set this AFTER the frontend deploys
+      - key: ENCRYPTION_SECRET
+        generateValue: true   # Auto-generated secret for AES-256 API key encryption
 
       # ── Cloudflare R2 file storage ──────────────────────────────────────
       - key: R2_ACCOUNT_ID

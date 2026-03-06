@@ -75,22 +75,31 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
         const total = task.subtasks.length;
         const done = task.subtasks.filter((s) => s.completed).length;
         const pct = Math.round((done / total) * 100);
+        const labelCls =
+          pct === 100
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : pct > 0
+            ? 'text-amber-500 dark:text-amber-400'
+            : 'text-slate-400';
+        const barCls =
+          pct === 100
+            ? 'bg-emerald-500'
+            : pct > 0
+            ? 'bg-amber-400'
+            : 'bg-slate-300 dark:bg-slate-600';
         return (
           <div className="mt-2.5 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+              <span className={cn('flex items-center gap-1 text-[10px] font-medium', labelCls)}>
                 <ListChecks className="h-2.5 w-2.5" />
                 {done}/{total}
               </span>
-              <span className="text-[10px] font-medium text-slate-400">{pct}%</span>
+              <span className={cn('text-[10px] font-medium', labelCls)}>{pct}%</span>
             </div>
             <div className="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
               <div
-                className={cn(
-                  'h-full rounded-full transition-all duration-300',
-                  pct === 100 ? 'bg-emerald-500' : 'bg-brand-400'
-                )}
-                style={{ width: `${pct}%` }}
+                className={cn('h-full rounded-full transition-all duration-300', barCls)}
+                style={{ width: `${pct === 0 ? 0 : pct}%` }}
               />
             </div>
           </div>

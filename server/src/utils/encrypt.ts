@@ -1,14 +1,14 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-const KEY_HEX = process.env.ENCRYPTION_SECRET || '';
 
 function getKey(): Buffer {
-  if (!KEY_HEX || KEY_HEX.length < 32) {
-    throw new Error('ENCRYPTION_SECRET env var must be set (min 32 chars).');
+  const secret = process.env.ENCRYPTION_SECRET;
+  if (!secret) {
+    throw new Error('ENCRYPTION_SECRET env var must be set.');
   }
-  // Use first 32 bytes of the secret as the key
-  return Buffer.from(KEY_HEX.slice(0, 64), 'hex').slice(0, 32);
+  // Derive a stable 32-byte AES key via SHA-256 — works with any string format.
+  return crypto.createHash('sha256').update(secret, 'utf8').digest();
 }
 
 export interface EncryptedPayload {
