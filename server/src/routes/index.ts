@@ -9,6 +9,7 @@ import discussionRoutes from './discussion.routes';
 import uploadRoutes from './upload.routes';
 import apiKeyRoutes from './apiKey.routes';
 import chatbotRoutes from './chatbot.routes';
+import chatSessionRoutes from './chatSession.routes';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/discussions', discussionRoutes);
 router.use('/uploads', uploadRoutes);
 router.use('/api-keys', apiKeyRoutes);
 router.use('/chatbots', chatbotRoutes);
+router.use('/chat-sessions', chatSessionRoutes);
 
 export default router;

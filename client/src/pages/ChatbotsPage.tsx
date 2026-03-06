@@ -8,6 +8,7 @@ import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { chatbotService } from '@/services/chatbotService';
+import { chatSessionService } from '@/services/chatSessionService';
 import { Chatbot, ChatMessage, ChatMessageAttachment } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -386,6 +387,7 @@ export const ChatbotsPage = () => {
   const [loadingBots, setLoadingBots] = useState(true);
   const [selectedBot, setSelectedBot] = useState<Chatbot | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [noKeyError, setNoKeyError] = useState(false);
@@ -454,14 +456,27 @@ export const ChatbotsPage = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [attachedPreviewUrl]);
 
-  const handleSelectBot = (bot: Chatbot) => {
+  const handleSelectBot = async (bot: Chatbot) => {
     setSelectedBot(bot);
     setNoKeyError(false);
     setInput('');
     clearAttachedFile();
+    setChatHistory([]);
 
-    // Load persisted history for this bot
-    if (activeTeam && user) {
+    if (!activeTeam || !user) return;
+
+    setLoadingHistory(true);
+    try {
+      // Attempt to load from R2 (cross-device source of truth)
+      const messages = await chatSessionService.load(bot._id, activeTeam._id);
+      setChatHistory(messages);
+      // Keep localStorage in sync as fast local cache
+      if (messages.length > 0) {
+        const key = chatStorageKey(activeTeam._id, bot._id, user._id);
+        try { localStorage.setItem(key, JSON.stringify(messages)); } catch { /* ignore */ }
+      }
+    } catch {
+      // R2 unavailable or not configured — fall back to localStorage
       const key = chatStorageKey(activeTeam._id, bot._id, user._id);
       try {
         const stored = localStorage.getItem(key);
@@ -469,19 +484,21 @@ export const ChatbotsPage = () => {
       } catch {
         setChatHistory([]);
       }
-    } else {
-      setChatHistory([]);
+    } finally {
+      setLoadingHistory(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
-
-    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const handleClearChat = () => {
     setChatHistory([]);
     setNoKeyError(false);
     if (selectedBot && activeTeam && user) {
+      // Clear local cache
       const key = chatStorageKey(activeTeam._id, selectedBot._id, user._id);
       localStorage.removeItem(key);
+      // Clear from R2 (fire-and-forget — don't block UI)
+      chatSessionService.clear(selectedBot._id, activeTeam._id).catch(() => {});
     }
   };
 
@@ -543,7 +560,10 @@ export const ChatbotsPage = () => {
         newHistory,
         fileToSend
       );
-      setChatHistory([...newHistory, reply]);
+      const finalHistory = [...newHistory, reply];
+      setChatHistory(finalHistory);
+      // Persist to R2 (fire-and-forget — localStorage persist useEffect handles local cache)
+      chatSessionService.save(selectedBot._id, activeTeam._id, finalHistory).catch(() => {});
     } catch (err: any) {
       const status = err.response?.status;
       const msg = err.response?.data?.message || '';
@@ -574,9 +594,11 @@ export const ChatbotsPage = () => {
   const handleDrawerDelete = (botId: string) => {
     setBots((prev) => prev.filter((b) => b._id !== botId));
     if (selectedBot?._id === botId) { setSelectedBot(null); setChatHistory([]); }
-    // Clean up stored history for the deleted bot
     if (activeTeam && user) {
+      // Clear local cache
       localStorage.removeItem(chatStorageKey(activeTeam._id, botId, user._id));
+      // Clear from R2 (fire-and-forget)
+      chatSessionService.clear(botId, activeTeam._id).catch(() => {});
     }
   };
 
@@ -770,7 +792,17 @@ export const ChatbotsPage = () => {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-                {chatHistory.length === 0 && !sending && (
+
+                {/* Loading history from R2 */}
+                {loadingHistory && (
+                  <div className="flex items-center justify-center gap-2.5 py-12">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                    <span className="text-sm text-slate-400">Loading conversation…</span>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {!loadingHistory && chatHistory.length === 0 && !sending && (
                   <div className="flex flex-col items-center gap-2 py-12 text-center">
                     <span className={cn('flex h-14 w-14 items-center justify-center rounded-2xl text-3xl', colorClasses.bg, 'text-white')}>
                       {selectedBot.icon}
@@ -785,7 +817,8 @@ export const ChatbotsPage = () => {
                   </div>
                 )}
 
-                {chatHistory.map((msg, i) => (
+                {/* Message bubbles */}
+                {!loadingHistory && chatHistory.map((msg, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, y: 8 }}
@@ -821,7 +854,7 @@ export const ChatbotsPage = () => {
                   </motion.div>
                 ))}
 
-                {sending && <TypingIndicator />}
+                {!loadingHistory && sending && <TypingIndicator />}
                 <div ref={chatEndRef} />
               </div>
 
@@ -913,7 +946,7 @@ export const ChatbotsPage = () => {
                 </div>
 
                 <p className="mt-1.5 text-center text-[10px] text-slate-300 dark:text-slate-600">
-                  Conversations are saved in your browser. Use Clear to start fresh.
+                  Conversations are synced to cloud storage. Use Clear to start fresh.
                 </p>
               </div>
             </>
