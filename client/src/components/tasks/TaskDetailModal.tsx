@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
-  Paperclip, MessageSquare, AlertTriangle, Clock,
+  Paperclip, MessageSquare, AlertTriangle, Clock, Info,
 } from 'lucide-react';
 import { Task, TaskStatus, TaskPriority, Subtask, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
 import { taskService } from '@/services/taskService';
@@ -12,7 +12,7 @@ import { useUIStore } from '@/store/uiStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn, formatRelative } from '@/lib/utils';
 import { getSocket } from '@/lib/socket';
-import { MentionInput, extractMentions } from '@/components/ui/MentionInput';
+import { MentionInput } from '@/components/ui/MentionInput';
 import { CommentSection } from '@/components/tasks/CommentSection';
 import { AttachmentPanel } from '@/components/tasks/AttachmentPanel';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
@@ -176,7 +176,6 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
 
   const teamMembers: User[] = activeTeam?.members.map((m) => m.user) || [];
 
-  // ── Due date helpers ──────────────────────────────────────────────────────
   const getDueDateStatus = () => {
     if (!fullTask?.dueDate || fullTask.status === 'done') return null;
     const due = new Date(fullTask.dueDate);
@@ -194,23 +193,23 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const statusConfig = fullTask ? TASK_STATUSES.find((s) => s.id === fullTask.status) : null;
   const assigneeIds = fullTask?.assignees.map((a) => a._id) || [];
 
-  // ── Loading skeleton ──────────────────────────────────────────────────────
+  // ── Loading state ──────────────────────────────────────────────────────────
   if (!fullTask && loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-start justify-end">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          onClick={onClose} className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <motion.div
-          initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-          className="relative z-10 flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+          className="relative z-10 flex h-64 w-full max-w-2xl items-center justify-center rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
         >
-          <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
-          <div className="flex h-full items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-              <p className="text-sm text-slate-400">Loading task…</p>
-            </div>
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-7 w-7 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            <p className="text-sm text-slate-400">Loading task…</p>
           </div>
         </motion.div>
       </div>
@@ -220,28 +219,32 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   if (!fullTask) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
       />
 
-      {/* Panel */}
+      {/* Modal */}
       <motion.div
-        initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
         transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-        className="relative z-10 flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl dark:bg-slate-900"
+        className="relative z-10 flex w-[95vw] max-w-6xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+        style={{ maxHeight: '90vh' }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Status accent strip */}
+        {/* Status accent line */}
         <div
-          className="h-1 w-full flex-shrink-0 transition-colors duration-300"
+          className="h-1 w-full flex-shrink-0 rounded-t-2xl transition-colors duration-300"
           style={{ backgroundColor: statusConfig?.color || '#94a3b8' }}
         />
 
-        {/* Header */}
-        <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-6 py-3.5 dark:border-slate-800">
+        {/* Header bar */}
+        <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
@@ -249,10 +252,9 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
             <X className="h-4 w-4" />
           </button>
 
-          {/* Status chip */}
           {statusConfig && (
             <span
-              className="rounded-full px-2.5 py-1 text-xs font-semibold text-white"
+              className="rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
               style={{ backgroundColor: statusConfig.color }}
             >
               {statusConfig.label}
@@ -261,7 +263,6 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
 
           <div className="flex-1" />
 
-          {/* Live badge */}
           <AnimatePresence>
             {liveUpdated && (
               <motion.div
@@ -299,7 +300,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               transition={{ duration: 0.2 }}
               className="flex-shrink-0 overflow-hidden border-b border-red-100 bg-red-50 dark:border-red-900/30 dark:bg-red-500/10"
             >
-              <div className="flex items-center gap-3 px-6 py-3">
+              <div className="flex items-center gap-3 px-5 py-3">
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-500" />
                 <p className="flex-1 text-sm text-red-700 dark:text-red-400">
                   Delete this task? This <strong>cannot</strong> be undone.
@@ -322,82 +323,143 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
           )}
         </AnimatePresence>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="space-y-6 px-6 py-6">
+        {/* ── 2-column body ─────────────────────────────────────────────────── */}
+        <div className="flex min-h-0 flex-1">
 
-            {/* Title */}
-            {editTitle ? (
-              <input
-                autoFocus
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => {
-                  setEditTitle(false);
-                  if (title !== fullTask.title) handleSave({ title });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { setEditTitle(false); handleSave({ title }); }
-                  if (e.key === 'Escape') { setEditTitle(false); setTitle(fullTask.title); }
-                }}
-                className="w-full rounded-xl border border-brand-400 bg-transparent px-3 py-2 text-2xl font-bold text-slate-900 focus:outline-none dark:text-white"
+          {/* LEFT COLUMN — title, reactions, description, subtasks */}
+          <div className="flex flex-1 flex-col overflow-y-auto border-r border-slate-100 dark:border-slate-800">
+            <div className="space-y-5 p-6">
+
+              {/* Title */}
+              {editTitle ? (
+                <input
+                  autoFocus
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={() => {
+                    setEditTitle(false);
+                    if (title !== fullTask.title) handleSave({ title });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { setEditTitle(false); handleSave({ title }); }
+                    if (e.key === 'Escape') { setEditTitle(false); setTitle(fullTask.title); }
+                  }}
+                  className="w-full rounded-xl border border-brand-400 bg-transparent px-3 py-2 text-2xl font-bold text-slate-900 focus:outline-none dark:text-white"
+                />
+              ) : (
+                <h2
+                  onClick={() => setEditTitle(true)}
+                  title="Click to edit title"
+                  className="cursor-pointer text-2xl font-bold leading-snug text-slate-900 transition-colors hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
+                >
+                  {fullTask.title}
+                </h2>
+              )}
+
+              {/* Emoji Reactions */}
+              <EmojiReactionBar
+                resourceId={fullTask._id}
+                resourceType="task"
+                teamId={typeof fullTask.team === 'string' ? fullTask.team : fullTask.team._id}
+                size="sm"
               />
-            ) : (
-              <h2
-                onClick={() => setEditTitle(true)}
-                title="Click to edit title"
-                className="cursor-pointer text-2xl font-bold leading-snug text-slate-900 transition-colors hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
-              >
-                {fullTask.title}
-              </h2>
+
+              {/* Description */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Description
+                </label>
+                <MentionInput
+                  value={description}
+                  onChange={setDescription}
+                  onMentionsChange={setDescMentions}
+                  members={teamMembers}
+                  placeholder="Add a description… use @ to mention teammates"
+                  rows={4}
+                  onBlur={handleDescBlur}
+                />
+              </div>
+
+              {/* Subtasks */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+                <SubtaskList
+                  taskId={taskId}
+                  subtasks={subtasks}
+                  onChange={setSubtasks}
+                />
+              </div>
+            </div>
+
+            {/* Tab bar + content (full width of left col, sticky at bottom) */}
+            {activeTeam && (
+              <div className="flex flex-col border-t border-slate-100 dark:border-slate-800">
+                <div className="flex flex-shrink-0">
+                  <button
+                    onClick={() => setActiveTab('comments')}
+                    className={cn(
+                      'flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                      activeTab === 'comments'
+                        ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    )}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Comments
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('attachments')}
+                    className={cn(
+                      'flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                      activeTab === 'attachments'
+                        ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    )}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    Attachments
+                  </button>
+                </div>
+                <div className="px-6 py-5">
+                  <AnimatePresence mode="wait">
+                    {activeTab === 'comments' ? (
+                      <motion.div
+                        key="comments"
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <CommentSection taskId={taskId} teamId={activeTeam._id} members={teamMembers} />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="attachments"
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <AttachmentPanel taskId={taskId} teamId={activeTeam._id} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
             )}
+          </div>
 
-            {/* Emoji Reactions */}
-            <EmojiReactionBar
-              resourceId={fullTask._id}
-              resourceType="task"
-              teamId={typeof fullTask.team === 'string' ? fullTask.team : fullTask.team._id}
-              size="sm"
-            />
+          {/* RIGHT COLUMN — status, priority, due date, assignees, meta */}
+          <div className="flex w-80 flex-shrink-0 flex-col overflow-y-auto">
+            <div className="space-y-5 p-5">
 
-            {/* Description */}
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Description
-              </label>
-              <MentionInput
-                value={description}
-                onChange={setDescription}
-                onMentionsChange={setDescMentions}
-                members={teamMembers}
-                placeholder="Add a description… use @ to mention teammates"
-                rows={3}
-                onBlur={handleDescBlur}
-              />
-            </div>
-
-            {/* Subtasks */}
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
-              <SubtaskList
-                taskId={taskId}
-                subtasks={subtasks}
-                onChange={setSubtasks}
-              />
-            </div>
-
-            {/* Properties grid ── Status (full row) */}
-            <div className="space-y-4">
+              {/* Status */}
               <div>
                 <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Status
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-1.5">
                   {TASK_STATUSES.map(({ id, label, color }) => (
                     <button
                       key={id}
                       onClick={() => handleStatusChange(id)}
                       className={cn(
-                        'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+                        'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all text-left',
                         fullTask.status === id
                           ? 'border-transparent text-white shadow-sm'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -405,8 +467,8 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                       style={fullTask.status === id ? { backgroundColor: color } : {}}
                     >
                       <div
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: fullTask.status === id ? 'rgba(255,255,255,0.6)' : color }}
+                        className="h-2 w-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: fullTask.status === id ? 'rgba(255,255,255,0.7)' : color }}
                       />
                       {label}
                     </button>
@@ -414,179 +476,127 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 </div>
               </div>
 
-              {/* Priority + Due Date: side by side */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <Flag className="h-3.5 w-3.5" /> Priority
-                  </label>
-                  <div className="flex flex-col gap-1.5">
-                    {(['urgent', 'high', 'medium', 'low'] as TaskPriority[]).map((p) => {
-                      const config = PRIORITY_CONFIG[p];
-                      return (
-                        <button
-                          key={p}
-                          onClick={() => handlePriorityChange(p)}
-                          className={cn(
-                            'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all text-left',
-                            fullTask.priority === p
-                              ? config.bg + ' border-transparent'
-                              : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                          )}
-                        >
-                          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: config.color }} />
-                          {config.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <Calendar className="h-3.5 w-3.5" /> Due Date
-                  </label>
-                  <input
-                    type="date"
-                    value={localDueDate}
-                    onChange={(e) => setLocalDueDate(e.target.value)}
-                    onBlur={(e) => {
-                      const newDate = e.target.value || null;
-                      const currentDate = fullTask.dueDate ? fullTask.dueDate.slice(0, 10) : null;
-                      if (newDate !== currentDate) {
-                        handleSave({ dueDate: newDate } as any);
-                      }
-                    }}
-                    className="input-field w-full"
-                  />
-                  {dueDateStatus && (
-                    <p className={cn('mt-1.5 flex items-center gap-1 text-xs font-medium', dueDateStatus.color)}>
-                      <Clock className="h-3 w-3" />
-                      {dueDateStatus.label}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Assignees */}
-            {activeTeam && (
+              {/* Priority */}
               <div>
                 <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  <Users className="h-3.5 w-3.5" /> Assignees
-                  {assigneeIds.length > 0 && (
-                    <span className="ml-1 rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">
-                      {assigneeIds.length}
-                    </span>
-                  )}
+                  <Flag className="h-3.5 w-3.5" /> Priority
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {activeTeam.members.map((m) => {
-                    const isAssigned = assigneeIds.includes(m.user._id);
+                <div className="flex flex-col gap-1.5">
+                  {(['urgent', 'high', 'medium', 'low'] as TaskPriority[]).map((p) => {
+                    const config = PRIORITY_CONFIG[p];
                     return (
                       <button
-                        key={m.user._id}
-                        onClick={() => handleAssigneeToggle(m.user._id)}
+                        key={p}
+                        onClick={() => handlePriorityChange(p)}
                         className={cn(
-                          'flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-all',
-                          isAssigned
-                            ? 'border-brand-200 bg-brand-50 dark:border-brand-800 dark:bg-brand-500/10'
-                            : 'border-slate-100 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700'
+                          'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all text-left',
+                          fullTask.priority === p
+                            ? config.bg + ' border-transparent'
+                            : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                         )}
                       >
-                        <Avatar name={m.user.name} src={m.user.avatar} size="sm" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{m.user.name}</p>
-                          <p className="truncate text-xs text-slate-400">{m.role}</p>
-                        </div>
-                        {isAssigned && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-brand-500" />}
+                        <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: config.color }} />
+                        {config.label}
                       </button>
                     );
                   })}
                 </div>
               </div>
-            )}
 
-            {/* Meta info card */}
-            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Created by</span>
-                  <div className="flex items-center gap-1.5">
-                    <Avatar name={fullTask.createdBy?.name || 'Unknown'} src={fullTask.createdBy?.avatar} size="xs" />
-                    <span className="font-medium text-slate-600 dark:text-slate-300">{fullTask.createdBy?.name}</span>
+              {/* Due Date */}
+              <div>
+                <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <Calendar className="h-3.5 w-3.5" /> Due Date
+                </label>
+                <input
+                  type="date"
+                  value={localDueDate}
+                  onChange={(e) => setLocalDueDate(e.target.value)}
+                  onBlur={(e) => {
+                    const newDate = e.target.value || null;
+                    const currentDate = fullTask.dueDate ? fullTask.dueDate.slice(0, 10) : null;
+                    if (newDate !== currentDate) {
+                      handleSave({ dueDate: newDate } as any);
+                    }
+                  }}
+                  className="input-field w-full"
+                />
+                {dueDateStatus && (
+                  <p className={cn('mt-1.5 flex items-center gap-1 text-xs font-medium', dueDateStatus.color)}>
+                    <Clock className="h-3 w-3" />
+                    {dueDateStatus.label}
+                  </p>
+                )}
+              </div>
+
+              {/* Assignees */}
+              {activeTeam && (
+                <div>
+                  <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <Users className="h-3.5 w-3.5" /> Assignees
+                    {assigneeIds.length > 0 && (
+                      <span className="ml-1 rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">
+                        {assigneeIds.length}
+                      </span>
+                    )}
+                  </label>
+                  <div className="space-y-1.5">
+                    {activeTeam.members.map((m) => {
+                      const isAssigned = assigneeIds.includes(m.user._id);
+                      return (
+                        <button
+                          key={m.user._id}
+                          onClick={() => handleAssigneeToggle(m.user._id)}
+                          className={cn(
+                            'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-all',
+                            isAssigned
+                              ? 'border-brand-200 bg-brand-50 dark:border-brand-800 dark:bg-brand-500/10'
+                              : 'border-slate-100 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700'
+                          )}
+                        >
+                          <Avatar name={m.user.name} src={m.user.avatar} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-slate-900 dark:text-slate-100">{m.user.name}</p>
+                            <p className="truncate text-[10px] text-slate-400">{m.role}</p>
+                          </div>
+                          {isAssigned && <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-brand-500" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                {fullTask.createdAt && (
+              )}
+
+              {/* Meta info */}
+              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <Info className="h-3.5 w-3.5" /> Info
+                </div>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Created</span>
-                    <span className="font-medium text-slate-600 dark:text-slate-300">{formatRelative(fullTask.createdAt)}</span>
+                    <span className="text-slate-400">Created by</span>
+                    <div className="flex items-center gap-1.5">
+                      <Avatar name={fullTask.createdBy?.name || 'Unknown'} src={fullTask.createdBy?.avatar} size="xs" />
+                      <span className="font-medium text-slate-600 dark:text-slate-300">{fullTask.createdBy?.name}</span>
+                    </div>
                   </div>
-                )}
-                {fullTask.completedAt && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Completed</span>
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatRelative(fullTask.completedAt)}</span>
-                  </div>
-                )}
+                  {fullTask.createdAt && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Created</span>
+                      <span className="font-medium text-slate-600 dark:text-slate-300">{formatRelative(fullTask.createdAt)}</span>
+                    </div>
+                  )}
+                  {fullTask.completedAt && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Completed</span>
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatRelative(fullTask.completedAt)}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+
             </div>
           </div>
-
-          {/* Tab bar */}
-          {activeTeam && (
-            <>
-              <div className="sticky top-0 z-10 flex border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900">
-                <button
-                  onClick={() => setActiveTab('comments')}
-                  className={cn(
-                    'flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
-                    activeTab === 'comments'
-                      ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                      : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                  )}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  Comments
-                </button>
-                <button
-                  onClick={() => setActiveTab('attachments')}
-                  className={cn(
-                    'flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
-                    activeTab === 'attachments'
-                      ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                      : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                  )}
-                >
-                  <Paperclip className="h-4 w-4" />
-                  Attachments
-                </button>
-              </div>
-
-              {/* Tab content */}
-              <div className="px-6 py-5">
-                <AnimatePresence mode="wait">
-                  {activeTab === 'comments' ? (
-                    <motion.div
-                      key="comments"
-                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <CommentSection taskId={taskId} teamId={activeTeam._id} members={teamMembers} />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="attachments"
-                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <AttachmentPanel taskId={taskId} teamId={activeTeam._id} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </>
-          )}
         </div>
       </motion.div>
     </div>

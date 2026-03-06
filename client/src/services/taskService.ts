@@ -52,4 +52,8 @@ export const taskService = {
     const res = await api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`);
     return res.data.data.subtasks as Subtask[];
   },
+  reorderSubtasks: async (taskId: string, subtaskIds: string[]): Promise<Subtask[]> => {
+    const res = await api.patch(`/tasks/${taskId}/subtasks/reorder`, { subtaskIds });
+    return res.data.data.subtasks as Subtask[];
+  },
 };

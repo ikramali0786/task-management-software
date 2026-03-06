@@ -7,6 +7,8 @@ import commentRoutes from './comment.routes';
 import reactionRoutes from './reaction.routes';
 import discussionRoutes from './discussion.routes';
 import uploadRoutes from './upload.routes';
+import apiKeyRoutes from './apiKey.routes';
+import chatbotRoutes from './chatbot.routes';
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use('/comments', commentRoutes);
 router.use('/reactions', reactionRoutes);
 router.use('/discussions', discussionRoutes);
 router.use('/uploads', uploadRoutes);
+router.use('/api-keys', apiKeyRoutes);
+router.use('/chatbots', chatbotRoutes);
 
 export default router;

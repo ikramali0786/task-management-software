@@ -185,6 +185,33 @@ export interface ProjectProgress {
   done: number;
 }
 
+export interface TeamApiKey {
+  keyHint: string;
+  label: string;
+  model: string;
+  createdAt?: string;
+}
+
+export interface Chatbot {
+  _id: string;
+  team: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  model: 'gpt-4o-mini' | 'gpt-4o' | 'gpt-3.5-turbo';
+  icon: string;
+  color: string;
+  createdBy: User;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface TaskStats {
   byStatus: Record<TaskStatus, number>;
   byPriority: Record<TaskPriority, number>;

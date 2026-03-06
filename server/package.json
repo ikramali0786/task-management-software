@@ -25,6 +25,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.0",
+    "openai": "^6.27.0",
     "socket.io": "^4.7.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4",

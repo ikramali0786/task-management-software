@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy, Check, UserPlus, Crown, Shield, Trash2, Lock, Unlock, Hash,
   Info, Edit2, Save, X, Eye, Zap, Users, LayoutGrid, MessageCircle,
-  Settings, ChevronDown, Calendar,
+  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { teamService } from '@/services/teamService';
 import { taskService } from '@/services/taskService';
+import { apiKeyService } from '@/services/apiKeyService';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,7 +18,7 @@ import { Badge } from '@/components/ui/Badge';
 import { RolesManager } from '@/components/team/RolesManager';
 import { DiscussionSection } from '@/components/team/DiscussionSection';
 import { cn, formatLastSeen } from '@/lib/utils';
-import { UserRole, TaskStats, TaskPriority } from '@/types';
+import { UserRole, TaskStats, TaskPriority, TeamApiKey } from '@/types';
 
 type Tab = 'overview' | 'members' | 'discussions' | 'settings';
 
@@ -101,6 +102,16 @@ export const TeamPage = () => {
   // Role dropdowns per member
   const [openRoleMenu, setOpenRoleMenu] = useState<string | null>(null);
 
+  // API key
+  const [apiKeyData, setApiKeyData] = useState<TeamApiKey | null>(null);
+  const [apiKeyLoaded, setApiKeyLoaded] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiKeyLabel, setApiKeyLabel] = useState('');
+  const [apiKeyModel, setApiKeyModel] = useState('gpt-4o-mini');
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [deletingApiKey, setDeletingApiKey] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState('');
+
   useEffect(() => {
     if (!activeTeam) return;
     taskService.getStats(activeTeam._id).then(setStats).catch(() => {});
@@ -113,7 +124,22 @@ export const TeamPage = () => {
     setEditDesc(activeTeam.description || '');
     setEditPriority(activeTeam.settings?.defaultTaskPriority || 'medium');
     setEditAllowInvite(activeTeam.settings?.allowMemberInvite ?? true);
+    // Reset API key state when team changes
+    setApiKeyData(null);
+    setApiKeyLoaded(false);
+    setApiKeyInput('');
+    setApiKeyLabel('');
+    setApiKeyModel('gpt-4o-mini');
   }, [activeTeam?._id]);
+
+  // Load API key when settings tab is opened (lazy)
+  useEffect(() => {
+    if (activeTab !== 'settings' || !activeTeam || apiKeyLoaded) return;
+    apiKeyService.getKey(activeTeam._id)
+      .then((k) => { setApiKeyData(k); if (k) setApiKeyModel(k.model); })
+      .catch(() => {})
+      .finally(() => setApiKeyLoaded(true));
+  }, [activeTab, activeTeam?._id, apiKeyLoaded]);
 
   if (!activeTeam) {
     return (
@@ -233,6 +259,55 @@ export const TeamPage = () => {
       addToast({ type: 'error', title: 'Failed to save settings' });
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  // ── API Key handlers ──────────────────────────────────────────────────────
+  const handleSaveApiKey = async () => {
+    if (!activeTeam || !apiKeyInput.trim()) return;
+    if (!apiKeyInput.trim().startsWith('sk-')) {
+      setApiKeyError('API key must start with "sk-"');
+      return;
+    }
+    setApiKeyError('');
+    setSavingApiKey(true);
+    try {
+      const saved = await apiKeyService.setKey(activeTeam._id, {
+        key: apiKeyInput.trim(),
+        label: apiKeyLabel.trim() || undefined,
+        model: apiKeyModel,
+      });
+      setApiKeyData(saved);
+      setApiKeyInput('');
+      setApiKeyLabel('');
+      addToast({ type: 'success', title: 'API key saved', message: 'Your OpenAI key has been encrypted and stored.' });
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to save API key';
+      addToast({ type: 'error', title: msg });
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
+
+  const handleDeleteApiKey = async () => {
+    if (!activeTeam) return;
+    const ok = await showConfirm({
+      title: 'Remove API Key',
+      message: 'Remove the OpenAI API key? Chatbots will stop working until a new key is added.',
+      confirmLabel: 'Remove',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setDeletingApiKey(true);
+    try {
+      await apiKeyService.deleteKey(activeTeam._id);
+      setApiKeyData(null);
+      setApiKeyInput('');
+      addToast({ type: 'success', title: 'API key removed' });
+    } catch {
+      addToast({ type: 'error', title: 'Failed to remove API key' });
+    } finally {
+      setDeletingApiKey(false);
     }
   };
 
@@ -666,6 +741,116 @@ export const TeamPage = () => {
                       Custom Roles
                     </h3>
                     <RolesManager teamId={activeTeam._id} isAdmin={isAdmin} />
+                  </div>
+
+                  {/* AI & API Keys */}
+                  <div className="card space-y-4">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-brand-500" />
+                      AI &amp; API Keys
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Add your OpenAI API key to enable AI chatbots for this team. The key is encrypted at rest and never exposed.
+                    </p>
+
+                    {/* Current key status */}
+                    {!apiKeyLoaded ? (
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <div className="h-3 w-3 animate-spin rounded-full border border-slate-400 border-t-transparent" />
+                        Loading…
+                      </div>
+                    ) : apiKeyData ? (
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800/40 dark:bg-emerald-500/10">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <KeyRound className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+                              {apiKeyData.label || 'OpenAI API Key'}
+                            </p>
+                            <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
+                              {apiKeyData.keyHint}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                            {apiKeyData.model}
+                          </span>
+                          <button
+                            onClick={handleDeleteApiKey}
+                            disabled={deletingApiKey}
+                            className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            title="Remove API key"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+                        <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-500" />
+                        <p className="text-sm text-slate-500 dark:text-slate-400">No API key configured — chatbots won't work.</p>
+                      </div>
+                    )}
+
+                    {/* Set / Replace key form */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-500">
+                          {apiKeyData ? 'Replace API Key' : 'Add API Key'}
+                        </label>
+                        <div className="relative">
+                          <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="password"
+                            placeholder="sk-..."
+                            value={apiKeyInput}
+                            onChange={(e) => { setApiKeyInput(e.target.value); setApiKeyError(''); }}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        {apiKeyError && (
+                          <p className="mt-1 text-xs text-red-500">{apiKeyError}</p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-500">Label (optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Production Key"
+                            value={apiKeyLabel}
+                            onChange={(e) => setApiKeyLabel(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-slate-500">Default Model</label>
+                          <div className="relative">
+                            <select
+                              value={apiKeyModel}
+                              onChange={(e) => setApiKeyModel(e.target.value)}
+                              className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-8 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                              <option value="gpt-4o-mini">GPT-4o Mini</option>
+                              <option value="gpt-4o">GPT-4o</option>
+                              <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleSaveApiKey}
+                        isLoading={savingApiKey}
+                        disabled={!apiKeyInput.trim()}
+                        size="sm"
+                        className="gap-1.5"
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        {apiKeyData ? 'Replace Key' : 'Save Key'}
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Danger zone */}

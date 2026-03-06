@@ -355,6 +355,39 @@ export const getWorkload = asyncHandler(async (req: Request, res: Response) => {
 
 /* ── Subtask handlers ─────────────────────────────────────────────────────── */
 
+export const reorderSubtasks = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ subtaskIds: z.array(z.string()).min(1) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+
+  // Build a map for O(1) lookup
+  const subtaskMap = new Map((task.subtasks as any[]).map((s: any) => [s._id.toString(), s]));
+
+  // Reorder according to provided IDs (skip any IDs not found)
+  const reordered = parsed.data.subtaskIds
+    .filter((id) => subtaskMap.has(id))
+    .map((id) => subtaskMap.get(id)!);
+
+  // Replace the subtasks array in-place
+  (task as any).subtasks = reordered;
+  await task.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${task.team}`).emit('task:updated', {
+      taskId: task._id,
+      changes: { subtasks: task.subtasks },
+    });
+  }
+
+  sendSuccess(res, { subtasks: task.subtasks });
+});
+
 export const addSubtask = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({ title: z.string().min(1).max(200) });
   const parsed = schema.safeParse(req.body);

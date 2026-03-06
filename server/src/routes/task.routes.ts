@@ -12,6 +12,7 @@ import {
   addSubtask,
   updateSubtask,
   deleteSubtask,
+  reorderSubtasks,
 } from '../controllers/task.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -29,8 +30,9 @@ router.delete('/:taskId', deleteTask);
 router.patch('/:taskId/status', updateTaskStatus);
 router.patch('/:taskId/position', updateTaskPosition);
 
-// Subtask routes
+// Subtask routes — reorder MUST be before /:subtaskId to avoid param conflict
 router.post('/:taskId/subtasks', addSubtask);
+router.patch('/:taskId/subtasks/reorder', reorderSubtasks);
 router.patch('/:taskId/subtasks/:subtaskId', updateSubtask);
 router.delete('/:taskId/subtasks/:subtaskId', deleteSubtask);
 
