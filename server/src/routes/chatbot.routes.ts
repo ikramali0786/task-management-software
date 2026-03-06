@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import multer from 'multer';
+import multer, { FileFilterCallback } from 'multer';
 import {
   getChatbots,
   createChatbot,
@@ -15,7 +15,7 @@ const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (_req: Express.Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     const allowed = [
       'image/jpeg',
       'image/png',

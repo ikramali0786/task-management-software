@@ -10,6 +10,16 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { getDecryptedKey } from './apiKey.controller';
 
+// Local interface so we don't depend on Express.Multer namespace augmentation
+interface UploadedFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
 const verifyMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
@@ -161,7 +171,7 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // ── Process attached file ────────────────────────────────────────────────
-  const file = (req as any).file as Express.Multer.File | undefined;
+  const file = (req as any).file as UploadedFile | undefined;
   let fileContentText: string | null = null;
   let fileImageBase64: string | null = null;
   let fileMimeType: string | null = null;

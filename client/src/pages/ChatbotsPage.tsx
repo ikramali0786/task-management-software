@@ -404,6 +404,10 @@ export const ChatbotsPage = () => {
   const isOwner = activeTeam?.owner._id === user?._id;
   const isAdmin = isOwner || currentMember?.role === 'admin';
 
+  // localStorage key for a given bot's conversation
+  const chatStorageKey = (teamId: string, botId: string, userId: string) =>
+    `tf_chat_${teamId}_${botId}_${userId}`;
+
   // Load bots
   useEffect(() => {
     if (!activeTeam) return;
@@ -419,6 +423,30 @@ export const ChatbotsPage = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, sending]);
 
+  // Persist chat history to localStorage whenever it changes
+  useEffect(() => {
+    if (!selectedBot || !activeTeam || !user) return;
+    const key = chatStorageKey(activeTeam._id, selectedBot._id, user._id);
+    if (chatHistory.length === 0) {
+      localStorage.removeItem(key);
+      return;
+    }
+    // Strip previewUrl — object URLs cannot be serialised / restored
+    const toStore = chatHistory.map((m) => ({
+      role: m.role,
+      content: m.content,
+      ...(m.attachment
+        ? { attachment: { name: m.attachment.name, mimeType: m.attachment.mimeType } }
+        : {}),
+    }));
+    try {
+      // Keep last 100 messages per bot to avoid localStorage quota errors
+      localStorage.setItem(key, JSON.stringify(toStore.slice(-100)));
+    } catch {
+      // Ignore quota exceeded
+    }
+  }, [chatHistory, selectedBot?._id, activeTeam?._id, user?._id]);
+
   const clearAttachedFile = useCallback(() => {
     if (attachedPreviewUrl) URL.revokeObjectURL(attachedPreviewUrl);
     setAttachedFile(null);
@@ -428,11 +456,33 @@ export const ChatbotsPage = () => {
 
   const handleSelectBot = (bot: Chatbot) => {
     setSelectedBot(bot);
-    setChatHistory([]);
     setNoKeyError(false);
     setInput('');
     clearAttachedFile();
+
+    // Load persisted history for this bot
+    if (activeTeam && user) {
+      const key = chatStorageKey(activeTeam._id, bot._id, user._id);
+      try {
+        const stored = localStorage.getItem(key);
+        setChatHistory(stored ? (JSON.parse(stored) as ChatMessage[]) : []);
+      } catch {
+        setChatHistory([]);
+      }
+    } else {
+      setChatHistory([]);
+    }
+
     setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const handleClearChat = () => {
+    setChatHistory([]);
+    setNoKeyError(false);
+    if (selectedBot && activeTeam && user) {
+      const key = chatStorageKey(activeTeam._id, selectedBot._id, user._id);
+      localStorage.removeItem(key);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -470,6 +520,8 @@ export const ChatbotsPage = () => {
       attachment,
     };
 
+    // Snapshot the pre-send history for rollback
+    const prevHistory = chatHistory;
     const newHistory = [...chatHistory, userMsg];
     setChatHistory(newHistory);
     setInput('');
@@ -505,7 +557,7 @@ export const ChatbotsPage = () => {
         });
       }
       // Roll back optimistic user message
-      setChatHistory(chatHistory);
+      setChatHistory(prevHistory);
     } finally {
       setSending(false);
     }
@@ -522,6 +574,10 @@ export const ChatbotsPage = () => {
   const handleDrawerDelete = (botId: string) => {
     setBots((prev) => prev.filter((b) => b._id !== botId));
     if (selectedBot?._id === botId) { setSelectedBot(null); setChatHistory([]); }
+    // Clean up stored history for the deleted bot
+    if (activeTeam && user) {
+      localStorage.removeItem(chatStorageKey(activeTeam._id, botId, user._id));
+    }
   };
 
   const openCreate = () => { setEditingBot(null); setDrawerOpen(true); };
@@ -671,9 +727,9 @@ export const ChatbotsPage = () => {
                 <div className="flex items-center gap-1.5">
                   {chatHistory.length > 0 && (
                     <button
-                      onClick={() => { setChatHistory([]); setNoKeyError(false); }}
+                      onClick={handleClearChat}
                       className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
-                      title="Clear conversation"
+                      title="Clear conversation history"
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                       Clear
@@ -857,7 +913,7 @@ export const ChatbotsPage = () => {
                 </div>
 
                 <p className="mt-1.5 text-center text-[10px] text-slate-300 dark:text-slate-600">
-                  Conversations are not saved — they reset when you leave this page.
+                  Conversations are saved in your browser. Use Clear to start fresh.
                 </p>
               </div>
             </>
