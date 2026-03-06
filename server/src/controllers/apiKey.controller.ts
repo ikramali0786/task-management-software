@@ -15,11 +15,11 @@ const isAdmin = (team: any, userId: string): boolean => {
 const verifyAdminAccess = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
+  const isOwner = team.owner.toString() === userId;
   const member = team.members.find((m) => m.user.toString() === userId);
-  if (!member) throw new ApiError(403, 'Not a member of this team.');
-  if (member.role !== 'admin' && member.role !== 'owner') {
-    throw new ApiError(403, 'Only admins can manage API keys.');
-  }
+  if (!member && !isOwner) throw new ApiError(403, 'Not a member of this team.');
+  const hasAccess = isOwner || member?.role === 'admin' || member?.role === 'owner';
+  if (!hasAccess) throw new ApiError(403, 'Only admins can manage API keys.');
   return team;
 };
 
@@ -62,6 +62,12 @@ export const setTeamApiKey = asyncHandler(async (req: Request, res: Response) =>
   await verifyAdminAccess(teamId, userId);
 
   const { key, label = 'Team API Key', model = 'gpt-4o-mini' } = parsed.data;
+
+  // Guard: ENCRYPTION_SECRET must be present. On Render, set it manually via
+  // Dashboard → taskflow-server → Environment → Add variable: ENCRYPTION_SECRET
+  if (!process.env.ENCRYPTION_SECRET) {
+    throw new ApiError(500, 'Server misconfiguration: ENCRYPTION_SECRET is not set. Add it in your hosting environment and redeploy.');
+  }
 
   // Build hint: first 3 chars + "..." + last 4 chars
   const keyHint = key.length > 8
