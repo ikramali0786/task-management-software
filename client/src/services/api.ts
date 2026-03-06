@@ -4,6 +4,7 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   withCredentials: true, // For refresh token cookie
   headers: { 'Content-Type': 'application/json' },
+  timeout: 30_000, // 30 s — prevents infinite hang when Render backend is sleeping
 });
 
 // Attach access token
