@@ -4,7 +4,7 @@ import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
   Paperclip, MessageSquare, AlertTriangle, Clock,
 } from 'lucide-react';
-import { Task, TaskStatus, TaskPriority, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
+import { Task, TaskStatus, TaskPriority, Subtask, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
 import { taskService } from '@/services/taskService';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
@@ -16,6 +16,7 @@ import { MentionInput, extractMentions } from '@/components/ui/MentionInput';
 import { CommentSection } from '@/components/tasks/CommentSection';
 import { AttachmentPanel } from '@/components/tasks/AttachmentPanel';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
+import { SubtaskList } from '@/components/tasks/SubtaskList';
 
 interface TaskDetailModalProps {
   taskId: string;
@@ -39,6 +40,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [localDueDate, setLocalDueDate] = useState<string>(
     task?.dueDate ? task.dueDate.slice(0, 10) : ''
   );
+  const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks || []);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [liveUpdated, setLiveUpdated] = useState(false);
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments'>('comments');
@@ -71,6 +73,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
           setFullTask(t);
           setTitle(t.title);
           setDescription(t.description);
+          setSubtasks(t.subtasks || []);
         })
         .finally(() => setLoading(false));
     } else {
@@ -78,6 +81,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       setTitle(task.title);
       setDescription(task.description);
       setLocalDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '');
+      setSubtasks(task.subtasks || []);
     }
   }, [taskId]);
 
@@ -92,6 +96,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       if (changes.title !== undefined) setTitle(changes.title);
       if (changes.description !== undefined) setDescription(changes.description);
       if (changes.dueDate !== undefined) setLocalDueDate(changes.dueDate ? changes.dueDate.slice(0, 10) : '');
+      if (changes.subtasks !== undefined) setSubtasks(changes.subtasks);
       setLiveUpdated(true);
       setTimeout(() => setLiveUpdated(false), 2000);
     };
@@ -368,6 +373,15 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 placeholder="Add a description… use @ to mention teammates"
                 rows={3}
                 onBlur={handleDescBlur}
+              />
+            </div>
+
+            {/* Subtasks */}
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+              <SubtaskList
+                taskId={taskId}
+                subtasks={subtasks}
+                onChange={setSubtasks}
               />
             </div>
 

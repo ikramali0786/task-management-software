@@ -1,5 +1,5 @@
 import api from './api';
-import { Task, TaskStats, WorkloadEntry, ProjectProgress } from '../types';
+import { Task, TaskStats, WorkloadEntry, ProjectProgress, Subtask } from '../types';
 
 export const taskService = {
   getTasks: async (params: Record<string, string>) => {
@@ -39,5 +39,17 @@ export const taskService = {
       workload: res.data.data.workload as WorkloadEntry[],
       projectProgress: res.data.data.projectProgress as ProjectProgress,
     };
+  },
+  addSubtask: async (taskId: string, title: string): Promise<Subtask[]> => {
+    const res = await api.post(`/tasks/${taskId}/subtasks`, { title });
+    return res.data.data.subtasks as Subtask[];
+  },
+  updateSubtask: async (taskId: string, subtaskId: string, data: { title?: string; completed?: boolean }): Promise<Subtask[]> => {
+    const res = await api.patch(`/tasks/${taskId}/subtasks/${subtaskId}`, data);
+    return res.data.data.subtasks as Subtask[];
+  },
+  deleteSubtask: async (taskId: string, subtaskId: string): Promise<Subtask[]> => {
+    const res = await api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`);
+    return res.data.data.subtasks as Subtask[];
   },
 };

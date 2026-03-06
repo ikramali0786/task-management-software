@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MessageSquare, Paperclip, GripVertical } from 'lucide-react';
+import { Calendar, MessageSquare, Paperclip, GripVertical, ListChecks } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
@@ -69,6 +69,33 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
           </span>
         )}
       </div>
+
+      {/* Subtask progress — only shown when task has subtasks */}
+      {task.subtasks?.length > 0 && (() => {
+        const total = task.subtasks.length;
+        const done = task.subtasks.filter((s) => s.completed).length;
+        const pct = Math.round((done / total) * 100);
+        return (
+          <div className="mt-2.5 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                <ListChecks className="h-2.5 w-2.5" />
+                {done}/{total}
+              </span>
+              <span className="text-[10px] font-medium text-slate-400">{pct}%</span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all duration-300',
+                  pct === 100 ? 'bg-emerald-500' : 'bg-brand-400'
+                )}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Footer */}
       <div className="mt-3 flex items-center justify-between">

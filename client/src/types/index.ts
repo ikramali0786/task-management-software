@@ -72,6 +72,14 @@ export interface TaskLabel {
   color: string;
 }
 
+export interface Subtask {
+  _id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Task {
   _id: string;
   title: string;
@@ -86,6 +94,7 @@ export interface Task {
   completedAt: string | null;
   position: number;
   isArchived: boolean;
+  subtasks: Subtask[];
   createdAt: string;
   updatedAt: string;
 }

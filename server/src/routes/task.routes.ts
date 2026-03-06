@@ -9,6 +9,9 @@ import {
   deleteTask,
   getTaskStats,
   getWorkload,
+  addSubtask,
+  updateSubtask,
+  deleteSubtask,
 } from '../controllers/task.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -25,5 +28,10 @@ router.patch('/:taskId', updateTask);
 router.delete('/:taskId', deleteTask);
 router.patch('/:taskId/status', updateTaskStatus);
 router.patch('/:taskId/position', updateTaskPosition);
+
+// Subtask routes
+router.post('/:taskId/subtasks', addSubtask);
+router.patch('/:taskId/subtasks/:subtaskId', updateSubtask);
+router.delete('/:taskId/subtasks/:subtaskId', deleteSubtask);
 
 export default router;

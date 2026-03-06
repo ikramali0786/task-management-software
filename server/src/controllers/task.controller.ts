@@ -353,6 +353,86 @@ export const getWorkload = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, { workload: enriched, projectProgress: { total: projectProgress.total, done: projectProgress.done } });
 });
 
+/* ── Subtask handlers ─────────────────────────────────────────────────────── */
+
+export const addSubtask = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ title: z.string().min(1).max(200) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+
+  (task.subtasks as any).push({ title: parsed.data.title, completed: false });
+  await task.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${task.team}`).emit('task:updated', {
+      taskId: task._id,
+      changes: { subtasks: task.subtasks },
+    });
+  }
+
+  sendSuccess(res, { subtasks: task.subtasks }, 'Subtask added.', 201);
+});
+
+export const updateSubtask = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    title: z.string().min(1).max(200).optional(),
+    completed: z.boolean().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+
+  const subtask = (task.subtasks as any).id(req.params.subtaskId);
+  if (!subtask) throw new ApiError(404, 'Subtask not found.');
+
+  if (parsed.data.title !== undefined) subtask.title = parsed.data.title;
+  if (parsed.data.completed !== undefined) subtask.completed = parsed.data.completed;
+  await task.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${task.team}`).emit('task:updated', {
+      taskId: task._id,
+      changes: { subtasks: task.subtasks },
+    });
+  }
+
+  sendSuccess(res, { subtasks: task.subtasks });
+});
+
+export const deleteSubtask = asyncHandler(async (req: Request, res: Response) => {
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+
+  const subtask = (task.subtasks as any).id(req.params.subtaskId);
+  if (!subtask) throw new ApiError(404, 'Subtask not found.');
+
+  subtask.deleteOne();
+  await task.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${task.team}`).emit('task:updated', {
+      taskId: task._id,
+      changes: { subtasks: task.subtasks },
+    });
+  }
+
+  sendSuccess(res, { subtasks: task.subtasks }, 'Subtask deleted.');
+});
+
 export const getTaskStats = asyncHandler(async (req: Request, res: Response) => {
   const { teamId } = req.query as { teamId: string };
   if (!teamId) throw new ApiError(400, 'teamId is required.');

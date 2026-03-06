@@ -3,6 +3,14 @@ import mongoose, { Schema, Document } from 'mongoose';
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
 
+export interface ISubtask {
+  _id: mongoose.Types.ObjectId;
+  title: string;
+  completed: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ITask extends Document {
   _id: mongoose.Types.ObjectId;
   title: string;
@@ -17,9 +25,18 @@ export interface ITask extends Document {
   completedAt: Date | null;
   position: number;
   isArchived: boolean;
+  subtasks: ISubtask[];
   createdAt: Date;
   updatedAt: Date;
 }
+
+const SubtaskSchema = new Schema<ISubtask>(
+  {
+    title: { type: String, required: true, trim: true, maxlength: 200 },
+    completed: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
 
 const TaskSchema = new Schema<ITask>(
   {
@@ -48,6 +65,7 @@ const TaskSchema = new Schema<ITask>(
     completedAt: { type: Date, default: null },
     position: { type: Number, default: 0 },
     isArchived: { type: Boolean, default: false },
+    subtasks: { type: [SubtaskSchema], default: [] },
   },
   { timestamps: true }
 );
