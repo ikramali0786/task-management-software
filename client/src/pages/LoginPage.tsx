@@ -26,20 +26,6 @@ const FEATURES = [
   { icon: Sparkles,     color: 'text-emerald-400',glow: 'bg-emerald-500/20', label: 'AI Chatbots',             sub: 'OpenAI-powered workflow assistants' },
 ];
 
-const MOCK_CARDS = [
-  {
-    status: 'Done',      statusCls: 'bg-white/20 text-white', dot: 'bg-emerald-300',
-    title: 'Auth flow & JWT token refresh', meta: 'Completed · 4 members',
-    progress: 100, barCls: 'bg-emerald-400',
-    rotate: '-1.5deg', tx: '0px',  ty: '0px',  z: 10, delay: 1.0,
-  },
-  {
-    status: 'In Review', statusCls: 'bg-white/20 text-white', dot: 'bg-amber-300',
-    title: 'API rate limiting & throttling', meta: 'Sarah · High priority · 2d left',
-    progress: 55,  barCls: 'bg-amber-300',
-    rotate: '2deg',    tx: '28px', ty: '14px', z: 20, delay: 0.6,
-  },
-];
 
 // ── Animated background orb ───────────────────────────────────────────────────
 
@@ -171,39 +157,6 @@ export const LoginPage = () => {
               </motion.div>
             ))}
           </motion.div>
-
-          {/* Stacked floating mock task cards */}
-          <div className="relative mt-12 h-44 select-none">
-            {MOCK_CARDS.map((card, i) => (
-              <motion.div
-                key={i}
-                className="absolute left-0 top-0"
-                style={{
-                  transform: `translateX(${card.tx}) translateY(${card.ty}) rotate(${card.rotate})`,
-                  zIndex: card.z,
-                }}
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: card.delay, duration: 0.55, type: 'spring', stiffness: 220, damping: 22 }}
-              >
-                <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 4 + i * 0.8, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
-                  className="w-64 rounded-2xl border border-white/20 bg-white/15 p-3.5 shadow-xl backdrop-blur-md"
-                >
-                  <div className={cn('mb-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold', card.statusCls)}>
-                    <span className={cn('h-1.5 w-1.5 rounded-full', card.dot)} />
-                    {card.status}
-                  </div>
-                  <p className="text-sm font-medium leading-snug text-white">{card.title}</p>
-                  <p className="mt-1 text-[10px] text-white/50">{card.meta}</p>
-                  <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-white/20">
-                    <div className={cn('h-full rounded-full', card.barCls)} style={{ width: `${card.progress}%` }} />
-                  </div>
-                </motion.div>
-              </motion.div>
-            ))}
-          </div>
 
           {/* Footer tagline */}
           <motion.p
