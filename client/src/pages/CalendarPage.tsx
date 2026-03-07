@@ -68,6 +68,7 @@ export const CalendarPage = () => {
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+  const totalWeeks = totalCells / 7; // 4, 5, or 6
 
   const todayKey = toDateKey(today);
 
@@ -127,8 +128,11 @@ export const CalendarPage = () => {
         ))}
       </div>
 
-      {/* Calendar grid */}
-      <div className="grid flex-1 grid-cols-7 grid-rows-[repeat(auto-fill,minmax(0,1fr))] overflow-y-auto">
+      {/* Calendar grid — use inline style for grid-template-rows so rows equally fill available height */}
+      <div
+        className="grid flex-1 grid-cols-7 overflow-y-auto"
+        style={{ gridTemplateRows: `repeat(${totalWeeks}, minmax(0, 1fr))` }}
+      >
         {Array.from({ length: totalCells }).map((_, idx) => {
           const dayNum = idx - firstDay + 1;
           const isCurrentMonth = dayNum >= 1 && dayNum <= daysInMonth;
@@ -144,9 +148,10 @@ export const CalendarPage = () => {
             <div
               key={idx}
               className={cn(
-                'min-h-[120px] border-b border-r border-slate-100 p-2 dark:border-slate-800',
+                'min-h-[90px] border-b border-r border-slate-100 p-2 dark:border-slate-800',
                 !isCurrentMonth && 'bg-slate-50/50 dark:bg-slate-800/20',
-                isPast && isCurrentMonth && 'bg-white dark:bg-slate-900',
+                isToday && 'bg-brand-50/40 dark:bg-brand-500/5',
+                isPast && isCurrentMonth && !isToday && 'bg-white dark:bg-slate-900',
               )}
             >
               {isCurrentMonth && (

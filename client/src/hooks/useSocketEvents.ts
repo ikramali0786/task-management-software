@@ -5,14 +5,58 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { usePrefsStore } from '@/store/prefsStore';
 import { Task, Notification } from '@/types';
 
+// ── Shared AudioContext ───────────────────────────────────────────────────────
+//
+// Modern browsers (Chrome, Safari) enforce an "autoplay policy" that prevents
+// AudioContext from producing sound unless it was created — or resumed — inside
+// a user-gesture handler (click, keydown, touchstart).
+//
+// The previous implementation created a *new* AudioContext on every playSound()
+// call. Because socket events arrive outside a user gesture, those fresh contexts
+// always started in the "suspended" state and played nothing.
+//
+// Fix: use a single, module-level AudioContext. Register capture-phase listeners
+// on window so that the very first user interaction resumes the context; all
+// subsequent playSound() calls then reuse an already-running context.
+
+let _audioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!_audioCtx || _audioCtx.state === 'closed') {
+      _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return _audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+// Resume the shared context on every user interaction.
+// Using capture=true so we intercept before any stopPropagation().
+function resumeAudioCtx() {
+  getAudioCtx()?.resume().catch(() => {});
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click',      resumeAudioCtx, { capture: true, passive: true });
+  window.addEventListener('keydown',    resumeAudioCtx, { capture: true, passive: true });
+  window.addEventListener('touchstart', resumeAudioCtx, { capture: true, passive: true });
+}
+
 // ── Sound synthesiser ────────────────────────────────────────────────────────
-// Three distinct tones, all built from Web Audio API — no external assets needed.
 
 type SoundType = 'task' | 'member' | 'notification';
 
 const playSound = (type: SoundType) => {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+
+  // Attempt to resume (no-op when already running; may succeed synchronously
+  // in some browsers even outside a gesture if the context was previously running).
+  void ctx.resume();
+
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const gainNode = ctx.createGain();
     gainNode.connect(ctx.destination);
 
@@ -27,7 +71,7 @@ const playSound = (type: SoundType) => {
       osc.frequency.setValueAtTime(440, ctx.currentTime + 0.18);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.5);
-      osc.onended = () => ctx.close();
+
     } else if (type === 'member') {
       // Warm ascending three-note chord (new member joined)  C5 → E5 → G5
       const notes = [523, 659, 784];
@@ -44,8 +88,8 @@ const playSound = (type: SoundType) => {
         osc.frequency.setValueAtTime(freq, start);
         osc.start(start);
         osc.stop(start + 0.55);
-        if (i === notes.length - 1) osc.onended = () => ctx.close();
       });
+
     } else {
       // Single descending bell ping (general notification)
       const osc = ctx.createOscillator();
@@ -57,12 +101,13 @@ const playSound = (type: SoundType) => {
       osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.6);
-      osc.onended = () => ctx.close();
     }
   } catch {
-    // AudioContext not available — skip silently
+    // AudioContext node creation failed — skip silently
   }
 };
+
+// ── Socket event handlers ─────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
   todo: 'To Do',
@@ -104,7 +149,6 @@ export const useSocketEvents = () => {
     };
 
     const handleTaskUpdated = ({ taskId, changes }: { taskId: string; changes: Partial<Task> }) => {
-      // Read title before store update (title doesn't change, but look it up for the message)
       const existingTask = useTaskStore.getState().tasks[taskId];
       applySocketUpdate(taskId, changes);
       throttledSound('task');
@@ -156,7 +200,6 @@ export const useSocketEvents = () => {
 
     const handleNotification = ({ notification }: { notification: Notification }) => {
       const prefs = usePrefsStore.getState();
-      // Filter by notification type preference
       const typeMap: Record<string, keyof typeof prefs> = {
         task_assigned: 'notifyTaskAssigned',
         task_updated: 'notifyTaskUpdated',
@@ -169,7 +212,6 @@ export const useSocketEvents = () => {
       if (prefKey && prefs[prefKey] === false) return;
 
       addNotification(notification);
-      // Use distinct sound for new member joining, standard for everything else
       if (notification.type === 'member_joined') {
         throttledSound('member');
       } else {
