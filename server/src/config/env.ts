@@ -7,7 +7,7 @@ export const env = {
   MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/taskflow',
   JWT_SECRET: process.env.JWT_SECRET || 'dev_jwt_secret_change_in_prod',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_in_prod',
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1h',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
 

@@ -31,10 +31,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Never intercept 401s from auth endpoints themselves — a failed login or
-    // a missing refresh-token should surface directly to the caller, not trigger
-    // a token-refresh attempt that would then redirect to /login and wipe the page.
-    const isAuthRoute = originalRequest.url?.includes('/auth/');
+    // Never intercept 401s from credential-based auth endpoints — a failed login,
+    // registration, or refresh should surface directly to the caller.
+    // NOTE: /auth/me IS a protected endpoint that needs the refresh flow,
+    // so we only block the specific endpoints that don't need token refresh.
+    const AUTH_NO_RETRY = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
+    const isAuthRoute = AUTH_NO_RETRY.some((path) => originalRequest.url?.includes(path));
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       if (isRefreshing) {
@@ -60,10 +62,15 @@ api.interceptors.response.use(
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
-      } catch (err) {
+      } catch (err: any) {
         processQueue(err, null);
-        localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        // Only redirect to login when the refresh token is truly invalid (401/403).
+        // Network errors or 5xx during a cold-start shouldn't evict the user.
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          localStorage.removeItem('accessToken');
+          window.location.href = '/login';
+        }
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

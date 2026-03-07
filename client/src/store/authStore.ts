@@ -74,9 +74,15 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       socket.on('connect', () => joinTeamRooms(teamIds));
       if (socket.connected) joinTeamRooms(teamIds);
       set({ user, isAuthenticated: true });
-    } catch {
-      localStorage.removeItem('accessToken');
-      set({ user: null, token: null, isAuthenticated: false });
+    } catch (err: any) {
+      // Only clear the session when the server explicitly rejects the token (401).
+      // Network errors, timeouts, or backend cold-start failures (5xx) should NOT
+      // log the user out — their token may still be perfectly valid.
+      const status = err?.response?.status;
+      if (status === 401) {
+        localStorage.removeItem('accessToken');
+        set({ user: null, token: null, isAuthenticated: false });
+      }
     }
   },
 
