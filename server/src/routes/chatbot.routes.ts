@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import multer, { FileFilterCallback } from 'multer';
+import multer from 'multer';
 import {
   getChatbots,
   createChatbot,
@@ -12,10 +12,11 @@ import { protect } from '../middleware/auth.middleware';
 const router = Router();
 
 // Multer: memory storage, 10 MB limit, allowlist of file types
+// fileFilter param types are inferred contextually from multer.Options
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  fileFilter: (_req: Express.Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+  fileFilter: (_req, file, cb) => {
     const allowed = [
       'image/jpeg',
       'image/png',
