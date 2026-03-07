@@ -24,7 +24,7 @@ interface TaskDetailModalProps {
 }
 
 export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
-  const { tasks, updateTask, deleteTask } = useTaskStore();
+  const { tasks, updateTask, deleteTask, applySocketUpdate } = useTaskStore();
   const { activeTeam } = useTeamStore();
   const { addToast } = useUIStore();
 
@@ -379,7 +379,10 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 <SubtaskList
                   taskId={taskId}
                   subtasks={subtasks}
-                  onChange={setSubtasks}
+                  onChange={(newSubtasks) => {
+                    setSubtasks(newSubtasks);
+                    applySocketUpdate(taskId, { subtasks: newSubtasks });
+                  }}
                 />
               </div>
             </div>
