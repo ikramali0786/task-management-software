@@ -1,10 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Kanban, RefreshCw } from 'lucide-react';
+import { Kanban } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useTaskStore } from '@/store/taskStore';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { TaskFilterBar, TaskFilters, DEFAULT_FILTERS } from '@/components/kanban/TaskFilterBar';
-import { Button } from '@/components/ui/Button';
 import { Task } from '@/types';
 
 const isOverdueDate = (d: string | null) => {
@@ -48,14 +47,17 @@ export const KanbanPage = () => {
   const { activeTeam } = useTeamStore();
   const { tasks, fetchTasks, isLoading } = useTaskStore();
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
+  // Selection mode lifted here so the toolbar can render Select/Cancel
+  const [selectionMode, setSelectionMode] = useState(false);
 
   useEffect(() => {
     if (activeTeam) fetchTasks(activeTeam._id);
   }, [activeTeam?._id]);
 
-  // Reset filters when team changes
+  // Reset filters + selection when team changes
   useEffect(() => {
     setFilters(DEFAULT_FILTERS);
+    setSelectionMode(false);
   }, [activeTeam?._id]);
 
   const allTasks = useMemo(() => Object.values(tasks), [tasks]);
@@ -96,37 +98,26 @@ export const KanbanPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Board header */}
-      <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-3 dark:border-slate-800">
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-          {activeTeam.name}
-        </h2>
-        <span className="text-slate-300 dark:text-slate-600">·</span>
-        <span className="text-sm text-slate-400">Kanban Board</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => fetchTasks(activeTeam._id)}
-            title="Refresh board"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Filter bar */}
+      {/* Single unified toolbar — replaces the old board header + filter bar */}
       <TaskFilterBar
         filters={filters}
         onChange={setFilters}
         members={members}
         totalCount={allTasks.length}
         filteredCount={isFiltered ? filteredTaskIds.size : allTasks.length}
+        teamName={activeTeam.name}
+        onRefresh={() => fetchTasks(activeTeam._id)}
+        selectionMode={selectionMode}
+        onToggleSelection={() => setSelectionMode((v) => !v)}
       />
 
       {/* Board */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <KanbanBoard filteredTaskIds={isFiltered ? filteredTaskIds : null} />
+        <KanbanBoard
+          filteredTaskIds={isFiltered ? filteredTaskIds : null}
+          selectionMode={selectionMode}
+          onExitSelection={() => setSelectionMode(false)}
+        />
       </div>
     </div>
   );

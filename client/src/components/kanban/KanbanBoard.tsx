@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -13,7 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckSquare, Trash2, ArrowRight, X } from 'lucide-react';
+import { Trash2, ArrowRight } from 'lucide-react';
 import { Task, TaskStatus, TASK_STATUSES } from '@/types';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
@@ -32,9 +32,12 @@ const MIN_GAP = 0.001;
 interface Props {
   /** When set, only tasks whose IDs are in this set are visible */
   filteredTaskIds?: Set<string> | null;
+  /** Controlled from KanbanPage so the toolbar Select/Cancel button works */
+  selectionMode: boolean;
+  onExitSelection: () => void;
 }
 
-export const KanbanBoard = ({ filteredTaskIds }: Props) => {
+export const KanbanBoard = ({ filteredTaskIds, selectionMode, onExitSelection }: Props) => {
   const { tasks, columns, moveTask, rollbackMove, applySocketDelete, applySocketUpdate, activeTeamId } = useTaskStore();
   const { activeTeam } = useTeamStore();
   const { activeModal, activeTaskId, closeModal, addToast } = useUIStore();
@@ -43,9 +46,15 @@ export const KanbanBoard = ({ filteredTaskIds }: Props) => {
   const prevState = useRef<{ taskId: string; status: TaskStatus; position: number } | null>(null);
 
   // ── Bulk selection ────────────────────────────────────────────────────────
+  // selectionMode is controlled by the parent (KanbanPage) via the toolbar button.
+  // selectedIds stays local since it's only used here.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectionMode, setSelectionMode] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Clear selection when parent turns selection mode off
+  useEffect(() => {
+    if (!selectionMode) setSelectedIds(new Set());
+  }, [selectionMode]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -57,8 +66,7 @@ export const KanbanBoard = ({ filteredTaskIds }: Props) => {
   }, []);
 
   const exitSelectionMode = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
+    onExitSelection(); // parent flips selectionMode → false → useEffect clears selectedIds
   };
 
   const handleBulkMove = async (status: TaskStatus) => {
@@ -174,27 +182,6 @@ export const KanbanBoard = ({ filteredTaskIds }: Props) => {
 
   return (
     <>
-      {/* Select mode toggle */}
-      <div className="absolute right-6 z-10" style={{ top: '7.5rem' }}>
-        {!selectionMode ? (
-          <button
-            onClick={() => setSelectionMode(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-          >
-            <CheckSquare className="h-3.5 w-3.5" />
-            Select
-          </button>
-        ) : (
-          <button
-            onClick={exitSelectionMode}
-            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-600 dark:border-slate-700 dark:bg-slate-800"
-          >
-            <X className="h-3.5 w-3.5" />
-            Cancel
-          </button>
-        )}
-      </div>
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
