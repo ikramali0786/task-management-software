@@ -7,6 +7,7 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
+import { sanitizeText } from '../utils/sanitize';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -45,8 +46,8 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   const position = await getMaxPosition(parsed.data.teamId, status as TaskStatus);
 
   const task = await Task.create({
-    title: parsed.data.title,
-    description: parsed.data.description || '',
+    title: sanitizeText(parsed.data.title),
+    description: sanitizeText(parsed.data.description || ''),
     team: parsed.data.teamId,
     createdBy: userId,
     assignees: parsed.data.assignees || [],
@@ -164,8 +165,8 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
   }
 
   Object.assign(task, {
-    ...(parsed.data.title && { title: parsed.data.title }),
-    ...(parsed.data.description !== undefined && { description: parsed.data.description }),
+    ...(parsed.data.title && { title: sanitizeText(parsed.data.title) }),
+    ...(parsed.data.description !== undefined && { description: sanitizeText(parsed.data.description) }),
     ...(parsed.data.assignees && { assignees: parsed.data.assignees }),
     ...(parsed.data.status && { status: parsed.data.status }),
     ...(parsed.data.priority && { priority: parsed.data.priority }),
@@ -398,7 +399,7 @@ export const addSubtask = asyncHandler(async (req: Request, res: Response) => {
 
   await verifyTeamMember(task.team.toString(), req.user!._id.toString());
 
-  (task.subtasks as any).push({ title: parsed.data.title, completed: false });
+  (task.subtasks as any).push({ title: sanitizeText(parsed.data.title), completed: false });
   await task.save();
 
   const io = getIO();
@@ -428,7 +429,7 @@ export const updateSubtask = asyncHandler(async (req: Request, res: Response) =>
   const subtask = (task.subtasks as any).id(req.params.subtaskId);
   if (!subtask) throw new ApiError(404, 'Subtask not found.');
 
-  if (parsed.data.title !== undefined) subtask.title = parsed.data.title;
+  if (parsed.data.title !== undefined) subtask.title = sanitizeText(parsed.data.title);
   if (parsed.data.completed !== undefined) subtask.completed = parsed.data.completed;
   await task.save();
 
@@ -504,4 +505,186 @@ export const getTaskStats = asyncHandler(async (req: Request, res: Response) => 
   };
 
   sendSuccess(res, { stats });
+});
+
+/* ── Kanban position rebalance ───────────────────────────────────────────── */
+
+export const rebalancePositions = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    teamId: z.string(),
+    status: z.enum(['todo', 'in_progress', 'review', 'done']),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  await verifyTeamMember(parsed.data.teamId, req.user!._id.toString());
+
+  const tasks = await Task.find({
+    team: parsed.data.teamId,
+    status: parsed.data.status,
+    isArchived: false,
+  }).sort({ position: 1 }).select('_id position');
+
+  const updates = tasks.map((t, i) =>
+    Task.updateOne({ _id: t._id }, { $set: { position: (i + 1) * 1000 } })
+  );
+  await Promise.all(updates);
+
+  sendSuccess(res, null, 'Positions rebalanced.');
+});
+
+/* ── Bulk task actions ───────────────────────────────────────────────────── */
+
+export const bulkUpdateTasks = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    taskIds: z.array(z.string()).min(1).max(100),
+    teamId: z.string(),
+    changes: z.object({
+      status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
+      priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
+      assignees: z.array(z.string()).optional(),
+    }),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const userId = req.user!._id.toString();
+  await verifyTeamMember(parsed.data.teamId, userId);
+
+  const updateFields: Record<string, unknown> = {};
+  if (parsed.data.changes.status) updateFields.status = parsed.data.changes.status;
+  if (parsed.data.changes.priority) updateFields.priority = parsed.data.changes.priority;
+  if (parsed.data.changes.assignees) updateFields.assignees = parsed.data.changes.assignees;
+  if (parsed.data.changes.status === 'done') updateFields.completedAt = new Date();
+
+  await Task.updateMany(
+    { _id: { $in: parsed.data.taskIds }, team: parsed.data.teamId },
+    { $set: updateFields }
+  );
+
+  const io = getIO();
+  if (io) {
+    for (const taskId of parsed.data.taskIds) {
+      io.to(`team:${parsed.data.teamId}`).emit('task:updated', {
+        taskId,
+        changes: parsed.data.changes,
+      });
+    }
+  }
+
+  sendSuccess(res, { updated: parsed.data.taskIds.length }, 'Tasks updated.');
+});
+
+export const bulkDeleteTasks = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    taskIds: z.array(z.string()).min(1).max(100),
+    teamId: z.string(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const userId = req.user!._id.toString();
+  const team = await verifyTeamMember(parsed.data.teamId, userId);
+
+  const member = team.members.find((m) => m.user.toString() === userId);
+  const isAdmin = member && ['owner', 'admin'].includes(member.role);
+
+  const filter = isAdmin
+    ? { _id: { $in: parsed.data.taskIds }, team: parsed.data.teamId }
+    : { _id: { $in: parsed.data.taskIds }, team: parsed.data.teamId, createdBy: userId };
+
+  const tasks = await Task.find(filter).select('_id');
+  const deletableIds = tasks.map((t) => t._id.toString());
+
+  await Task.deleteMany({ _id: { $in: deletableIds } });
+
+  const io = getIO();
+  if (io) {
+    for (const taskId of deletableIds) {
+      io.to(`team:${parsed.data.teamId}`).emit('task:deleted', {
+        taskId,
+        teamId: parsed.data.teamId,
+      });
+    }
+  }
+
+  sendSuccess(res, { deleted: deletableIds.length }, 'Tasks deleted.');
+});
+
+/* ── Time tracking ───────────────────────────────────────────────────────── */
+
+export const logTime = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    minutes: z.number().int().min(1).max(14400),
+    note: z.string().max(500).optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  const userId = req.user!._id.toString();
+  await verifyTeamMember(task.team.toString(), userId);
+
+  (task.timeEntries as any).push({
+    user: userId,
+    minutes: parsed.data.minutes,
+    note: parsed.data.note || '',
+    loggedAt: new Date(),
+  });
+  await task.save();
+
+  await task.populate('timeEntries.user', 'name avatar');
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${task.team}`).emit('task:updated', {
+      taskId: task._id,
+      changes: { timeEntries: task.timeEntries },
+    });
+  }
+
+  sendSuccess(res, { timeEntries: task.timeEntries }, 'Time logged.', 201);
+});
+
+export const deleteTimeEntry = asyncHandler(async (req: Request, res: Response) => {
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  const userId = req.user!._id.toString();
+  await verifyTeamMember(task.team.toString(), userId);
+
+  const entry = (task.timeEntries as any).id(req.params.entryId);
+  if (!entry) throw new ApiError(404, 'Time entry not found.');
+  if (entry.user.toString() !== userId) throw new ApiError(403, "Cannot delete another user's time entry.");
+
+  entry.deleteOne();
+  await task.save();
+
+  const io = getIO();
+  if (io) {
+    io.to(`team:${task.team}`).emit('task:updated', {
+      taskId: task._id,
+      changes: { timeEntries: task.timeEntries },
+    });
+  }
+
+  sendSuccess(res, { timeEntries: task.timeEntries }, 'Time entry deleted.');
+});
+
+export const updateEstimate = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ estimatedMinutes: z.number().int().min(1).max(14400).nullable() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+
+  (task as any).estimatedMinutes = parsed.data.estimatedMinutes;
+  await task.save();
+
+  sendSuccess(res, { estimatedMinutes: (task as any).estimatedMinutes });
 });

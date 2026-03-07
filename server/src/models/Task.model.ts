@@ -11,6 +11,14 @@ export interface ISubtask {
   updatedAt: Date;
 }
 
+export interface ITimeEntry {
+  _id: mongoose.Types.ObjectId;
+  user: mongoose.Types.ObjectId;
+  minutes: number;       // logged duration in minutes
+  note: string;
+  loggedAt: Date;
+}
+
 export interface ITask extends Document {
   _id: mongoose.Types.ObjectId;
   title: string;
@@ -26,6 +34,8 @@ export interface ITask extends Document {
   position: number;
   isArchived: boolean;
   subtasks: ISubtask[];
+  timeEntries: ITimeEntry[];
+  estimatedMinutes: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +46,16 @@ const SubtaskSchema = new Schema<ISubtask>(
     completed: { type: Boolean, default: false },
   },
   { timestamps: true }
+);
+
+const TimeEntrySchema = new Schema<ITimeEntry>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    minutes: { type: Number, required: true, min: 1 },
+    note: { type: String, default: '', maxlength: 500 },
+    loggedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
 );
 
 const TaskSchema = new Schema<ITask>(
@@ -66,6 +86,8 @@ const TaskSchema = new Schema<ITask>(
     position: { type: Number, default: 0 },
     isArchived: { type: Boolean, default: false },
     subtasks: { type: [SubtaskSchema], default: [] },
+    timeEntries: { type: [TimeEntrySchema], default: [] },
+    estimatedMinutes: { type: Number, default: null },
   },
   { timestamps: true }
 );

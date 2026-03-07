@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MessageSquare, Paperclip, GripVertical, ListChecks } from 'lucide-react';
+import { Calendar, MessageSquare, Paperclip, GripVertical, ListChecks, CheckSquare, Square } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
@@ -14,30 +14,50 @@ import { formatDate, isOverdue, cn } from '@/lib/utils';
 interface TaskCardProps {
   task: Task;
   isDragging?: boolean;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
+export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggleSelect }: TaskCardProps) => {
   const { openTaskDetail } = useUIStore();
   const { activeTeam } = useTeamStore();
   const [hasReactions, setHasReactions] = useState(false);
   const overdue = isOverdue(task.dueDate, task.status);
-  // Guard: priority badge crashes if priority is undefined
   const priority = task.priority ?? 'medium';
-  // task.team may be a string ID (not populated in list endpoint)
   const teamId = typeof task.team === 'string' ? task.team : (task.team as any)?._id || activeTeam?._id || '';
+
+  const handleClick = () => {
+    if (isDragging) return;
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect(task._id);
+    } else {
+      openTaskDetail(task._id);
+    }
+  };
 
   return (
     <motion.div
       layout
-      // layoutId removed — having the same layoutId in both the column and
-      // the DragOverlay simultaneously causes a Framer Motion charCodeAt crash
-      onClick={() => !isDragging && openTaskDetail(task._id)}
+      onClick={handleClick}
       className={cn(
         'group cursor-pointer rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800',
         isDragging && 'shadow-2xl ring-2 ring-brand-400/40 rotate-1 opacity-95',
-        overdue && 'border-red-200 dark:border-red-800/50'
+        overdue && 'border-red-200 dark:border-red-800/50',
+        isSelected && 'ring-2 ring-brand-500 border-brand-300 dark:border-brand-600'
       )}
     >
+      {/* Selection checkbox */}
+      {selectionMode && (
+        <div className="mb-2 flex items-center gap-2">
+          {isSelected ? (
+            <CheckSquare className="h-4 w-4 text-brand-500" />
+          ) : (
+            <Square className="h-4 w-4 text-slate-300 dark:text-slate-600" />
+          )}
+        </div>
+      )}
+
       {/* Labels */}
       {task.labels?.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
@@ -70,37 +90,23 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
         )}
       </div>
 
-      {/* Subtask progress — only shown when task has subtasks */}
+      {/* Subtask progress */}
       {task.subtasks?.length > 0 && (() => {
         const total = task.subtasks.length;
         const done = task.subtasks.filter((s) => s.completed).length;
         const pct = Math.round((done / total) * 100);
-        const labelCls =
-          pct === 100
-            ? 'text-emerald-600 dark:text-emerald-400'
-            : pct > 0
-            ? 'text-amber-500 dark:text-amber-400'
-            : 'text-slate-400';
-        const barCls =
-          pct === 100
-            ? 'bg-emerald-500'
-            : pct > 0
-            ? 'bg-amber-400'
-            : 'bg-slate-300 dark:bg-slate-600';
+        const labelCls = pct === 100 ? 'text-emerald-600 dark:text-emerald-400' : pct > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-400';
+        const barCls = pct === 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-300 dark:bg-slate-600';
         return (
           <div className="mt-2.5 space-y-1">
             <div className="flex items-center justify-between">
               <span className={cn('flex items-center gap-1 text-[10px] font-medium', labelCls)}>
-                <ListChecks className="h-2.5 w-2.5" />
-                {done}/{total}
+                <ListChecks className="h-2.5 w-2.5" />{done}/{total}
               </span>
               <span className={cn('text-[10px] font-medium', labelCls)}>{pct}%</span>
             </div>
             <div className="h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-              <div
-                className={cn('h-full rounded-full transition-all duration-300', barCls)}
-                style={{ width: `${pct === 0 ? 0 : pct}%` }}
-              />
+              <div className={cn('h-full rounded-full transition-all duration-300', barCls)} style={{ width: `${pct}%` }} />
             </div>
           </div>
         );
@@ -115,12 +121,11 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
         </div>
       </div>
 
-      {/* Emoji reactions — stopPropagation prevents opening the detail modal */}
-      {teamId && (
+      {/* Emoji reactions — only in normal mode */}
+      {!selectionMode && teamId && (
         <div
           className={cn(
             'mt-2.5 pt-2 transition-colors',
-            // Always show border when reactions exist; on hover show it even when empty
             hasReactions
               ? 'border-t border-slate-100 dark:border-slate-700'
               : 'border-t border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700'
@@ -141,10 +146,19 @@ export const TaskCard = ({ task, isDragging }: TaskCardProps) => {
   );
 };
 
-export const SortableTaskCard = ({ task }: { task: Task }) => {
-  const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: task._id, data: { type: 'task', task } });
+interface SortableProps {
+  task: Task;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}
+
+export const SortableTaskCard = ({ task, selectionMode, isSelected, onToggleSelect }: SortableProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task._id,
+    data: { type: 'task', task },
+    disabled: selectionMode, // disable DnD in selection mode
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -154,16 +168,23 @@ export const SortableTaskCard = ({ task }: { task: Task }) => {
 
   return (
     <div ref={setNodeRef} style={style} className={cn('group relative', isDragging && 'opacity-30')}>
-      {/* Grip handle — top-right corner, appears on hover */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute right-2 top-2 z-10 cursor-grab rounded-md p-1 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-slate-100 dark:text-slate-600 dark:hover:bg-slate-700"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-3.5 w-3.5" />
-      </div>
-      <TaskCard task={task} isDragging={isDragging} />
+      {!selectionMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute right-2 top-2 z-10 cursor-grab rounded-md p-1 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-slate-100 dark:text-slate-600 dark:hover:bg-slate-700"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </div>
+      )}
+      <TaskCard
+        task={task}
+        isDragging={isDragging}
+        selectionMode={selectionMode}
+        isSelected={isSelected}
+        onToggleSelect={onToggleSelect}
+      />
     </div>
   );
 };

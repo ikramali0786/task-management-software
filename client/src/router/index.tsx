@@ -17,6 +17,7 @@ const WorkloadPage = lazy(() => import('@/pages/WorkloadPage').then(m => ({ defa
 const ActivityPage = lazy(() => import('@/pages/ActivityPage').then(m => ({ default: m.ActivityPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const ChatbotsPage = lazy(() => import('@/pages/ChatbotsPage').then(m => ({ default: m.ChatbotsPage })));
+const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
       { path: 'workload', element: <WorkloadPage /> },
       { path: 'activity', element: <ActivityPage /> },
       { path: 'chatbots', element: <ChatbotsPage /> },
+      { path: 'calendar', element: <CalendarPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },

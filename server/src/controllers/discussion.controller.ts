@@ -7,6 +7,7 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { getIO } from '../config/socket';
 import { createNotification } from '../services/notification.service';
+import { sanitizeText } from '../utils/sanitize';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -65,7 +66,7 @@ export const createDiscussion = asyncHandler(async (req: Request, res: Response)
   const discussion = await Discussion.create({
     team: parsed.data.teamId,
     author: userId,
-    body: parsed.data.body,
+    body: sanitizeText(parsed.data.body),
     parentDiscussion: parsed.data.parentDiscussionId || null,
     mentions: parsed.data.mentionedUserIds || [],
   });

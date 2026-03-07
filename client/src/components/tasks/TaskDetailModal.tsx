@@ -4,7 +4,7 @@ import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
   Paperclip, MessageSquare, AlertTriangle, Clock, Info,
 } from 'lucide-react';
-import { Task, TaskStatus, TaskPriority, Subtask, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
+import { Task, TaskStatus, TaskPriority, Subtask, TimeEntry, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
 import { taskService } from '@/services/taskService';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
@@ -17,6 +17,7 @@ import { CommentSection } from '@/components/tasks/CommentSection';
 import { AttachmentPanel } from '@/components/tasks/AttachmentPanel';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 import { SubtaskList } from '@/components/tasks/SubtaskList';
+import { TimeTracker } from '@/components/tasks/TimeTracker';
 
 interface TaskDetailModalProps {
   taskId: string;
@@ -41,6 +42,8 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     task?.dueDate ? task.dueDate.slice(0, 10) : ''
   );
   const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks || []);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(task?.timeEntries || []);
+  const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task?.estimatedMinutes ?? null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [liveUpdated, setLiveUpdated] = useState(false);
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments'>('comments');
@@ -74,6 +77,8 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
           setTitle(t.title);
           setDescription(t.description);
           setSubtasks(t.subtasks || []);
+          setTimeEntries(t.timeEntries || []);
+          setEstimatedMinutes(t.estimatedMinutes ?? null);
         })
         .finally(() => setLoading(false));
     } else {
@@ -82,6 +87,8 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       setDescription(task.description);
       setLocalDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '');
       setSubtasks(task.subtasks || []);
+      setTimeEntries(task.timeEntries || []);
+      setEstimatedMinutes(task.estimatedMinutes ?? null);
     }
   }, [taskId]);
 
@@ -590,6 +597,19 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Time Tracking */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+                <TimeTracker
+                  taskId={taskId}
+                  timeEntries={timeEntries}
+                  estimatedMinutes={estimatedMinutes}
+                  onChange={(entries, estMins) => {
+                    setTimeEntries(entries);
+                    setEstimatedMinutes(estMins);
+                  }}
+                />
               </div>
 
             </div>

@@ -1,18 +1,74 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState, useMemo } from 'react';
 import { Kanban, RefreshCw } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useTaskStore } from '@/store/taskStore';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
+import { TaskFilterBar, TaskFilters, DEFAULT_FILTERS } from '@/components/kanban/TaskFilterBar';
 import { Button } from '@/components/ui/Button';
+import { Task } from '@/types';
+
+const isOverdueDate = (d: string | null) => {
+  if (!d) return false;
+  return new Date(d) < new Date(new Date().setHours(0, 0, 0, 0));
+};
+const isTodayDate = (d: string | null) => {
+  if (!d) return false;
+  const due = new Date(d);
+  const today = new Date();
+  return (
+    due.getDate() === today.getDate() &&
+    due.getMonth() === today.getMonth() &&
+    due.getFullYear() === today.getFullYear()
+  );
+};
+const isThisWeekDate = (d: string | null) => {
+  if (!d) return false;
+  const due = new Date(d);
+  const now = new Date();
+  const weekEnd = new Date(now);
+  weekEnd.setDate(now.getDate() + 7);
+  return due >= now && due <= weekEnd;
+};
+
+const applyFilters = (tasks: Task[], filters: TaskFilters): Task[] => {
+  const search = filters.search.trim().toLowerCase();
+  return tasks.filter((t) => {
+    if (search && !t.title.toLowerCase().includes(search) && !t.description?.toLowerCase().includes(search)) return false;
+    if (filters.priorities.length > 0 && !filters.priorities.includes(t.priority)) return false;
+    if (filters.assigneeIds.length > 0 && !t.assignees.some((a) => filters.assigneeIds.includes(a._id))) return false;
+    if (filters.dueDateFilter === 'overdue' && !isOverdueDate(t.dueDate)) return false;
+    if (filters.dueDateFilter === 'today' && !isTodayDate(t.dueDate)) return false;
+    if (filters.dueDateFilter === 'week' && !isThisWeekDate(t.dueDate)) return false;
+    if (filters.dueDateFilter === 'no-date' && t.dueDate !== null) return false;
+    return true;
+  });
+};
 
 export const KanbanPage = () => {
   const { activeTeam } = useTeamStore();
-  const { fetchTasks, isLoading } = useTaskStore();
+  const { tasks, fetchTasks, isLoading } = useTaskStore();
+  const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
 
   useEffect(() => {
     if (activeTeam) fetchTasks(activeTeam._id);
   }, [activeTeam?._id]);
+
+  // Reset filters when team changes
+  useEffect(() => {
+    setFilters(DEFAULT_FILTERS);
+  }, [activeTeam?._id]);
+
+  const allTasks = useMemo(() => Object.values(tasks), [tasks]);
+  const filteredTaskIds = useMemo(() => {
+    const filtered = applyFilters(allTasks, filters);
+    return new Set(filtered.map((t) => t._id));
+  }, [allTasks, filters]);
+
+  const isFiltered =
+    filters.search.trim() !== '' ||
+    filters.priorities.length > 0 ||
+    filters.assigneeIds.length > 0 ||
+    filters.dueDateFilter !== 'all';
 
   if (!activeTeam) {
     return (
@@ -36,6 +92,8 @@ export const KanbanPage = () => {
     );
   }
 
+  const members = activeTeam.members.map((m) => m.user);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Board header */}
@@ -57,9 +115,18 @@ export const KanbanPage = () => {
         </div>
       </div>
 
+      {/* Filter bar */}
+      <TaskFilterBar
+        filters={filters}
+        onChange={setFilters}
+        members={members}
+        totalCount={allTasks.length}
+        filteredCount={isFiltered ? filteredTaskIds.size : allTasks.length}
+      />
+
       {/* Board */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <KanbanBoard />
+        <KanbanBoard filteredTaskIds={isFiltered ? filteredTaskIds : null} />
       </div>
     </div>
   );

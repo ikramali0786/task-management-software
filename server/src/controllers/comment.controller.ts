@@ -9,6 +9,7 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
+import { sanitizeText } from '../utils/sanitize';
 
 const verifyTaskAccess = async (taskId: string, userId: string) => {
   const task = await Task.findById(taskId);
@@ -71,7 +72,7 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
   const comment = await Comment.create({
     task: parsed.data.taskId,
     author: userId,
-    body: parsed.data.body,
+    body: sanitizeText(parsed.data.body),
     parentComment: parsed.data.parentCommentId || null,
     mentions: parsed.data.mentionedUserIds || [],
   });
@@ -142,7 +143,7 @@ export const updateComment = asyncHandler(async (req: Request, res: Response) =>
     throw new ApiError(403, 'Only the author can edit this comment.');
   if (comment.isDeleted) throw new ApiError(400, 'Cannot edit a deleted comment.');
 
-  comment.body = parsed.data.body;
+  comment.body = sanitizeText(parsed.data.body);
   comment.editedAt = new Date();
   await comment.save();
 

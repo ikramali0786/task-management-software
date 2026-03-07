@@ -43,14 +43,19 @@ export const EmojiReactionBar = ({ resourceId, resourceType, teamId, size = 'sm'
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
+    // NOTE: server computes `reacted` from the toggler's perspective; re-derive for each viewer
     const handler = (data: { resourceId: string; reactions: ReactionGroup[] }) => {
       if (data.resourceId === resourceId) {
-        setReactions(data.reactions);
+        // Re-derive reacted flag for each viewer — server perspective was the toggler's
+        setReactions(data.reactions.map((r) => ({
+          ...r,
+          reacted: r.users.includes(user?._id || ''),
+        })));
       }
     };
     socket.on('reaction:toggled', handler);
     return () => { socket.off('reaction:toggled', handler); };
-  }, [resourceId]);
+  }, [resourceId, user?._id]);
 
   // Close picker on outside click
   useEffect(() => {

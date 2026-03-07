@@ -19,9 +19,12 @@ interface KanbanColumnProps {
   status: TaskStatus;
   taskIds: string[];
   tasks: Record<string, Task>;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
 }
 
-export const KanbanColumn = ({ status, taskIds, tasks }: KanbanColumnProps) => {
+export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedIds, onToggleSelect }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: 'column', status } });
   const { createTask } = useTaskStore();
   const { activeTeam } = useTeamStore();
@@ -74,7 +77,13 @@ export const KanbanColumn = ({ status, taskIds, tasks }: KanbanColumnProps) => {
           <div className="space-y-2.5">
             <AnimatePresence>
               {columnTasks.map((task) => (
-                <SortableTaskCard key={task._id} task={task} />
+                <SortableTaskCard
+                  key={task._id}
+                  task={task}
+                  selectionMode={selectionMode}
+                  isSelected={selectedIds.has(task._id)}
+                  onToggleSelect={onToggleSelect}
+                />
               ))}
             </AnimatePresence>
           </div>
@@ -82,52 +91,54 @@ export const KanbanColumn = ({ status, taskIds, tasks }: KanbanColumnProps) => {
 
         {/* Quick add */}
         <AnimatePresence>
-          {addingTask ? (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mt-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800"
-            >
-              <textarea
-                autoFocus
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddTask(); }
-                  if (e.key === 'Escape') { setAddingTask(false); setNewTitle(''); }
-                }}
-                placeholder="Task title..."
-                className="w-full resize-none bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
-                rows={2}
-              />
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={handleAddTask}
-                  disabled={!newTitle.trim() || submitting}
-                  className="flex h-7 items-center gap-1 rounded-lg bg-brand-500 px-3 text-xs font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                >
-                  <Check className="h-3 w-3" />
-                  Add
-                </button>
-                <button
-                  onClick={() => { setAddingTask(false); setNewTitle(''); }}
-                  className="flex h-7 items-center gap-1 rounded-lg px-2 text-xs text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onClick={() => setAddingTask(true)}
-              className="mt-2.5 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white hover:text-slate-600 dark:hover:bg-slate-800"
-            >
-              <Plus className="h-4 w-4" />
-              Add task
-            </motion.button>
+          {!selectionMode && (
+            addingTask ? (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mt-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+              >
+                <textarea
+                  autoFocus
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddTask(); }
+                    if (e.key === 'Escape') { setAddingTask(false); setNewTitle(''); }
+                  }}
+                  placeholder="Task title..."
+                  className="w-full resize-none bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
+                  rows={2}
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={handleAddTask}
+                    disabled={!newTitle.trim() || submitting}
+                    className="flex h-7 items-center gap-1 rounded-lg bg-brand-500 px-3 text-xs font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+                  >
+                    <Check className="h-3 w-3" />
+                    Add
+                  </button>
+                  <button
+                    onClick={() => { setAddingTask(false); setNewTitle(''); }}
+                    className="flex h-7 items-center gap-1 rounded-lg px-2 text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                onClick={() => setAddingTask(true)}
+                className="mt-2.5 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white hover:text-slate-600 dark:hover:bg-slate-800"
+              >
+                <Plus className="h-4 w-4" />
+                Add task
+              </motion.button>
+            )
           )}
         </AnimatePresence>
       </div>

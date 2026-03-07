@@ -80,6 +80,14 @@ export interface Subtask {
   updatedAt: string;
 }
 
+export interface TimeEntry {
+  _id: string;
+  user: { _id: string; name: string; avatar: string | null } | null;
+  minutes: number;
+  note: string;
+  loggedAt: string;
+}
+
 export interface Task {
   _id: string;
   title: string;
@@ -95,6 +103,8 @@ export interface Task {
   position: number;
   isArchived: boolean;
   subtasks: Subtask[];
+  timeEntries: TimeEntry[];
+  estimatedMinutes: number | null;
   createdAt: string;
   updatedAt: string;
 }
