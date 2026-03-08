@@ -22,7 +22,7 @@ import { Task, TaskStats, PRIORITY_CONFIG, TASK_STATUSES } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { formatRelative, formatLastSeen, cn } from '@/lib/utils';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis } from 'recharts';
 
 /* ─── Motion variants ──────────────────────────────────────────────────── */
 const containerVariants = {
@@ -71,6 +71,7 @@ export const DashboardPage = () => {
   const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [myTasksLoading, setMyTasksLoading] = useState(false);
   const [myTasksTab, setMyTasksTab] = useState<'all' | 'due_soon' | 'overdue'>('all');
+  const [doneTasks, setDoneTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     if (!activeTeam) return;
@@ -89,6 +90,14 @@ export const DashboardPage = () => {
       .then(({ tasks }) => setMyTasks(tasks.filter((t) => t.status !== 'done')))
       .finally(() => setMyTasksLoading(false));
   }, [activeTeam?._id, user?._id]);
+
+  useEffect(() => {
+    if (!activeTeam) return;
+    taskService
+      .getTasks({ teamId: activeTeam._id, status: 'done', limit: '200' })
+      .then(({ tasks }) => setDoneTasks(tasks))
+      .catch(() => {});
+  }, [activeTeam?._id]);
 
   /* derived */
   const totalTasks = stats ? Object.values(stats.byStatus).reduce((a, b) => a + b, 0) : 0;
@@ -109,6 +118,28 @@ export const DashboardPage = () => {
     if (myTasksTab === 'due_soon') return myTasks.filter(isDueSoon);
     return myTasks;
   }, [myTasks, myTasksTab]);
+
+  // Build last-7-days velocity data
+  const velocityData = useMemo(() => {
+    const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return {
+        day: DAY_LABELS[d.getDay()],
+        date: d.toDateString(),
+        count: 0,
+      };
+    });
+    for (const task of doneTasks) {
+      const dateStr = new Date(task.completedAt || task.updatedAt).toDateString();
+      const slot = days.find((d) => d.date === dateStr);
+      if (slot) slot.count++;
+    }
+    return days;
+  }, [doneTasks]);
+
+  const velocityTotal = useMemo(() => velocityData.reduce((s, d) => s + d.count, 0), [velocityData]);
 
   const activityFeed = useMemo(() => {
     const notifItems = notifications.map((n) => ({
@@ -414,6 +445,40 @@ export const DashboardPage = () => {
 
         {/* Charts column – 2 / 5 */}
         <div className="flex flex-col gap-6 lg:col-span-2">
+          {/* Velocity sparkline */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            className="card"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Velocity (last 7 days)
+              </h3>
+              <span className="text-xs font-semibold text-brand-500">{velocityTotal} done</span>
+            </div>
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={velocityData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg-glass)',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [v, 'Completed']}
+                />
+                <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          </motion.div>
           {/* Task Status donut */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}

@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
-  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays,
+  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -14,6 +14,7 @@ import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true, shortcut: 'D' },
+  { to: '/my-tasks', icon: User, label: 'My Tasks', shortcut: 'M' },
   { to: '/board', icon: Kanban, label: 'Kanban Board', shortcut: 'B' },
   { to: '/calendar', icon: CalendarDays, label: 'Calendar', shortcut: 'L' },
   { to: '/chatbots', icon: Bot, label: 'AI Chatbots', shortcut: 'C' },

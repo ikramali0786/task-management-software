@@ -15,6 +15,10 @@ import {
   createCustomRole,
   updateCustomRole,
   deleteCustomRole,
+  getLabels,
+  addLabel,
+  updateLabel,
+  deleteLabel,
 } from '../controllers/team.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -39,5 +43,11 @@ router.get('/:teamId/roles', getTeamRoles);
 router.post('/:teamId/roles', createCustomRole);
 router.patch('/:teamId/roles/:roleId', updateCustomRole);
 router.delete('/:teamId/roles/:roleId', deleteCustomRole);
+
+// Labels
+router.get('/:teamId/labels', getLabels);
+router.post('/:teamId/labels', addLabel);
+router.patch('/:teamId/labels/:labelId', updateLabel);
+router.delete('/:teamId/labels/:labelId', deleteLabel);
 
 export default router;

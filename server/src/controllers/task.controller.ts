@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Task, TaskStatus } from '../models/Task.model';
 import { Team } from '../models/Team.model';
+import { Comment } from '../models/Comment.model';
+import { Attachment } from '../models/Attachment.model';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
@@ -122,7 +124,32 @@ export const getTasks = asyncHandler(async (req: Request, res: Response) => {
     Task.countDocuments(filter),
   ]);
 
-  sendSuccess(res, { tasks, total, page: parseInt(page), limit: parseInt(limit) });
+  // Attach comment and attachment counts
+  const taskIds = tasks.map((t) => t._id);
+  const [commentCounts, attachmentCounts] = await Promise.all([
+    Comment.aggregate([
+      { $match: { task: { $in: taskIds }, isDeleted: false } },
+      { $group: { _id: '$task', count: { $sum: 1 } } },
+    ]),
+    Attachment.aggregate([
+      { $match: { task: { $in: taskIds } } },
+      { $group: { _id: '$task', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const commentCountMap: Record<string, number> = {};
+  for (const r of commentCounts) commentCountMap[r._id.toString()] = r.count;
+
+  const attachmentCountMap: Record<string, number> = {};
+  for (const r of attachmentCounts) attachmentCountMap[r._id.toString()] = r.count;
+
+  const tasksWithCounts = tasks.map((t) => ({
+    ...t.toObject(),
+    commentCount: commentCountMap[t._id.toString()] ?? 0,
+    attachmentCount: attachmentCountMap[t._id.toString()] ?? 0,
+  }));
+
+  sendSuccess(res, { tasks: tasksWithCounts, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
 export const getTask = asyncHandler(async (req: Request, res: Response) => {
@@ -135,7 +162,12 @@ export const getTask = asyncHandler(async (req: Request, res: Response) => {
 
   await verifyTeamMember(task.team._id.toString(), req.user!._id.toString());
 
-  sendSuccess(res, { task });
+  const [commentCount, attachmentCount] = await Promise.all([
+    Comment.countDocuments({ task: task._id, isDeleted: false }),
+    Attachment.countDocuments({ task: task._id }),
+  ]);
+
+  sendSuccess(res, { task: { ...task.toObject(), commentCount, attachmentCount } });
 });
 
 export const updateTask = asyncHandler(async (req: Request, res: Response) => {
@@ -552,6 +584,7 @@ export const bulkUpdateTasks = asyncHandler(async (req: Request, res: Response) 
       status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
       priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
       assignees: z.array(z.string()).optional(),
+      isArchived: z.boolean().optional(),
     }),
   });
   const parsed = schema.safeParse(req.body);
@@ -564,6 +597,7 @@ export const bulkUpdateTasks = asyncHandler(async (req: Request, res: Response) 
   if (parsed.data.changes.status) updateFields.status = parsed.data.changes.status;
   if (parsed.data.changes.priority) updateFields.priority = parsed.data.changes.priority;
   if (parsed.data.changes.assignees) updateFields.assignees = parsed.data.changes.assignees;
+  if (parsed.data.changes.isArchived !== undefined) updateFields.isArchived = parsed.data.changes.isArchived;
   if (parsed.data.changes.status === 'done') updateFields.completedAt = new Date();
 
   await Task.updateMany(

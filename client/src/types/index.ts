@@ -72,6 +72,12 @@ export interface TaskLabel {
   color: string;
 }
 
+export interface TeamLabel {
+  _id: string;
+  name: string;
+  color: string;
+}
+
 export interface Subtask {
   _id: string;
   title: string;
@@ -106,6 +112,8 @@ export interface Task {
   subtasks: Subtask[];
   timeEntries: TimeEntry[];
   estimatedMinutes: number | null;
+  commentCount?: number;
+  attachmentCount?: number;
   createdAt: string;
   updatedAt: string;
 }

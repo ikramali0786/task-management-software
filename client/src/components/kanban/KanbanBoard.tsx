@@ -13,8 +13,8 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Trash2, ArrowRight } from 'lucide-react';
-import { Task, TaskStatus, TASK_STATUSES } from '@/types';
+import { Trash2, ArrowRight, Archive, Flag, ChevronDown } from 'lucide-react';
+import { Task, TaskStatus, TaskPriority, TASK_STATUSES, PRIORITY_CONFIG } from '@/types';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
 import { useUIStore } from '@/store/uiStore';
@@ -50,6 +50,7 @@ export const KanbanBoard = ({ filteredTaskIds, selectionMode, onExitSelection }:
   // selectedIds stays local since it's only used here.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
 
   // Clear selection when parent turns selection mode off
   useEffect(() => {
@@ -96,6 +97,39 @@ export const KanbanBoard = ({ filteredTaskIds, selectionMode, onExitSelection }:
       exitSelectionMode();
     } catch {
       addToast({ type: 'error', title: 'Bulk delete failed' });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkPriority = async (priority: TaskPriority) => {
+    if (!activeTeam || selectedIds.size === 0) return;
+    setPriorityMenuOpen(false);
+    setBulkLoading(true);
+    try {
+      const ids = Array.from(selectedIds);
+      await api.post('/tasks/bulk/update', { taskIds: ids, teamId: activeTeam._id, changes: { priority } });
+      ids.forEach((id) => applySocketUpdate(id, { priority }));
+      addToast({ type: 'success', title: `Updated priority for ${ids.length} task${ids.length > 1 ? 's' : ''}` });
+      exitSelectionMode();
+    } catch {
+      addToast({ type: 'error', title: 'Bulk priority update failed' });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    if (!activeTeam || selectedIds.size === 0) return;
+    setBulkLoading(true);
+    try {
+      const ids = Array.from(selectedIds);
+      await api.post('/tasks/bulk/update', { taskIds: ids, teamId: activeTeam._id, changes: { isArchived: true } });
+      ids.forEach((id) => applySocketDelete(id));
+      addToast({ type: 'success', title: `Archived ${ids.length} task${ids.length > 1 ? 's' : ''}` });
+      exitSelectionMode();
+    } catch {
+      addToast({ type: 'error', title: 'Bulk archive failed' });
     } finally {
       setBulkLoading(false);
     }
@@ -234,7 +268,59 @@ export const KanbanBoard = ({ filteredTaskIds, selectionMode, onExitSelection }:
                   {label}
                 </button>
               ))}
+
               <div className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-600" />
+
+              {/* Priority dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setPriorityMenuOpen((v) => !v)}
+                  disabled={bulkLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                >
+                  <Flag className="h-3 w-3" />
+                  Priority
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
+                <AnimatePresence>
+                  {priorityMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute bottom-full left-0 mb-2 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      {(Object.keys(PRIORITY_CONFIG) as TaskPriority[]).map((p) => {
+                        const cfg = PRIORITY_CONFIG[p];
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => handleBulkPriority(p)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700"
+                          >
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+                            {cfg.label}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Archive */}
+              <button
+                onClick={handleBulkArchive}
+                disabled={bulkLoading}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-300"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Archive
+              </button>
+
+              <div className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-600" />
+
               <button
                 onClick={handleBulkDelete}
                 disabled={bulkLoading}

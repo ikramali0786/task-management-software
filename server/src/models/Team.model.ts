@@ -28,6 +28,12 @@ export interface IMember {
   joinedAt: Date;
 }
 
+export interface ILabel {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  color: string;
+}
+
 export interface ITeam extends Document {
   _id: mongoose.Types.ObjectId;
   taskCounter: number;   // monotonically increasing — used to assign task identifiers
@@ -38,6 +44,7 @@ export interface ITeam extends Document {
   members: IMember[];
   owner: mongoose.Types.ObjectId;
   customRoles: ICustomRole[];
+  labels: ILabel[];
   inviteCodes: Array<{
     code: string;
     expiresAt: Date;
@@ -84,6 +91,11 @@ const MemberSchema = new Schema<IMember>(
   { _id: false }
 );
 
+const LabelSchema = new Schema<ILabel>({
+  name: { type: String, required: true, maxlength: 50 },
+  color: { type: String, default: '#6366f1' },
+});
+
 const TeamSchema = new Schema<ITeam>(
   {
     taskCounter: { type: Number, default: 0 },
@@ -94,6 +106,7 @@ const TeamSchema = new Schema<ITeam>(
     members: [MemberSchema],
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     customRoles: { type: [CustomRoleSchema], default: [] },
+    labels: { type: [LabelSchema], default: [] },
     inviteCodes: [
       {
         code: String,

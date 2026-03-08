@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, GripVertical, ListChecks, CheckSquare, Square } from 'lucide-react';
+import { Calendar, GripVertical, ListChecks, CheckSquare, Square, MessageSquare, Paperclip } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
 import { PriorityBadge } from '@/components/ui/Badge';
 import { AvatarGroup } from '@/components/ui/Avatar';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
+import { CardContextMenu } from './CardContextMenu';
 import { useUIStore } from '@/store/uiStore';
 import { useTeamStore } from '@/store/teamStore';
 import { formatDate, isOverdue, cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
   const { openTaskDetail } = useUIStore();
   const { activeTeam } = useTeamStore();
   const [hasReactions, setHasReactions] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const overdue = isOverdue(task.dueDate, task.status);
   const priority = task.priority ?? 'medium';
   const teamId = typeof task.team === 'string' ? task.team : (task.team as any)?._id || activeTeam?._id || '';
@@ -36,10 +38,18 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (selectionMode || isDragging) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
   return (
+    <>
     <motion.div
       layout
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       className={cn(
         'group cursor-pointer rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800',
         isDragging && 'shadow-2xl ring-2 ring-brand-400/40 rotate-1 opacity-95',
@@ -126,9 +136,21 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         );
       })()}
 
-      {/* Footer — assignees only (no fake icons) */}
-      <div className="mt-3 flex items-center">
+      {/* Footer — assignees + comment/attachment counts */}
+      <div className="mt-3 flex items-center gap-2">
         <AvatarGroup users={task.assignees ?? []} max={3} />
+        <div className="flex items-center gap-2 ml-auto">
+          {(task.commentCount ?? 0) > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-slate-400">
+              <MessageSquare className="h-3 w-3" />{task.commentCount}
+            </span>
+          )}
+          {(task.attachmentCount ?? 0) > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-slate-400">
+              <Paperclip className="h-3 w-3" />{task.attachmentCount}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Emoji reactions — only in normal mode */}
@@ -153,6 +175,15 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         </div>
       )}
     </motion.div>
+    {contextMenu && !isDragging && (
+      <CardContextMenu
+        task={task}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        onClose={() => setContextMenu(null)}
+      />
+    )}
+    </>
   );
 };
 

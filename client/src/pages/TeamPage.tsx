@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy, Check, UserPlus, Crown, Shield, Trash2, Lock, Unlock, Hash,
   Info, Edit2, Save, X, Eye, Zap, Users, LayoutGrid, MessageCircle,
-  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle,
+  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle, Tag,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -11,6 +11,7 @@ import { useUIStore } from '@/store/uiStore';
 import { teamService } from '@/services/teamService';
 import { taskService } from '@/services/taskService';
 import { apiKeyService } from '@/services/apiKeyService';
+import { labelService } from '@/services/labelService';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -18,7 +19,7 @@ import { Badge } from '@/components/ui/Badge';
 import { RolesManager } from '@/components/team/RolesManager';
 import { DiscussionSection } from '@/components/team/DiscussionSection';
 import { cn, formatLastSeen } from '@/lib/utils';
-import { UserRole, TaskStats, TaskPriority, TeamApiKey } from '@/types';
+import { UserRole, TaskStats, TaskPriority, TeamApiKey, TeamLabel } from '@/types';
 
 type Tab = 'overview' | 'members' | 'discussions' | 'settings';
 
@@ -102,6 +103,17 @@ export const TeamPage = () => {
   // Role dropdowns per member
   const [openRoleMenu, setOpenRoleMenu] = useState<string | null>(null);
 
+  // Labels
+  const [labels, setLabels] = useState<TeamLabel[]>([]);
+  const [labelsLoaded, setLabelsLoaded] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState('#6366f1');
+  const [addingLabel, setAddingLabel] = useState(false);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editLabelName, setEditLabelName] = useState('');
+
+  const PRESET_COLORS = ['#6366f1', '#22c55e', '#ef4444', '#f59e0b', '#ec4899', '#0ea5e9'];
+
   // API key
   const [apiKeyData, setApiKeyData] = useState<TeamApiKey | null>(null);
   const [apiKeyLoaded, setApiKeyLoaded] = useState(false);
@@ -130,7 +142,19 @@ export const TeamPage = () => {
     setApiKeyInput('');
     setApiKeyLabel('');
     setApiKeyModel('gpt-4o-mini');
+    // Reset labels state when team changes
+    setLabels([]);
+    setLabelsLoaded(false);
   }, [activeTeam?._id]);
+
+  // Load labels when settings tab is opened (lazy)
+  useEffect(() => {
+    if (activeTab !== 'settings' || !activeTeam || labelsLoaded) return;
+    labelService.getLabels(activeTeam._id)
+      .then((l) => setLabels(l ?? []))
+      .catch(() => {})
+      .finally(() => setLabelsLoaded(true));
+  }, [activeTab, activeTeam?._id, labelsLoaded]);
 
   // Load API key when settings tab is opened (lazy)
   useEffect(() => {
@@ -851,6 +875,116 @@ export const TeamPage = () => {
                         {apiKeyData ? 'Replace Key' : 'Save Key'}
                       </Button>
                     </div>
+                  </div>
+
+                  {/* Labels */}
+                  <div className="card space-y-4">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-brand-500" />
+                      Labels
+                    </h3>
+                    {!labelsLoaded ? (
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <div className="h-3 w-3 animate-spin rounded-full border border-slate-400 border-t-transparent" />
+                        Loading…
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {labels.length === 0 && (
+                          <p className="text-xs text-slate-400">No labels yet. Add one below.</p>
+                        )}
+                        {labels.map((label) => (
+                          <div key={label._id} className="flex items-center gap-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
+                            <span className="h-4 w-4 flex-shrink-0 rounded-full" style={{ backgroundColor: label.color }} />
+                            {editingLabelId === label._id ? (
+                              <input
+                                autoFocus
+                                value={editLabelName}
+                                onChange={(e) => setEditLabelName(e.target.value)}
+                                onBlur={async () => {
+                                  if (editLabelName.trim() && editLabelName !== label.name) {
+                                    const updated = await labelService.updateLabel(activeTeam._id, label._id, { name: editLabelName.trim() });
+                                    setLabels(updated);
+                                  }
+                                  setEditingLabelId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                  if (e.key === 'Escape') setEditingLabelId(null);
+                                }}
+                                className="flex-1 rounded border border-brand-300 bg-transparent px-2 py-0.5 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
+                              />
+                            ) : (
+                              <span
+                                className="flex-1 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
+                                onClick={() => { setEditingLabelId(label._id); setEditLabelName(label.name); }}
+                              >
+                                {label.name}
+                              </span>
+                            )}
+                            <button
+                              onClick={async () => {
+                                const updated = await labelService.deleteLabel(activeTeam._id, label._id);
+                                setLabels(updated);
+                              }}
+                              className="rounded p-1 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Add label form */}
+                        <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 dark:border-slate-700">
+                          <div className="flex gap-1">
+                            {PRESET_COLORS.map((c) => (
+                              <button
+                                key={c}
+                                onClick={() => setNewLabelColor(c)}
+                                className="h-4 w-4 rounded-full transition-transform hover:scale-110"
+                                style={{
+                                  backgroundColor: c,
+                                  outline: newLabelColor === c ? `2px solid ${c}` : 'none',
+                                  outlineOffset: 2,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Label name…"
+                            value={newLabelName}
+                            onChange={(e) => setNewLabelName(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' && newLabelName.trim()) {
+                                setAddingLabel(true);
+                                try {
+                                  const updated = await labelService.addLabel(activeTeam._id, newLabelName.trim(), newLabelColor);
+                                  setLabels(updated);
+                                  setNewLabelName('');
+                                } finally { setAddingLabel(false); }
+                              }
+                            }}
+                            className="flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
+                          />
+                          <button
+                            onClick={async () => {
+                              if (!newLabelName.trim()) return;
+                              setAddingLabel(true);
+                              try {
+                                const updated = await labelService.addLabel(activeTeam._id, newLabelName.trim(), newLabelColor);
+                                setLabels(updated);
+                                setNewLabelName('');
+                              } finally { setAddingLabel(false); }
+                            }}
+                            disabled={!newLabelName.trim() || addingLabel}
+                            className="rounded-lg bg-brand-500 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Danger zone */}

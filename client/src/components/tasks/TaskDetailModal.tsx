@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
@@ -47,6 +49,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [liveUpdated, setLiveUpdated] = useState(false);
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments'>('comments');
+  const [editingDesc, setEditingDesc] = useState(false);
   const storeSyncMountedRef = useRef(false);
 
   // ── Body scroll lock + Escape key to close ────────────────────────────────
@@ -370,15 +373,33 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Description
                 </label>
-                <MentionInput
-                  value={description}
-                  onChange={setDescription}
-                  onMentionsChange={setDescMentions}
-                  members={teamMembers}
-                  placeholder="Add a description… use @ to mention teammates"
-                  rows={4}
-                  onBlur={handleDescBlur}
-                />
+                {!editingDesc ? (
+                  <div
+                    onClick={() => setEditingDesc(true)}
+                    className="prose prose-sm dark:prose-invert max-w-none cursor-text rounded-lg p-2 text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50 min-h-[60px]"
+                  >
+                    {description ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+                    ) : (
+                      <p className="italic text-slate-400 dark:text-slate-500 text-sm">
+                        Add a description... (supports **markdown**)
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <MentionInput
+                    value={description}
+                    onChange={setDescription}
+                    onMentionsChange={setDescMentions}
+                    members={teamMembers}
+                    placeholder="Add a description… use @ to mention teammates"
+                    rows={4}
+                    onBlur={() => {
+                      setEditingDesc(false);
+                      handleDescBlur();
+                    }}
+                  />
+                )}
               </div>
 
               {/* Subtasks */}

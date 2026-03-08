@@ -3,6 +3,7 @@ import { Kanban } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useTaskStore } from '@/store/taskStore';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
+import { ListView } from '@/components/kanban/ListView';
 import { TaskFilterBar, TaskFilters, DEFAULT_FILTERS } from '@/components/kanban/TaskFilterBar';
 import { Task } from '@/types';
 
@@ -47,6 +48,7 @@ export const KanbanPage = () => {
   const { activeTeam } = useTeamStore();
   const { tasks, fetchTasks, isLoading } = useTaskStore();
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
+  const [view, setView] = useState<'board' | 'list'>('board');
   // Selection mode lifted here so the toolbar can render Select/Cancel
   const [selectionMode, setSelectionMode] = useState(false);
 
@@ -58,6 +60,7 @@ export const KanbanPage = () => {
   useEffect(() => {
     setFilters(DEFAULT_FILTERS);
     setSelectionMode(false);
+    setView('board');
   }, [activeTeam?._id]);
 
   const allTasks = useMemo(() => Object.values(tasks), [tasks]);
@@ -106,19 +109,31 @@ export const KanbanPage = () => {
         totalCount={allTasks.length}
         filteredCount={isFiltered ? filteredTaskIds.size : allTasks.length}
         teamName={activeTeam.name}
+        teamId={activeTeam._id}
         onRefresh={() => fetchTasks(activeTeam._id)}
         selectionMode={selectionMode}
         onToggleSelection={() => setSelectionMode((v) => !v)}
+        view={view}
+        onViewChange={setView}
       />
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <KanbanBoard
-          filteredTaskIds={isFiltered ? filteredTaskIds : null}
-          selectionMode={selectionMode}
-          onExitSelection={() => setSelectionMode(false)}
-        />
-      </div>
+      {/* Board or List view */}
+      {view === 'board' ? (
+        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <KanbanBoard
+            filteredTaskIds={isFiltered ? filteredTaskIds : null}
+            selectionMode={selectionMode}
+            onExitSelection={() => setSelectionMode(false)}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <ListView
+            filteredTaskIds={isFiltered ? filteredTaskIds : null}
+            tasks={tasks}
+          />
+        </div>
+      )}
     </div>
   );
 };

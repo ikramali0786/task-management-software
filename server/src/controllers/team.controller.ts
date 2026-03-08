@@ -488,3 +488,64 @@ export const deleteCustomRole = asyncHandler(async (req: Request, res: Response)
 
   sendSuccess(res, { customRoles: team.customRoles }, 'Custom role deleted.');
 });
+
+// ── Team Labels ──────────────────────────────────────────────────────────────
+
+export const getLabels = asyncHandler(async (req: Request, res: Response) => {
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+  const isMember = team.members.some((m) => m.user.toString() === req.user!._id.toString());
+  if (!isMember) throw new ApiError(403, 'Not a member of this team.');
+  sendSuccess(res, { labels: team.labels });
+});
+
+export const addLabel = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    name: z.string().min(1).max(50),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#6366f1'),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+  const isMember = team.members.some((m) => m.user.toString() === req.user!._id.toString());
+  if (!isMember) throw new ApiError(403, 'Not a member of this team.');
+
+  team.labels.push({ name: parsed.data.name, color: parsed.data.color } as any);
+  await team.save();
+  sendSuccess(res, { labels: team.labels }, 'Label added.', 201);
+});
+
+export const updateLabel = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    name: z.string().min(1).max(50).optional(),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+  const isMember = team.members.some((m) => m.user.toString() === req.user!._id.toString());
+  if (!isMember) throw new ApiError(403, 'Not a member of this team.');
+
+  const label = team.labels.find((l) => l._id.toString() === req.params.labelId);
+  if (!label) throw new ApiError(404, 'Label not found.');
+
+  if (parsed.data.name) label.name = parsed.data.name;
+  if (parsed.data.color) label.color = parsed.data.color;
+  await team.save();
+  sendSuccess(res, { labels: team.labels });
+});
+
+export const deleteLabel = asyncHandler(async (req: Request, res: Response) => {
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+  const isMember = team.members.some((m) => m.user.toString() === req.user!._id.toString());
+  if (!isMember) throw new ApiError(403, 'Not a member of this team.');
+
+  team.labels = team.labels.filter((l) => l._id.toString() !== req.params.labelId) as any;
+  await team.save();
+  sendSuccess(res, { labels: team.labels }, 'Label deleted.');
+});

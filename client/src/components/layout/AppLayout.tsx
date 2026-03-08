@@ -16,6 +16,7 @@ import { useUIStore } from '@/store/uiStore';
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
+  '/my-tasks': 'My Tasks',
   '/board': 'Kanban Board',
   '/team': 'Team',
   '/workload': 'Workload',
