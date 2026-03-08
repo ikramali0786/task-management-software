@@ -120,7 +120,9 @@ export const getTasks = asyncHandler(async (req: Request, res: Response) => {
       .skip(skip)
       .limit(parseInt(limit))
       .populate('assignees', 'name avatar')
-      .populate('createdBy', 'name avatar'),
+      .populate('createdBy', 'name avatar')
+      .populate('blockedBy', '_id title identifier status')
+      .populate('blocks', '_id title identifier status'),
     Task.countDocuments(filter),
   ]);
 
@@ -156,7 +158,9 @@ export const getTask = asyncHandler(async (req: Request, res: Response) => {
   const task = await Task.findById(req.params.taskId)
     .populate('assignees', 'name avatar email')
     .populate('createdBy', 'name avatar')
-    .populate('team', 'name slug');
+    .populate('team', 'name slug')
+    .populate('blockedBy', '_id title identifier status')
+    .populate('blocks', '_id title identifier status');
 
   if (!task) throw new ApiError(404, 'Task not found.');
 
@@ -730,4 +734,93 @@ export const updateEstimate = asyncHandler(async (req: Request, res: Response) =
   await task.save();
 
   sendSuccess(res, { estimatedMinutes: (task as any).estimatedMinutes });
+});
+
+/* ── Task dependencies ───────────────────────────────────────────────────── */
+
+const DEP_POPULATE = [
+  { path: 'blockedBy', select: '_id title identifier status' },
+  { path: 'blocks',    select: '_id title identifier status' },
+];
+
+export const addDependency = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ blockerId: z.string() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'blockerId is required.');
+
+  const { taskId } = req.params;
+  const { blockerId } = parsed.data;
+
+  if (taskId === blockerId) throw new ApiError(400, 'A task cannot block itself.');
+
+  const task = await Task.findById(taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  const blockerTask = await Task.findById(blockerId);
+  if (!blockerTask) throw new ApiError(404, 'Blocker task not found.');
+
+  const userId = req.user!._id.toString();
+  await verifyTeamMember(task.team.toString(), userId);
+
+  // Add bidirectionally (addToSet prevents duplicates)
+  await Promise.all([
+    Task.findByIdAndUpdate(taskId,   { $addToSet: { blockedBy: blockerId } }),
+    Task.findByIdAndUpdate(blockerId, { $addToSet: { blocks:    taskId   } }),
+  ]);
+
+  const [updatedTask, updatedBlocker] = await Promise.all([
+    Task.findById(taskId).populate(DEP_POPULATE),
+    Task.findById(blockerId).populate(DEP_POPULATE),
+  ]);
+
+  const io = getIO();
+  if (io) {
+    const teamId = task.team.toString();
+    io.to(`team:${teamId}`).emit('task:updated', {
+      taskId,
+      changes: { blockedBy: updatedTask?.blockedBy, blocks: updatedTask?.blocks },
+    });
+    io.to(`team:${teamId}`).emit('task:updated', {
+      taskId: blockerId,
+      changes: { blockedBy: updatedBlocker?.blockedBy, blocks: updatedBlocker?.blocks },
+    });
+  }
+
+  sendSuccess(res, { task: updatedTask });
+});
+
+export const removeDependency = asyncHandler(async (req: Request, res: Response) => {
+  const { taskId, blockerId } = req.params;
+
+  const task = await Task.findById(taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  const userId = req.user!._id.toString();
+  await verifyTeamMember(task.team.toString(), userId);
+
+  // Remove bidirectionally
+  await Promise.all([
+    Task.findByIdAndUpdate(taskId,   { $pull: { blockedBy: new (require('mongoose').Types.ObjectId)(blockerId) } }),
+    Task.findByIdAndUpdate(blockerId, { $pull: { blocks:    new (require('mongoose').Types.ObjectId)(taskId)   } }),
+  ]);
+
+  const [updatedTask, updatedBlocker] = await Promise.all([
+    Task.findById(taskId).populate(DEP_POPULATE),
+    Task.findById(blockerId).populate(DEP_POPULATE),
+  ]);
+
+  const io = getIO();
+  if (io) {
+    const teamId = task.team.toString();
+    io.to(`team:${teamId}`).emit('task:updated', {
+      taskId,
+      changes: { blockedBy: updatedTask?.blockedBy, blocks: updatedTask?.blocks },
+    });
+    io.to(`team:${teamId}`).emit('task:updated', {
+      taskId: blockerId,
+      changes: { blockedBy: updatedBlocker?.blockedBy, blocks: updatedBlocker?.blocks },
+    });
+  }
+
+  sendSuccess(res, { task: updatedTask });
 });

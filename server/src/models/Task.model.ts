@@ -37,6 +37,8 @@ export interface ITask extends Document {
   subtasks: ISubtask[];
   timeEntries: ITimeEntry[];
   estimatedMinutes: number | null;
+  blockedBy: mongoose.Types.ObjectId[];  // tasks that block this one
+  blocks: mongoose.Types.ObjectId[];     // tasks this one blocks
   createdAt: Date;
   updatedAt: Date;
 }
@@ -90,6 +92,8 @@ const TaskSchema = new Schema<ITask>(
     subtasks: { type: [SubtaskSchema], default: [] },
     timeEntries: { type: [TimeEntrySchema], default: [] },
     estimatedMinutes: { type: Number, default: null },
+    blockedBy: [{ type: Schema.Types.ObjectId, ref: 'Task', default: [] }],
+    blocks:    [{ type: Schema.Types.ObjectId, ref: 'Task', default: [] }],
   },
   { timestamps: true }
 );

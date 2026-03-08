@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, X, Check } from 'lucide-react';
@@ -22,6 +22,18 @@ const emptyStates: Record<TaskStatus, { emoji: string; text: string }> = {
   done: { emoji: '✅', text: 'Nothing completed yet' },
 };
 
+// ── WIP limit helpers ──────────────────────────────────────────────────────────
+const readWipLimits = (teamId: string): Record<string, number | null> => {
+  try { return JSON.parse(localStorage.getItem(`tf_wip_${teamId}`) || '{}'); }
+  catch { return {}; }
+};
+
+const saveWipLimit = (teamId: string, status: TaskStatus, value: number | null) => {
+  const limits = readWipLimits(teamId);
+  if (value === null) { delete limits[status]; } else { limits[status] = value; }
+  localStorage.setItem(`tf_wip_${teamId}`, JSON.stringify(limits));
+};
+
 interface KanbanColumnProps {
   status: TaskStatus;
   taskIds: string[];
@@ -29,9 +41,10 @@ interface KanbanColumnProps {
   selectionMode: boolean;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
+  teamId: string;
 }
 
-export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedIds, onToggleSelect }: KanbanColumnProps) => {
+export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedIds, onToggleSelect, teamId }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: 'column', status } });
   const { createTask } = useTaskStore();
   const { activeTeam } = useTeamStore();
@@ -41,9 +54,18 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
   const [newTitle, setNewTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // WIP limit state
+  const [wipLimit, setWipLimit] = useState<number | null>(() => readWipLimits(teamId)[status] ?? null);
+  const [editingWip, setEditingWip] = useState(false);
+  const [wipInput, setWipInput] = useState('');
+  const wipInputRef = useRef<HTMLInputElement>(null);
+
   const config = statusConfig[status];
   const empty = emptyStates[status];
   const columnTasks = taskIds.map((id) => tasks[id]).filter(Boolean);
+
+  const isExceeded = wipLimit !== null && columnTasks.length > wipLimit;
+  const isNear = wipLimit !== null && !isExceeded && columnTasks.length >= Math.ceil(wipLimit * 0.8);
 
   const handleAddTask = async () => {
     if (!newTitle.trim() || !activeTeam) return;
@@ -60,15 +82,95 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
     }
   };
 
+  const handleWipSave = () => {
+    const val = parseInt(wipInput, 10);
+    if (!wipInput.trim()) {
+      saveWipLimit(teamId, status, null);
+      setWipLimit(null);
+    } else if (!isNaN(val) && val >= 1 && val <= 99) {
+      saveWipLimit(teamId, status, val);
+      setWipLimit(val);
+    }
+    setEditingWip(false);
+    setWipInput('');
+  };
+
+  const handleWipClear = () => {
+    saveWipLimit(teamId, status, null);
+    setWipLimit(null);
+    setEditingWip(false);
+    setWipInput('');
+  };
+
+  const handleWipKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleWipSave();
+    if (e.key === 'Escape') { setEditingWip(false); setWipInput(''); }
+  };
+
+  const openWipEdit = () => {
+    setWipInput(wipLimit !== null ? String(wipLimit) : '');
+    setEditingWip(true);
+    setTimeout(() => wipInputRef.current?.focus(), 50);
+  };
+
+  // WIP badge colour
+  const wipBadgeClass = isExceeded
+    ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400 ring-1 ring-red-400/40'
+    : isNear
+      ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'
+      : wipLimit !== null
+        ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700';
+
   return (
     <div className="flex w-72 flex-shrink-0 flex-col">
       {/* Column header */}
       <div className="mb-3 flex items-center gap-2.5">
         <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: config.color }} />
         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">{config.label}</h3>
-        <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800">
-          {columnTasks.length}
-        </span>
+
+        {/* WIP limit badge / editor */}
+        <div className="ml-auto flex items-center gap-1">
+          {editingWip ? (
+            <div className="flex items-center gap-1">
+              <input
+                ref={wipInputRef}
+                type="number"
+                min={1}
+                max={99}
+                value={wipInput}
+                onChange={(e) => setWipInput(e.target.value)}
+                onKeyDown={handleWipKeyDown}
+                onBlur={handleWipSave}
+                placeholder="limit"
+                className="w-14 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center font-mono text-[10px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-brand-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              />
+              <button
+                onMouseDown={(e) => { e.preventDefault(); handleWipSave(); }}
+                className="rounded p-0.5 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+              >
+                <Check className="h-3 w-3" />
+              </button>
+              {wipLimit !== null && (
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); handleWipClear(); }}
+                  className="rounded p-0.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  title="Clear WIP limit"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={openWipEdit}
+              title={wipLimit !== null ? `WIP limit: ${wipLimit} — click to change` : 'Click to set WIP limit'}
+              className={cn('rounded-full px-2 py-0.5 text-xs font-medium transition-colors cursor-pointer', wipBadgeClass)}
+            >
+              {wipLimit !== null ? `${columnTasks.length} / ${wipLimit}` : columnTasks.length}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Drop zone */}
@@ -78,7 +180,9 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
           'flex flex-col rounded-2xl p-2 transition-colors',
           isOver
             ? 'bg-brand-50 ring-2 ring-brand-400/40 dark:bg-brand-500/10'
-            : 'bg-slate-100/60 dark:bg-slate-800/40'
+            : isExceeded
+              ? 'bg-red-50/60 ring-2 ring-red-400/30 dark:bg-red-500/5'
+              : 'bg-slate-100/60 dark:bg-slate-800/40'
         )}
       >
         {/* Scrollable task list */}

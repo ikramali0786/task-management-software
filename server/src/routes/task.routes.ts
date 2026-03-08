@@ -19,6 +19,8 @@ import {
   logTime,
   deleteTimeEntry,
   updateEstimate,
+  addDependency,
+  removeDependency,
 } from '../controllers/task.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -56,5 +58,9 @@ router.delete('/:taskId/subtasks/:subtaskId', deleteSubtask);
 router.post('/:taskId/time', logTime);
 router.delete('/:taskId/time/:entryId', deleteTimeEntry);
 router.patch('/:taskId/estimate', updateEstimate);
+
+// Task dependencies
+router.post('/:taskId/dependencies', addDependency);
+router.delete('/:taskId/dependencies/:blockerId', removeDependency);
 
 export default router;

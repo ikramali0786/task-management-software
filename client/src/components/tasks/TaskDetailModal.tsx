@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
-  Paperclip, MessageSquare, AlertTriangle, Clock, Info,
+  Paperclip, MessageSquare, AlertTriangle, Clock, Info, ShieldAlert,
 } from 'lucide-react';
 import { Task, TaskStatus, TaskPriority, Subtask, TimeEntry, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
 import { taskService } from '@/services/taskService';
@@ -51,6 +51,11 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments'>('comments');
   const [editingDesc, setEditingDesc] = useState(false);
   const storeSyncMountedRef = useRef(false);
+
+  // ── Dependency state ──────────────────────────────────────────────────────
+  const [depSearch, setDepSearch] = useState('');
+  const [depOpen, setDepOpen] = useState(false);
+  const depInputRef = useRef<HTMLInputElement>(null);
 
   // ── Body scroll lock + Escape key to close ────────────────────────────────
   useEffect(() => {
@@ -183,6 +188,54 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     const updated = current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId];
     handleSave({ assignees: updated as any });
   };
+
+  // ── Dependency handlers ───────────────────────────────────────────────────
+  const handleAddDep = async (blockerId: string) => {
+    setDepSearch('');
+    setDepOpen(false);
+    try {
+      const updated = await taskService.addDependency(taskId, blockerId);
+      setFullTask((prev) => prev ? { ...prev, blockedBy: updated.blockedBy, blocks: updated.blocks } : prev);
+    } catch {
+      addToast({ type: 'error', title: 'Failed to add dependency' });
+    }
+  };
+
+  const handleRemoveDep = async (blockerId: string) => {
+    // blockerId is a task that blocks this task — remove it from blockedBy
+    setFullTask((prev) => prev ? { ...prev, blockedBy: (prev.blockedBy ?? []).filter((d) => d._id !== blockerId) } : prev);
+    try {
+      const updated = await taskService.removeDependency(taskId, blockerId);
+      setFullTask((prev) => prev ? { ...prev, blockedBy: updated.blockedBy, blocks: updated.blocks } : prev);
+    } catch {
+      addToast({ type: 'error', title: 'Failed to remove dependency' });
+    }
+  };
+
+  const handleRemoveBlocks = async (blockedId: string) => {
+    // blockedId is a task that this task blocks — remove this task from blockedId.blockedBy
+    setFullTask((prev) => prev ? { ...prev, blocks: (prev.blocks ?? []).filter((d) => d._id !== blockedId) } : prev);
+    try {
+      await taskService.removeDependency(blockedId, taskId);
+    } catch {
+      addToast({ type: 'error', title: 'Failed to remove dependency' });
+    }
+  };
+
+  // Search results: all non-archived team tasks not already in blockedBy/blocks, matching query
+  const depBlockedByIds = new Set((fullTask?.blockedBy ?? []).map((d) => d._id));
+  const depBlocksIds = new Set((fullTask?.blocks ?? []).map((d) => d._id));
+  const depResults = depSearch.trim()
+    ? Object.values(tasks).filter(
+        (t) =>
+          t._id !== taskId &&
+          !t.isArchived &&
+          !depBlockedByIds.has(t._id) &&
+          !depBlocksIds.has(t._id) &&
+          (t.title.toLowerCase().includes(depSearch.toLowerCase()) ||
+            (t.identifier !== undefined && String(t.identifier).includes(depSearch)))
+      )
+    : [];
 
   const teamMembers: User[] = activeTeam?.members.map((m) => m.user) || [];
 
@@ -412,6 +465,112 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     applySocketUpdate(taskId, { subtasks: newSubtasks });
                   }}
                 />
+              </div>
+
+              {/* Dependencies */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+                {/* Section header */}
+                <div className="mb-3 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-slate-400" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dependencies</span>
+                </div>
+
+                {/* Blocked by */}
+                <div className="mb-3">
+                  <p className="mb-1.5 text-[11px] font-semibold text-amber-500 dark:text-amber-400">Blocked by</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(fullTask.blockedBy ?? []).length === 0 ? (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">None</p>
+                    ) : (
+                      (fullTask.blockedBy ?? []).map((dep) => {
+                        const statusColor = TASK_STATUSES.find((s) => s.id === dep.status)?.color ?? '#94a3b8';
+                        return (
+                          <span
+                            key={dep._id}
+                            className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/30"
+                          >
+                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: statusColor }} />
+                            <span className="max-w-[140px] truncate">
+                              {dep.identifier ? `#${dep.identifier} ` : ''}{dep.title}
+                            </span>
+                            <button
+                              onClick={() => handleRemoveDep(dep._id)}
+                              className="ml-0.5 rounded-full p-0.5 hover:bg-amber-200/60 dark:hover:bg-amber-500/20"
+                              title="Remove blocker"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Blocks */}
+                <div className="mb-3">
+                  <p className="mb-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">Blocks</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(fullTask.blocks ?? []).length === 0 ? (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">None</p>
+                    ) : (
+                      (fullTask.blocks ?? []).map((dep) => {
+                        const statusColor = TASK_STATUSES.find((s) => s.id === dep.status)?.color ?? '#94a3b8';
+                        return (
+                          <span
+                            key={dep._id}
+                            className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600"
+                          >
+                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: statusColor }} />
+                            <span className="max-w-[140px] truncate">
+                              {dep.identifier ? `#${dep.identifier} ` : ''}{dep.title}
+                            </span>
+                            <button
+                              onClick={() => handleRemoveBlocks(dep._id)}
+                              className="ml-0.5 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600"
+                              title="Remove this block"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Add blocker search */}
+                <div className="relative">
+                  <input
+                    ref={depInputRef}
+                    type="text"
+                    placeholder="+ Add blocker…"
+                    value={depSearch}
+                    onChange={(e) => { setDepSearch(e.target.value); setDepOpen(true); }}
+                    onFocus={() => setDepOpen(true)}
+                    onBlur={() => setTimeout(() => setDepOpen(false), 150)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  />
+                  {depOpen && depResults.length > 0 && (
+                    <div className="absolute left-0 z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                      {depResults.slice(0, 8).map((t) => {
+                        const statusColor = TASK_STATUSES.find((s) => s.id === t.status)?.color ?? '#94a3b8';
+                        return (
+                          <button
+                            key={t._id}
+                            onMouseDown={(e) => { e.preventDefault(); handleAddDep(t._id); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700"
+                          >
+                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: statusColor }} />
+                            <span className="truncate">
+                              {t.identifier ? `#${t.identifier} ` : ''}{t.title}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

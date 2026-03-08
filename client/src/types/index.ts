@@ -86,6 +86,13 @@ export interface Subtask {
   updatedAt: string;
 }
 
+export interface DependencyTask {
+  _id: string;
+  title: string;
+  identifier?: number;
+  status: TaskStatus;
+}
+
 export interface TimeEntry {
   _id: string;
   user: { _id: string; name: string; avatar: string | null } | null;
@@ -114,6 +121,8 @@ export interface Task {
   estimatedMinutes: number | null;
   commentCount?: number;
   attachmentCount?: number;
+  blockedBy?: DependencyTask[];
+  blocks?: DependencyTask[];
   createdAt: string;
   updatedAt: string;
 }

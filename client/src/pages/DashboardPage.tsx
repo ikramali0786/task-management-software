@@ -13,6 +13,7 @@ import {
   ChevronRight,
   CalendarClock,
   Inbox,
+  Timer,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -22,7 +23,10 @@ import { Task, TaskStats, PRIORITY_CONFIG, TASK_STATUSES } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { formatRelative, formatLastSeen, cn } from '@/lib/utils';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis } from 'recharts';
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  AreaChart, Area, XAxis,
+} from 'recharts';
 
 /* ─── Motion variants ──────────────────────────────────────────────────── */
 const containerVariants = {
@@ -119,27 +123,40 @@ export const DashboardPage = () => {
     return myTasks;
   }, [myTasks, myTasksTab]);
 
-  // Build last-7-days velocity data
-  const velocityData = useMemo(() => {
-    const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      return {
-        day: DAY_LABELS[d.getDay()],
-        date: d.toDateString(),
-        count: 0,
-      };
-    });
-    for (const task of doneTasks) {
-      const dateStr = new Date(task.completedAt || task.updatedAt).toDateString();
-      const slot = days.find((d) => d.date === dateStr);
-      if (slot) slot.count++;
-    }
-    return days;
+  // Avg cycle time: mean(completedAt - createdAt) in days for tasks done in last 30 days
+  const avgCycleTime = useMemo(() => {
+    const cutoff = Date.now() - 30 * 86_400_000;
+    const recent = doneTasks.filter(
+      (t) => t.completedAt && new Date(t.completedAt).getTime() > cutoff
+    );
+    if (!recent.length) return null;
+    const avg =
+      recent.reduce(
+        (s, t) =>
+          s +
+          (new Date(t.completedAt!).getTime() - new Date(t.createdAt).getTime()) /
+            86_400_000,
+        0
+      ) / recent.length;
+    return Math.round(avg * 10) / 10;
   }, [doneTasks]);
 
-  const velocityTotal = useMemo(() => velocityData.reduce((s, d) => s + d.count, 0), [velocityData]);
+  // 30-day completion trend (one bucket per calendar day)
+  const completionTrend = useMemo(() => {
+    const map: Record<string, number> = {};
+    const cutoff = Date.now() - 30 * 86_400_000;
+    doneTasks
+      .filter((t) => t.completedAt && new Date(t.completedAt).getTime() > cutoff)
+      .forEach((t) => {
+        const d = t.completedAt!.slice(0, 10);
+        map[d] = (map[d] ?? 0) + 1;
+      });
+    return Array.from({ length: 30 }, (_, i) => {
+      const dt = new Date(Date.now() - (29 - i) * 86_400_000);
+      const key = dt.toISOString().slice(0, 10);
+      return { date: key.slice(5), count: map[key] ?? 0 };
+    });
+  }, [doneTasks]);
 
   const activityFeed = useMemo(() => {
     const notifItems = notifications.map((n) => ({
@@ -164,6 +181,25 @@ export const DashboardPage = () => {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 8);
   }, [notifications, taskActivities]);
+
+  const cycleTimeColor =
+    avgCycleTime === null
+      ? 'text-slate-400'
+      : avgCycleTime < 5
+      ? 'text-emerald-500'
+      : avgCycleTime <= 10
+      ? 'text-amber-500'
+      : 'text-red-500';
+  const cycleTimeBg =
+    avgCycleTime === null
+      ? 'bg-slate-50 dark:bg-slate-800/50'
+      : avgCycleTime < 5
+      ? 'bg-emerald-50 dark:bg-emerald-500/10'
+      : avgCycleTime <= 10
+      ? 'bg-amber-50 dark:bg-amber-500/10'
+      : 'bg-red-50 dark:bg-red-500/10';
+  const cycleTimeAccent =
+    avgCycleTime === null ? '#94a3b8' : avgCycleTime < 5 ? '#22c55e' : avgCycleTime <= 10 ? '#f59e0b' : '#ef4444';
 
   const statCards = [
     {
@@ -201,6 +237,15 @@ export const DashboardPage = () => {
       bg: 'bg-red-50 dark:bg-red-500/10',
       accentColor: '#ef4444',
       sub: 'need immediate attention',
+    },
+    {
+      label: 'Avg Cycle Time',
+      value: avgCycleTime !== null ? `${avgCycleTime}d` : '—',
+      icon: Timer,
+      color: cycleTimeColor,
+      bg: cycleTimeBg,
+      accentColor: cycleTimeAccent,
+      sub: 'last 30 days',
     },
   ];
 
@@ -256,7 +301,7 @@ export const DashboardPage = () => {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
+        className="grid grid-cols-2 gap-4 lg:grid-cols-5"
       >
         {statCards.map((card) => (
           <motion.div
@@ -445,7 +490,7 @@ export const DashboardPage = () => {
 
         {/* Charts column – 2 / 5 */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          {/* Velocity sparkline */}
+          {/* 30-Day Completion Trend */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -454,17 +499,30 @@ export const DashboardPage = () => {
           >
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                Velocity (last 7 days)
+                Completion Trend
               </h3>
-              <span className="text-xs font-semibold text-brand-500">{velocityTotal} done</span>
+              <span className="text-xs font-semibold text-brand-500">
+                {completionTrend.reduce((s, d) => s + d.count, 0)} done
+              </span>
             </div>
+            <p className="mb-2 text-[10px] text-slate-400">Last 30 days</p>
             <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={velocityData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+              <AreaChart
+                data={completionTrend}
+                margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  dataKey="date"
+                  tick={{ fontSize: 9, fill: '#94a3b8' }}
                   axisLine={false}
                   tickLine={false}
+                  interval={4}
                 />
                 <Tooltip
                   contentStyle={{
@@ -475,8 +533,15 @@ export const DashboardPage = () => {
                   }}
                   formatter={(v: number) => [v, 'Completed']}
                 />
-                <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={24} />
-              </BarChart>
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  fill="url(#trendGrad)"
+                  dot={false}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </motion.div>
           {/* Task Status donut */}

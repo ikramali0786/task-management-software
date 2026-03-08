@@ -233,6 +233,7 @@ export const KanbanBoard = ({ filteredTaskIds, selectionMode, onExitSelection }:
               selectionMode={selectionMode}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
+              teamId={activeTeam?._id ?? ''}
             />
           ))}
         </div>

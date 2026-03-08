@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, GripVertical, ListChecks, CheckSquare, Square, MessageSquare, Paperclip } from 'lucide-react';
+import { Calendar, GripVertical, ListChecks, CheckSquare, Square, MessageSquare, Paperclip, ShieldAlert } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
@@ -9,7 +9,9 @@ import { AvatarGroup } from '@/components/ui/Avatar';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 import { CardContextMenu } from './CardContextMenu';
 import { useUIStore } from '@/store/uiStore';
+import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
+import { taskService } from '@/services/taskService';
 import { formatDate, isOverdue, cn } from '@/lib/utils';
 
 interface TaskCardProps {
@@ -21,16 +23,25 @@ interface TaskCardProps {
 }
 
 export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggleSelect }: TaskCardProps) => {
-  const { openTaskDetail } = useUIStore();
+  const { openTaskDetail, addToast } = useUIStore();
+  const { applySocketUpdate } = useTaskStore();
   const { activeTeam } = useTeamStore();
   const [hasReactions, setHasReactions] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // Inline title editing
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState('');
+  const [savingTitle, setSavingTitle] = useState(false);
+  const savingRef = useRef(false); // guard against double-save on blur+enter
+
   const overdue = isOverdue(task.dueDate, task.status);
   const priority = task.priority ?? 'medium';
   const teamId = typeof task.team === 'string' ? task.team : (task.team as any)?._id || activeTeam?._id || '';
+  const blockedCount = task.blockedBy?.length ?? 0;
 
   const handleClick = () => {
-    if (isDragging) return;
+    if (isDragging || editingTitle) return;
     if (selectionMode && onToggleSelect) {
       onToggleSelect(task._id);
     } else {
@@ -39,9 +50,49 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (selectionMode || isDragging) return;
+    if (selectionMode || isDragging || editingTitle) return;
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  // ── Inline title editing ────────────────────────────────────────────────
+  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+    if (isDragging || selectionMode) return;
+    e.stopPropagation();
+    setTitleValue(task.title);
+    setEditingTitle(true);
+    savingRef.current = false;
+  };
+
+  const saveTitleEdit = async () => {
+    if (savingRef.current) return;
+    const trimmed = titleValue.trim();
+    if (!trimmed || trimmed === task.title) {
+      setEditingTitle(false);
+      return;
+    }
+    savingRef.current = true;
+    setSavingTitle(true);
+    try {
+      await taskService.updateTask(task._id, { title: trimmed });
+      applySocketUpdate(task._id, { title: trimmed });
+    } catch {
+      addToast({ type: 'error', title: 'Failed to update title' });
+    } finally {
+      setSavingTitle(false);
+      setEditingTitle(false);
+      savingRef.current = false;
+    }
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveTitleEdit();
+    } else if (e.key === 'Escape') {
+      setEditingTitle(false);
+      savingRef.current = false;
+    }
   };
 
   return (
@@ -54,7 +105,8 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         'group cursor-pointer rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800',
         isDragging && 'shadow-2xl ring-2 ring-brand-400/40 rotate-1 opacity-95',
         overdue && 'border-red-200 dark:border-red-800/50',
-        isSelected && 'ring-2 ring-brand-500 border-brand-300 dark:border-brand-600'
+        isSelected && 'ring-2 ring-brand-500 border-brand-300 dark:border-brand-600',
+        editingTitle && 'ring-2 ring-brand-400/60'
       )}
     >
       {/* Selection checkbox */}
@@ -95,9 +147,29 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
             #{task.identifier}
           </span>
         )}
-        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 line-clamp-2 leading-relaxed">
-          {task.title}
-        </p>
+        {editingTitle ? (
+          <textarea
+            autoFocus
+            rows={2}
+            value={titleValue}
+            onChange={(e) => setTitleValue(e.target.value)}
+            onKeyDown={handleTitleKeyDown}
+            onBlur={saveTitleEdit}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full resize-none bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
+          />
+        ) : (
+          <p
+            className="text-sm font-medium text-slate-800 dark:text-slate-100 line-clamp-2 leading-relaxed"
+            onDoubleClick={handleTitleDoubleClick}
+            title="Double-click to edit"
+          >
+            {task.title}
+            {savingTitle && (
+              <span className="ml-1.5 inline-block h-2.5 w-2.5 animate-spin rounded-full border border-slate-400 border-t-transparent align-middle" />
+            )}
+          </p>
+        )}
       </div>
 
       {/* Priority + Due date */}
@@ -136,10 +208,19 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         );
       })()}
 
-      {/* Footer — assignees + comment/attachment counts */}
+      {/* Footer — assignees + blocked indicator + comment/attachment counts */}
       <div className="mt-3 flex items-center gap-2">
         <AvatarGroup users={task.assignees ?? []} max={3} />
         <div className="flex items-center gap-2 ml-auto">
+          {/* Blocked indicator */}
+          {blockedCount > 0 && (
+            <span
+              title={`Blocked by ${blockedCount} task${blockedCount > 1 ? 's' : ''}`}
+              className="flex items-center gap-0.5 text-xs text-amber-500"
+            >
+              <ShieldAlert className="h-3 w-3" />{blockedCount}
+            </span>
+          )}
           {(task.commentCount ?? 0) > 0 && (
             <span className="flex items-center gap-0.5 text-xs text-slate-400">
               <MessageSquare className="h-3 w-3" />{task.commentCount}

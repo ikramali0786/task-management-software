@@ -56,4 +56,12 @@ export const taskService = {
     const res = await api.patch(`/tasks/${taskId}/subtasks/reorder`, { subtaskIds });
     return res.data.data.subtasks as Subtask[];
   },
+  addDependency: async (taskId: string, blockerId: string): Promise<Task> => {
+    const res = await api.post(`/tasks/${taskId}/dependencies`, { blockerId });
+    return res.data.data.task as Task;
+  },
+  removeDependency: async (taskId: string, blockerId: string): Promise<Task> => {
+    const res = await api.delete(`/tasks/${taskId}/dependencies/${blockerId}`);
+    return res.data.data.task as Task;
+  },
 };
