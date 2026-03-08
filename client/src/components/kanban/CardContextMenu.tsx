@@ -77,13 +77,17 @@ export const CardContextMenu = ({ task, x, y, onClose }: Props) => {
   const handleAssignToggle = async () => {
     if (!user) return;
     onClose();
-    const current = task.assignees?.map((a) => a._id) ?? [];
-    const updated = isAssignee
-      ? current.filter((id) => id !== user._id)
-      : [...current, user._id];
+    // Build the new assignees list as full User objects (needed for optimistic UI render)
+    const currentAssignees = task.assignees ?? [];
+    const updatedAssignees = isAssignee
+      ? currentAssignees.filter((a) => a._id !== user._id)
+      : [...currentAssignees, user];
+    // API only accepts an array of IDs
+    const updatedIds = updatedAssignees.map((a) => a._id);
     try {
-      await taskService.updateTask(task._id, { assignees: updated as any });
-      applySocketUpdate(task._id, { assignees: updated as any });
+      await taskService.updateTask(task._id, { assignees: updatedIds as any });
+      // Pass full User objects so Avatar/AvatarGroup can access `.name`
+      applySocketUpdate(task._id, { assignees: updatedAssignees });
       addToast({ type: 'success', title: isAssignee ? 'Unassigned from task' : 'Assigned to task' });
     } catch {
       addToast({ type: 'error', title: 'Failed to update assignees' });
