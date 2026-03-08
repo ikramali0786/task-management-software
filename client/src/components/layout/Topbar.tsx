@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 const themeIcons = { light: Sun, dark: Moon, system: Monitor };
 
 export const Topbar = ({ title }: { title?: string }) => {
-  const { theme, setTheme, toggleSidebar } = useUIStore();
+  const { theme, setTheme, toggleSidebar, toggleSidebarCollapsed } = useUIStore();
   const { unreadCount } = useNotificationStore();
   const { user } = useAuthStore();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -25,7 +25,7 @@ export const Topbar = ({ title }: { title?: string }) => {
     <>
       <header className="flex h-14 items-center gap-4 border-b border-slate-100 bg-white/80 px-5 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
         <button
-          onClick={toggleSidebar}
+          onClick={() => window.innerWidth >= 1024 ? toggleSidebarCollapsed() : toggleSidebar()}
           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
         >
           <Menu className="h-5 w-5" />

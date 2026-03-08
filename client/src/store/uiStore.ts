@@ -18,6 +18,9 @@ export interface ConfirmDialogState extends Required<ConfirmOptions> {
 interface UIStore {
   theme: Theme;
   sidebarOpen: boolean;
+  sidebarCollapsed: boolean;
+  searchOpen: boolean;
+  quickCreateOpen: boolean;
   activeModal: string | null;
   activeTaskId: string | null;
   toasts: Toast[];
@@ -25,6 +28,10 @@ interface UIStore {
   setTheme: (theme: Theme) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  toggleSidebarCollapsed: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setSearchOpen: (open: boolean) => void;
+  setQuickCreateOpen: (open: boolean) => void;
   openTaskDetail: (taskId: string) => void;
   closeModal: () => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
@@ -59,6 +66,9 @@ const defaultSidebarOpen =
 export const useUIStore = create<UIStore>((set) => ({
   theme: savedTheme,
   sidebarOpen: defaultSidebarOpen,
+  sidebarCollapsed: false,
+  searchOpen: false,
+  quickCreateOpen: false,
   activeModal: null,
   activeTaskId: null,
   toasts: [],
@@ -72,6 +82,10 @@ export const useUIStore = create<UIStore>((set) => ({
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  setSearchOpen: (open) => set({ searchOpen: open }),
+  setQuickCreateOpen: (open) => set({ quickCreateOpen: open }),
 
   openTaskDetail: (taskId) => set({ activeTaskId: taskId, activeModal: 'task-detail' }),
   closeModal: () => set({ activeModal: null, activeTaskId: null }),

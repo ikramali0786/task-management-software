@@ -15,6 +15,13 @@ const statusConfig = TASK_STATUSES.reduce((acc, s) => {
   return acc;
 }, {} as Record<string, { id: string; label: string; color: string }>);
 
+const emptyStates: Record<TaskStatus, { emoji: string; text: string }> = {
+  todo: { emoji: '📋', text: 'No tasks yet — add one below' },
+  in_progress: { emoji: '⚡', text: 'Nothing in progress' },
+  review: { emoji: '🔍', text: 'No tasks awaiting review' },
+  done: { emoji: '✅', text: 'Nothing completed yet' },
+};
+
 interface KanbanColumnProps {
   status: TaskStatus;
   taskIds: string[];
@@ -35,6 +42,7 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
   const [submitting, setSubmitting] = useState(false);
 
   const config = statusConfig[status];
+  const empty = emptyStates[status];
   const columnTasks = taskIds.map((id) => tasks[id]).filter(Boolean);
 
   const handleAddTask = async () => {
@@ -67,29 +75,47 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 rounded-2xl p-2 transition-colors min-h-[200px]',
+          'flex flex-col rounded-2xl p-2 transition-colors',
           isOver
             ? 'bg-brand-50 ring-2 ring-brand-400/40 dark:bg-brand-500/10'
             : 'bg-slate-100/60 dark:bg-slate-800/40'
         )}
       >
+        {/* Scrollable task list */}
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2.5">
-            <AnimatePresence>
-              {columnTasks.map((task) => (
-                <SortableTaskCard
-                  key={task._id}
-                  task={task}
-                  selectionMode={selectionMode}
-                  isSelected={selectedIds.has(task._id)}
-                  onToggleSelect={onToggleSelect}
-                />
-              ))}
-            </AnimatePresence>
+          <div
+            className="overflow-y-auto pr-0.5"
+            style={{ maxHeight: 'calc(100vh - 14rem)' }}
+          >
+            <div className="space-y-2.5 pb-0.5">
+              <AnimatePresence>
+                {columnTasks.map((task) => (
+                  <SortableTaskCard
+                    key={task._id}
+                    task={task}
+                    selectionMode={selectionMode}
+                    isSelected={selectedIds.has(task._id)}
+                    onToggleSelect={onToggleSelect}
+                  />
+                ))}
+              </AnimatePresence>
+
+              {/* Empty state */}
+              {columnTasks.length === 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-8 text-center dark:border-slate-700"
+                >
+                  <span className="mb-1.5 text-2xl">{empty.emoji}</span>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">{empty.text}</p>
+                </motion.div>
+              )}
+            </div>
           </div>
         </SortableContext>
 
-        {/* Quick add */}
+        {/* Quick add — outside scroll area so it stays visible */}
         <AnimatePresence>
           {!selectionMode && (
             addingTask ? (

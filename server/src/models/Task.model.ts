@@ -21,6 +21,7 @@ export interface ITimeEntry {
 
 export interface ITask extends Document {
   _id: mongoose.Types.ObjectId;
+  identifier: number;      // per-team sequential ID, e.g. #1, #2, #3
   title: string;
   description: string;
   team: mongoose.Types.ObjectId;
@@ -60,6 +61,7 @@ const TimeEntrySchema = new Schema<ITimeEntry>(
 
 const TaskSchema = new Schema<ITask>(
   {
+    identifier: { type: Number },   // assigned on create via Team.taskCounter
     title: { type: String, required: true, trim: true, maxlength: 200 },
     description: { type: String, default: '', maxlength: 5000 },
     team: { type: Schema.Types.ObjectId, ref: 'Team', required: true },
@@ -92,6 +94,7 @@ const TaskSchema = new Schema<ITask>(
   { timestamps: true }
 );
 
+TaskSchema.index({ team: 1, identifier: 1 }, { unique: true, sparse: true });
 TaskSchema.index({ team: 1, status: 1 });
 TaskSchema.index({ team: 1, status: 1, position: 1 });
 TaskSchema.index({ assignees: 1 });

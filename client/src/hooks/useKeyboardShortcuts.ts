@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router-dom';
 interface Options {
   onToggleShortcuts: () => void;
   onToggleSidebar: () => void;
-  /** Called when N is pressed — intended to open a new-task form on the Board */
-  onNewTask?: () => void;
+  /** Called when ⌘K is pressed — opens the global search modal */
+  onOpenSearch?: () => void;
+  /** Called when N is pressed — opens the quick-create task modal */
+  onOpenQuickCreate?: () => void;
 }
 
 /** Returns true when the user is actively typing in a form element */
@@ -28,38 +30,40 @@ const isTyping = (): boolean => {
  *
  * Shortcut map:
  *   ?         → show shortcuts help modal
- *   [         → toggle sidebar
+ *   [         → toggle sidebar (collapse on desktop / open-close on mobile)
  *   D         → Dashboard
  *   B         → Board
+ *   L         → Calendar
  *   C         → AI Chatbots
  *   T         → Team
  *   W         → Workload
  *   A         → Activity
  *   S         → Settings
- *   N         → trigger onNewTask callback
- *   Ctrl/⌘+K  → jump to Board (quick-open)
+ *   N         → quick-create task modal
+ *   ⌘/Ctrl+K  → global search modal
  */
 export const useKeyboardShortcuts = ({
   onToggleShortcuts,
   onToggleSidebar,
-  onNewTask,
+  onOpenSearch,
+  onOpenQuickCreate,
 }: Options) => {
   const navigate = useNavigate();
 
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
-      // Never fire while the user is typing
-      if (isTyping()) return;
-
       const isCtrlCmd = e.ctrlKey || e.metaKey;
 
-      if (isCtrlCmd) {
-        if (e.key === 'k' || e.key === 'K') {
-          e.preventDefault();
-          navigate('/board');
-        }
-        return; // ignore other Ctrl/Cmd combos
+      // ⌘K / Ctrl+K — global search (fires even while typing so user can always search)
+      if (isCtrlCmd && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        onOpenSearch?.();
+        return;
       }
+
+      // All other shortcuts: never fire while the user is typing
+      if (isTyping()) return;
+      if (isCtrlCmd) return; // ignore other Ctrl/Cmd combos
 
       switch (e.key) {
         case '?':
@@ -75,6 +79,10 @@ export const useKeyboardShortcuts = ({
         case 'b':
         case 'B':
           navigate('/board');
+          break;
+        case 'l':
+        case 'L':
+          navigate('/calendar');
           break;
         case 't':
         case 'T':
@@ -98,13 +106,13 @@ export const useKeyboardShortcuts = ({
           break;
         case 'n':
         case 'N':
-          onNewTask?.();
+          onOpenQuickCreate?.();
           break;
         default:
           break;
       }
     },
-    [navigate, onToggleShortcuts, onToggleSidebar, onNewTask]
+    [navigate, onToggleShortcuts, onToggleSidebar, onOpenSearch, onOpenQuickCreate]
   );
 
   useEffect(() => {

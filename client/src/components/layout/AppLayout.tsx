@@ -6,6 +6,8 @@ import { Topbar } from './Topbar';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ShortcutsModal } from '@/components/ui/ShortcutsModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
+import { QuickCreateModal } from '@/components/tasks/QuickCreateModal';
 import { useTeamStore } from '@/store/teamStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -32,7 +34,16 @@ const PageLoader = () => (
 export const AppLayout = () => {
   const { fetchTeams } = useTeamStore();
   const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
-  const { activeModal, closeModal, toggleSidebar } = useUIStore();
+  const {
+    activeModal,
+    closeModal,
+    toggleSidebar,
+    toggleSidebarCollapsed,
+    searchOpen,
+    setSearchOpen,
+    quickCreateOpen,
+    setQuickCreateOpen,
+  } = useUIStore();
   const location = useLocation();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
@@ -63,7 +74,16 @@ export const AppLayout = () => {
   /** Wire up all keyboard shortcuts for the authenticated shell */
   useKeyboardShortcuts({
     onToggleShortcuts: () => setShortcutsOpen((v) => !v),
-    onToggleSidebar: toggleSidebar,
+    // On desktop → collapse/expand icon rail; on mobile → open/close overlay
+    onToggleSidebar: () => {
+      if (window.innerWidth >= 1024) {
+        toggleSidebarCollapsed();
+      } else {
+        toggleSidebar();
+      }
+    },
+    onOpenSearch: () => setSearchOpen(true),
+    onOpenQuickCreate: () => setQuickCreateOpen(true),
   });
 
   const title = pageTitles[location.pathname] || 'TaskFlow';
@@ -98,6 +118,12 @@ export const AppLayout = () => {
 
       {/* Keyboard shortcuts help modal — press ? anywhere to open */}
       <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
+      {/* Global search modal — ⌘K */}
+      <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Quick create task modal — N */}
+      <QuickCreateModal isOpen={quickCreateOpen} onClose={() => setQuickCreateOpen(false)} />
     </div>
   );
 };

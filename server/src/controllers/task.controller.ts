@@ -45,7 +45,16 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   const status = parsed.data.status || 'todo';
   const position = await getMaxPosition(parsed.data.teamId, status as TaskStatus);
 
+  // Atomically increment team's task counter → unique sequential identifier
+  const updatedTeam = await Team.findByIdAndUpdate(
+    parsed.data.teamId,
+    { $inc: { taskCounter: 1 } },
+    { new: true, select: 'taskCounter' }
+  );
+  const identifier = updatedTeam?.taskCounter ?? 1;
+
   const task = await Task.create({
+    identifier,
     title: sanitizeText(parsed.data.title),
     description: sanitizeText(parsed.data.description || ''),
     team: parsed.data.teamId,

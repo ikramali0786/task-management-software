@@ -90,6 +90,7 @@ export interface TimeEntry {
 
 export interface Task {
   _id: string;
+  identifier?: number;     // per-team sequential ID, e.g. 1, 2, 3
   title: string;
   description: string;
   team: string | Team;

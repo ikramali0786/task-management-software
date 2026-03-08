@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MessageSquare, Paperclip, GripVertical, ListChecks, CheckSquare, Square } from 'lucide-react';
+import { Calendar, GripVertical, ListChecks, CheckSquare, Square } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
@@ -58,23 +58,37 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         </div>
       )}
 
-      {/* Labels */}
+      {/* Labels — text pills */}
       {task.labels?.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
           {task.labels.slice(0, 3).map((label, i) => (
             <span
               key={i}
-              className="h-1.5 w-8 rounded-full"
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight text-white"
               style={{ backgroundColor: label.color }}
-            />
+            >
+              {label.name}
+            </span>
           ))}
+          {task.labels.length > 3 && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+              +{task.labels.length - 3}
+            </span>
+          )}
         </div>
       )}
 
-      {/* Title */}
-      <p className="text-sm font-medium text-slate-800 dark:text-slate-100 line-clamp-2 leading-relaxed">
-        {task.title}
-      </p>
+      {/* Identifier + Title */}
+      <div className="flex items-start gap-1.5">
+        {task.identifier != null && (
+          <span className="mt-px flex-shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-[9px] font-semibold text-slate-400 dark:bg-slate-700 dark:text-slate-500">
+            #{task.identifier}
+          </span>
+        )}
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 line-clamp-2 leading-relaxed">
+          {task.title}
+        </p>
+      </div>
 
       {/* Priority + Due date */}
       <div className="mt-2.5 flex items-center gap-2 flex-wrap">
@@ -112,13 +126,9 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         );
       })()}
 
-      {/* Footer */}
-      <div className="mt-3 flex items-center justify-between">
+      {/* Footer — assignees only (no fake icons) */}
+      <div className="mt-3 flex items-center">
         <AvatarGroup users={task.assignees ?? []} max={3} />
-        <div className="flex items-center gap-2 text-slate-300 dark:text-slate-600">
-          <MessageSquare className="h-3 w-3" />
-          <Paperclip className="h-3 w-3" />
-        </div>
       </div>
 
       {/* Emoji reactions — only in normal mode */}

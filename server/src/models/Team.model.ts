@@ -30,6 +30,7 @@ export interface IMember {
 
 export interface ITeam extends Document {
   _id: mongoose.Types.ObjectId;
+  taskCounter: number;   // monotonically increasing — used to assign task identifiers
   name: string;
   description: string;
   slug: string;
@@ -85,6 +86,7 @@ const MemberSchema = new Schema<IMember>(
 
 const TeamSchema = new Schema<ITeam>(
   {
+    taskCounter: { type: Number, default: 0 },
     name: { type: String, required: true, trim: true, maxlength: 80 },
     description: { type: String, maxlength: 300, default: '' },
     slug: { type: String, unique: true, lowercase: true, trim: true },
