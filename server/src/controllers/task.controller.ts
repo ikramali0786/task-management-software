@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Task, TaskStatus } from '../models/Task.model';
 import { Team } from '../models/Team.model';
+import { User } from '../models/User.model';
 import { Comment } from '../models/Comment.model';
 import { Attachment } from '../models/Attachment.model';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -228,9 +229,15 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
 
   const io = getIO();
   if (io) {
+    // Emit populated assignees so every client receives full User objects,
+    // not bare IDs — prevents Avatar from crashing on `name.charCodeAt(0)`.
+    const socketChanges: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data.assignees !== undefined) {
+      socketChanges.assignees = (populated as any).assignees;
+    }
     io.to(`team:${task.team}`).emit('task:updated', {
       taskId: task._id,
-      changes: parsed.data,
+      changes: socketChanges,
     });
   }
 
@@ -609,12 +616,23 @@ export const bulkUpdateTasks = asyncHandler(async (req: Request, res: Response) 
     { $set: updateFields }
   );
 
+  // Pre-populate assignees once if changed (same list for all tasks in bulk)
+  let populatedAssignees: unknown[] | undefined;
+  if (parsed.data.changes.assignees) {
+    populatedAssignees = await User.find(
+      { _id: { $in: parsed.data.changes.assignees } },
+      'name avatar'
+    );
+  }
+
   const io = getIO();
   if (io) {
+    const socketChanges: Record<string, unknown> = { ...parsed.data.changes };
+    if (populatedAssignees !== undefined) socketChanges.assignees = populatedAssignees;
     for (const taskId of parsed.data.taskIds) {
       io.to(`team:${parsed.data.teamId}`).emit('task:updated', {
         taskId,
-        changes: parsed.data.changes,
+        changes: socketChanges,
       });
     }
   }
