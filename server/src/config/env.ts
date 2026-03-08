@@ -8,7 +8,7 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET || 'dev_jwt_secret_change_in_prod',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_in_prod',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1h',
-  JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+  JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
 
   // ── Cloudflare R2 (S3-compatible object storage) ─────────────────────────

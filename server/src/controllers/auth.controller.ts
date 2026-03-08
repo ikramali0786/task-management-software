@@ -7,11 +7,13 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { env } from '../config/env';
 
-const refreshCookieOptions = (rememberMe = true) => ({
+// Session lasts 30 days — appropriate for a team productivity tool where
+// frequent re-authentication would be disruptive.
+const refreshCookieOptions = () => ({
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
-  maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 30d or 1d
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30d
 });
 
 const registerSchema = z.object({
@@ -60,7 +62,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const accessToken = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());
 
-  res.cookie('refreshToken', refreshToken, refreshCookieOptions(true));
+  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
   sendSuccess(
     res,
@@ -99,7 +101,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   user.lastSeenAt = new Date();
   await user.save({ validateBeforeSave: false });
 
-  res.cookie('refreshToken', refreshToken, refreshCookieOptions(rememberMe));
+  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
   sendSuccess(res, {
     accessToken,
