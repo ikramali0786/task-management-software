@@ -89,7 +89,7 @@ export const TaskFilterBar = ({
   const clearAll = () => onChange(DEFAULT_FILTERS);
 
   return (
-    <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white/80 px-6 py-2.5 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80">
+    <div className="relative z-20 flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white/80 px-6 py-2.5 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80">
 
       {/* ── Team / board label ─────────────────────────────────────── */}
       <div className="flex flex-shrink-0 items-center gap-2 pr-1">
