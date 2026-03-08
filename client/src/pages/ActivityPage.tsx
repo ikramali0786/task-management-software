@@ -331,7 +331,7 @@ export const ActivityPage = () => {
                             {active
                               ? 'Active now'
                               : m.user.lastSeenAt
-                                ? formatLastSeen(m.user.lastSeenAt)
+                                ? formatLastSeen(m.user.lastSeenAt).label
                                 : 'Never seen'}
                           </p>
                         </div>
