@@ -9,10 +9,13 @@ import { env } from '../config/env';
 
 // Session lasts 30 days — appropriate for a team productivity tool where
 // frequent re-authentication would be disruptive.
+// SameSite=None + Secure is required for cross-origin cookie (frontend and
+// backend are on different onrender.com subdomains in production).
+// In development, fall back to 'lax' (localhost doesn't need cross-origin).
 const refreshCookieOptions = () => ({
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  sameSite: (env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30d
 });
 
