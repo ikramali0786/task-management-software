@@ -11,6 +11,7 @@ import { QuickCreateModal } from '@/components/tasks/QuickCreateModal';
 import { useTeamStore } from '@/store/teamStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
+import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useUIStore } from '@/store/uiStore';
 
@@ -49,6 +50,7 @@ export const AppLayout = () => {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useSocketEvents();
+  usePresenceHeartbeat();
 
   useEffect(() => {
     fetchTeams();

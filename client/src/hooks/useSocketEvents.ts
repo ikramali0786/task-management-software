@@ -3,6 +3,7 @@ import { getSocket } from '@/lib/socket';
 import { useTaskStore } from '@/store/taskStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePrefsStore } from '@/store/prefsStore';
+import { useTeamStore } from '@/store/teamStore';
 import { Task, Notification } from '@/types';
 
 // ── Shared AudioContext ───────────────────────────────────────────────────────
@@ -119,6 +120,7 @@ const STATUS_LABELS: Record<string, string> = {
 export const useSocketEvents = () => {
   const { applySocketTask, applySocketUpdate, applySocketDelete } = useTaskStore();
   const { addNotification, addTaskActivity } = useNotificationStore();
+  const { updateMemberLastSeen } = useTeamStore();
 
   const lastSoundAt = useRef<Record<SoundType, number>>({ task: 0, member: 0, notification: 0 });
 
@@ -219,11 +221,16 @@ export const useSocketEvents = () => {
       }
     };
 
+    const handlePresenceUpdate = ({ userId, lastSeenAt }: { userId: string; lastSeenAt: string }) => {
+      updateMemberLastSeen(userId, lastSeenAt);
+    };
+
     socket.on('task:created', handleTaskCreated);
     socket.on('task:updated', handleTaskUpdated);
     socket.on('task:deleted', handleTaskDeleted);
     socket.on('task:moved', handleTaskMoved);
     socket.on('notification:new', handleNotification);
+    socket.on('presence:update', handlePresenceUpdate);
 
     return () => {
       socket.off('task:created', handleTaskCreated);
@@ -231,6 +238,7 @@ export const useSocketEvents = () => {
       socket.off('task:deleted', handleTaskDeleted);
       socket.off('task:moved', handleTaskMoved);
       socket.off('notification:new', handleNotification);
+      socket.off('presence:update', handlePresenceUpdate);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

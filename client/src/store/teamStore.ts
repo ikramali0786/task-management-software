@@ -10,6 +10,7 @@ interface TeamStore {
   setActiveTeam: (team: Team) => void;
   addTeam: (team: Team) => void;
   updateTeam: (teamId: string, data: Partial<Team>) => void;
+  updateMemberLastSeen: (userId: string, lastSeenAt: string) => void;
 }
 
 export const useTeamStore = create<TeamStore>((set, get) => ({
@@ -50,6 +51,19 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     set((state) => ({
       teams: state.teams.map((t) => (t._id === teamId ? { ...t, ...data } : t)),
       activeTeam: state.activeTeam?._id === teamId ? { ...state.activeTeam, ...data } : state.activeTeam,
+    }));
+  },
+
+  updateMemberLastSeen: (userId, lastSeenAt) => {
+    const patch = (members: Team['members']) =>
+      members.map((m) =>
+        m.user._id === userId ? { ...m, user: { ...m.user, lastSeenAt } } : m
+      );
+    set((state) => ({
+      teams: state.teams.map((t) => ({ ...t, members: patch(t.members) })),
+      activeTeam: state.activeTeam
+        ? { ...state.activeTeam, members: patch(state.activeTeam.members) }
+        : null,
     }));
   },
 }));

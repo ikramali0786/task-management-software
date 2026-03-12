@@ -77,6 +77,23 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
       });
     });
 
+    // ── Presence heartbeat ─────────────────────────────────────────────────
+    // Client emits this every 60 s while the user has been active in the last
+    // 5 min. We stamp lastSeenAt and broadcast to all team rooms so teammates'
+    // presence dots update in real time without a page refresh.
+    socket.on('presence:ping', async () => {
+      const now = new Date();
+      await User.findByIdAndUpdate(user._id, { lastSeenAt: now });
+      for (const room of socket.rooms) {
+        if (room.startsWith('team:')) {
+          socket.to(room).emit('presence:update', {
+            userId: (user._id as any).toString(),
+            lastSeenAt: now.toISOString(),
+          });
+        }
+      }
+    });
+
     socket.on('disconnect', async () => {
       console.log(`Socket disconnected: ${user.name}`);
       // Update lastSeenAt on disconnect so teammates see accurate "last active" time
