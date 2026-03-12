@@ -35,10 +35,12 @@ export const chatbotService = {
       formData.append('teamId', teamId);
       formData.append('messages', JSON.stringify(stripped));
       formData.append('file', file, file.name);
-      // Do NOT set Content-Type manually — the browser must set it automatically
-      // so it includes the multipart boundary (e.g. boundary=----WebKitFormBoundary…).
-      // Without the boundary, multer cannot parse the request body.
-      const res = await api.post(`/chatbots/${chatbotId}/chat`, formData);
+      // Set Content-Type to undefined to remove the axios instance default
+      // ('application/json'). This lets the browser set multipart/form-data
+      // with the correct boundary automatically.
+      const res = await api.post(`/chatbots/${chatbotId}/chat`, formData, {
+        headers: { 'Content-Type': undefined },
+      });
       return res.data.data.message as ChatMessage;
     }
 

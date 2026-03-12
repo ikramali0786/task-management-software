@@ -128,17 +128,20 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   let teamId: string;
   let rawMessages: unknown;
 
-  const isMultipart = req.is('multipart/form-data');
-  if (isMultipart) {
-    teamId = req.body.teamId;
+  // Always read teamId from body (works for both JSON and multipart).
+  // Always JSON-parse messages when they arrive as a string — multipart fields
+  // are always strings, and some Axios/browser combinations send multipart with
+  // the instance-default Content-Type, bypassing the isMultipart check.
+  teamId = req.body.teamId;
+  const rawMsg = req.body.messages;
+  if (typeof rawMsg === 'string') {
     try {
-      rawMessages = JSON.parse(req.body.messages || '[]');
+      rawMessages = JSON.parse(rawMsg);
     } catch {
-      throw new ApiError(400, 'Invalid messages JSON in form data.');
+      throw new ApiError(400, 'Invalid messages format.');
     }
   } else {
-    teamId = req.body.teamId;
-    rawMessages = req.body.messages;
+    rawMessages = rawMsg;
   }
 
   const schema = z.object({
