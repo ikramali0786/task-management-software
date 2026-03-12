@@ -265,7 +265,7 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
       messages: [...systemMessages, ...userMessages],
       max_tokens: 1500,
       temperature: 0.7,
-    });
+    }, { timeout: 90_000 }); // 90 s — file-heavy requests can be slow
 
     const reply = completion.choices[0]?.message;
     if (!reply) throw new ApiError(502, 'No response from OpenAI.');
