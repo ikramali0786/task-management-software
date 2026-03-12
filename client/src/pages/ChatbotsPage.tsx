@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bot, Plus, Send, Settings2, Trash2, X, RotateCcw, AlertTriangle,
-  ChevronDown, Save, Loader2, Sparkles, Paperclip, FileText, ImageIcon, File,
+  ChevronDown, Save, Loader2, Sparkles, Paperclip, FileText, ImageIcon, File, Download,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -59,6 +59,72 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ── AI-generated file download ────────────────────────────────────────────────
+
+const DOWNLOADABLE_LANGS: Record<string, { ext: string; mime: string }> = {
+  csv:  { ext: 'csv',  mime: 'text/csv' },
+  json: { ext: 'json', mime: 'application/json' },
+  xml:  { ext: 'xml',  mime: 'application/xml' },
+  yaml: { ext: 'yaml', mime: 'text/yaml' },
+  yml:  { ext: 'yml',  mime: 'text/yaml' },
+  tsv:  { ext: 'tsv',  mime: 'text/tab-separated-values' },
+  txt:  { ext: 'txt',  mime: 'text/plain' },
+  md:   { ext: 'md',   mime: 'text/markdown' },
+  html: { ext: 'html', mime: 'text/html' },
+};
+
+type ContentSegment =
+  | { type: 'text'; text: string }
+  | { type: 'code'; lang: string; code: string; ext: string; mime: string };
+
+function parseAssistantContent(content: string): ContentSegment[] {
+  const segments: ContentSegment[] = [];
+  const regex = /```(\w+)?\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      const text = content.slice(lastIndex, match.index).trim();
+      if (text) segments.push({ type: 'text', text });
+    }
+    const lang = (match[1] || '').toLowerCase();
+    const code = (match[2] || '').trim();
+    const dlInfo = DOWNLOADABLE_LANGS[lang];
+    if (dlInfo && code) {
+      segments.push({ type: 'code', lang, code, ext: dlInfo.ext, mime: dlInfo.mime });
+    } else {
+      // Non-downloadable code block — keep as raw text
+      segments.push({ type: 'text', text: match[0] });
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    const text = content.slice(lastIndex).trim();
+    if (text) segments.push({ type: 'text', text });
+  }
+
+  // If nothing was parsed (no code blocks at all), return a single text segment
+  if (segments.length === 0 && content.trim()) {
+    segments.push({ type: 'text', text: content });
+  }
+
+  return segments;
+}
+
+function triggerDownload(code: string, ext: string, mime: string) {
+  const blob = new Blob([code], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ai-generated.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Typing indicator ──────────────────────────────────────────────────────────
@@ -847,9 +913,25 @@ export const ChatbotsPage = () => {
                         />
                       )}
                       {/* Message text (may be empty if only file was sent) */}
-                      {msg.content && (
+                      {msg.content && msg.role === 'assistant' ? (
+                        parseAssistantContent(msg.content).map((seg, si) =>
+                          seg.type === 'text' ? (
+                            <span key={si} className="whitespace-pre-wrap">{seg.text}</span>
+                          ) : (
+                            <div key={si} className="mt-2">
+                              <button
+                                onClick={() => triggerDownload(seg.code, seg.ext, seg.mime)}
+                                className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                Download {seg.lang.toUpperCase()} file
+                              </button>
+                            </div>
+                          )
+                        )
+                      ) : msg.content ? (
                         <span className="whitespace-pre-wrap">{msg.content}</span>
-                      )}
+                      ) : null}
                     </div>
                   </motion.div>
                 ))}
