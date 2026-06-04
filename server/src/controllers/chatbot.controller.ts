@@ -9,6 +9,8 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { getDecryptedKey } from './apiKey.controller';
+import { validateMagicBytes, isReadableText } from '../utils/magicBytes';
+import { audit } from '../utils/logger';
 
 // Local interface so we don't depend on Express.Multer namespace augmentation
 interface UploadedFile {
@@ -180,6 +182,22 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   let fileMimeType: string | null = null;
 
   if (file) {
+    // Validate magic bytes — reject files whose content doesn't match declared MIME
+    const magicOk = validateMagicBytes(file.buffer, file.mimetype);
+    const textOk  = (file.mimetype === 'text/plain' || file.mimetype === 'text/csv')
+      ? isReadableText(file.buffer)
+      : true;
+
+    if (!magicOk || !textOk) {
+      audit('file.upload.blocked', {
+        userId: req.user!._id.toString(),
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        reason: !magicOk ? 'magic bytes mismatch' : 'non-readable text content',
+      });
+      throw new ApiError(422, 'File content does not match its declared type. Upload rejected.');
+    }
+
     if (file.mimetype.startsWith('image/')) {
       // Vision — only GPT-4o family supports it
       if (chatbot.model === 'gpt-3.5-turbo') {

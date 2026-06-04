@@ -7,6 +7,12 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { env } from '../config/env';
+import { audit } from '../utils/logger';
+
+const getIP = (req: Request): string =>
+  (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+  req.socket.remoteAddress ||
+  'unknown';
 
 const MAX_LOGIN_ATTEMPTS = 10;
 const LOCK_DURATION_MS   = 30 * 60 * 1000; // 30 minutes
@@ -74,6 +80,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const username = await createUniqueUsername(name);
   const user = await User.create({ name, username, email, password });
 
+  audit('auth.register', { ip: getIP(req), email, userId: user._id.toString() });
+
   const accessToken  = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());
 
@@ -113,6 +121,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // Check account lockout
   if (user.lockUntil && user.lockUntil > new Date()) {
     const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
+    audit('auth.login.locked', { ip: getIP(req), email, minutesLeft });
     throw new ApiError(429, `Account locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`);
   }
 
@@ -121,9 +130,13 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   if (!isMatch) {
     // Increment failed attempts
     user.loginAttempts = (user.loginAttempts || 0) + 1;
-    if (user.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+    const willLock = user.loginAttempts >= MAX_LOGIN_ATTEMPTS;
+    if (willLock) {
       user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
       user.loginAttempts = 0;
+      audit('auth.login.locked', { ip: getIP(req), email, reason: 'max attempts reached' });
+    } else {
+      audit('auth.login.failure', { ip: getIP(req), email, attempts: user.loginAttempts });
     }
     await user.save({ validateBeforeSave: false });
     throw new ApiError(401, 'Incorrect password. Please try again.');
@@ -140,6 +153,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // Store hash of refresh token for rotation validation
   user.refreshTokenHash = hashToken(refreshToken);
   await user.save({ validateBeforeSave: false });
+
+  audit('auth.login.success', { ip: getIP(req), email, userId: user._id.toString() });
 
   res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
@@ -164,6 +179,7 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
     try {
       const decoded = verifyRefreshToken(token);
       await User.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+      audit('auth.logout', { ip: getIP(req), userId: decoded.id });
     } catch {
       // Token already invalid — no-op
     }
@@ -185,6 +201,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
   if (!user.refreshTokenHash || user.refreshTokenHash !== incomingHash) {
     // Token reuse detected — clear hash to force full re-login
     await User.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+    audit('auth.token.reuse', { ip: getIP(req), userId: decoded.id });
     throw new ApiError(401, 'Refresh token reuse detected. Please log in again.');
   }
 
@@ -244,5 +261,6 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   user.password = parsed.data.newPassword;
   await user.save();
 
+  audit('auth.password.changed', { ip: getIP(req), userId: req.user!._id.toString() });
   sendSuccess(res, null, 'Password changed successfully.');
 });

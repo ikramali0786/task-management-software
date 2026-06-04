@@ -67,9 +67,14 @@ app.use(cookieParser());
 // Strip $ and . from request body/query/params to block NoSQL injection
 app.use(mongoSanitize());
 
-// Health check
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check — rate-limited to prevent scraping / enumeration
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,
+  message: 'Too many health check requests.',
+});
+app.get('/health', healthLimiter, (_req: Request, res: Response) => {
+  res.json({ status: 'ok' });
 });
 
 // API routes
