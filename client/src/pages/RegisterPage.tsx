@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, Zap, Hash, AlertCircle, Check, X } from 'lucide-react';
+import { User, Mail, Lock, Hash, AlertCircle, Check, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { teamService } from '@/services/teamService';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { AuthLayout } from '@/components/auth/AuthLayout';
 import { cn } from '@/lib/utils';
 
 interface FormData {
@@ -110,21 +111,7 @@ export const RegisterPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm"
-      >
-        {/* Heading */}
-        <div className="mb-8 text-center">
-          <div className="mb-4 inline-flex rounded-2xl bg-brand-500 p-3">
-            <Zap className="h-6 w-6 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Create account</h2>
-          <p className="mt-1 text-sm text-slate-500">Start managing your team's tasks today</p>
-        </div>
-
+    <AuthLayout heading="Create your account" subheading="Start managing your team's tasks today.">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Name */}
           <Input
@@ -241,7 +228,6 @@ export const RegisterPage = () => {
             Sign in
           </Link>
         </p>
-      </motion.div>
-    </div>
+    </AuthLayout>
   );
 };

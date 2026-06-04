@@ -69,7 +69,7 @@ export const ShortcutsModal = ({ isOpen, onClose }: Props) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           />
 
           {/* Panel */}
@@ -78,7 +78,7 @@ export const ShortcutsModal = ({ isOpen, onClose }: Props) => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 10 }}
             transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-            className="relative z-10 w-full max-w-md rounded-2xl border border-slate-100 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">

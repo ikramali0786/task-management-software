@@ -80,7 +80,7 @@ export const Sidebar = () => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+            className="fixed inset-0 z-30 bg-black/50 lg:hidden"
           />
         )}
       </AnimatePresence>

@@ -111,7 +111,7 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           />
 
           {/* Modal */}
@@ -120,7 +120,7 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-            className="relative z-10 flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+            className="relative z-10 flex w-full max-w-md flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
             style={{ maxHeight: '90vh' }}
             onClick={(e) => e.stopPropagation()}
           >

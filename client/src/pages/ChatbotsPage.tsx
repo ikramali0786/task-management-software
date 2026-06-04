@@ -1042,7 +1042,7 @@ export const ChatbotsPage = () => {
               <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 onClick={closeDrawer}
-                className="absolute inset-0 z-10 bg-black/30 backdrop-blur-sm"
+                className="absolute inset-0 z-10 bg-black/50 backdrop-blur-sm"
               />
               <BotDrawer
                 bot={editingBot}

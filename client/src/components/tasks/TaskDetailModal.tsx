@@ -263,12 +263,12 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         />
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-          className="relative z-10 flex h-64 w-full max-w-2xl items-center justify-center rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+          className="relative z-10 flex h-64 w-full max-w-2xl items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
         >
           <div className="flex flex-col items-center gap-3">
             <div className="h-7 w-7 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
@@ -287,7 +287,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
       />
 
       {/* Modal */}
@@ -296,7 +296,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 16 }}
         transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-        className="relative z-10 flex w-[95vw] max-w-6xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+        className="relative z-10 flex w-[95vw] max-w-6xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
         style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
