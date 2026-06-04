@@ -271,7 +271,7 @@ export const TimeTracker = ({ taskId, timeEntries, estimatedMinutes, onChange }:
                     type="number" min="0" max="99" placeholder="0"
                     value={logHours}
                     onChange={(e) => setLogHours(e.target.value)}
-                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-white dark:focus:border-brand-500"
+                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:focus:border-brand-500"
                   />
                   <span className="text-xs text-slate-400">h</span>
                 </div>
@@ -280,7 +280,7 @@ export const TimeTracker = ({ taskId, timeEntries, estimatedMinutes, onChange }:
                     type="number" min="0" max="59" placeholder="0"
                     value={logMins}
                     onChange={(e) => setLogMins(e.target.value)}
-                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-white dark:focus:border-brand-500"
+                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:focus:border-brand-500"
                   />
                   <span className="text-xs text-slate-400">m</span>
                 </div>
@@ -289,7 +289,7 @@ export const TimeTracker = ({ taskId, timeEntries, estimatedMinutes, onChange }:
                   value={logNote}
                   onChange={(e) => setLogNote(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleManualLog()}
-                  className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-white dark:focus:border-brand-500"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:focus:border-brand-500"
                 />
                 <button
                   onClick={handleManualLog}
@@ -322,7 +322,7 @@ export const TimeTracker = ({ taskId, timeEntries, estimatedMinutes, onChange }:
                     type="number" min="0" max="999" placeholder="0"
                     value={estHours}
                     onChange={(e) => setEstHours(e.target.value)}
-                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-white dark:focus:border-brand-500"
+                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:focus:border-brand-500"
                   />
                   <span className="text-xs text-slate-400">h</span>
                 </div>
@@ -331,7 +331,7 @@ export const TimeTracker = ({ taskId, timeEntries, estimatedMinutes, onChange }:
                     type="number" min="0" max="59" placeholder="0"
                     value={estMins}
                     onChange={(e) => setEstMins(e.target.value)}
-                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-white dark:focus:border-brand-500"
+                    className="w-12 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-sm tabular-nums focus:border-brand-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-700 dark:text-slate-100 dark:focus:border-brand-500"
                   />
                   <span className="text-xs text-slate-400">m</span>
                 </div>

@@ -401,13 +401,13 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     if (e.key === 'Enter') { setEditTitle(false); handleSave({ title }); }
                     if (e.key === 'Escape') { setEditTitle(false); setTitle(fullTask.title); }
                   }}
-                  className="w-full rounded-xl border border-brand-400 bg-transparent px-3 py-2 text-2xl font-bold text-slate-900 focus:outline-none dark:text-white"
+                  className="w-full rounded-xl border border-brand-400 bg-transparent px-3 py-2 text-2xl font-bold text-slate-900 focus:outline-none dark:text-slate-100"
                 />
               ) : (
                 <h2
                   onClick={() => setEditTitle(true)}
                   title="Click to edit title"
-                  className="cursor-pointer text-2xl font-bold leading-snug text-slate-900 transition-colors hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
+                  className="cursor-pointer text-2xl font-bold leading-snug text-slate-900 transition-colors hover:text-brand-600 dark:text-slate-100 dark:hover:text-brand-400"
                 >
                   {fullTask.title}
                 </h2>

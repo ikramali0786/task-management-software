@@ -249,7 +249,7 @@ export const RolesManager = ({ teamId, isAdmin }: Props) => {
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
                       placeholder="e.g. Designer, QA Engineer"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     />
                   </div>
                   <div>
@@ -359,7 +359,7 @@ export const RolesManager = ({ teamId, isAdmin }: Props) => {
                                 type="text"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
-                                className="w-28 rounded border border-slate-200 bg-white px-2 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:border-brand-400"
+                                className="w-28 rounded border border-slate-200 bg-white px-2 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:border-brand-400"
                               />
                             </div>
                           ) : (

@@ -78,7 +78,7 @@ export const CalendarPage = () => {
       <div className="flex flex-shrink-0 items-center gap-4 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-5 w-5 text-brand-500" />
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Calendar</h1>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Calendar</h1>
         </div>
 
         <div className="flex items-center gap-2">

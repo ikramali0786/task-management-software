@@ -9,7 +9,7 @@ import { Shield, ArrowLeft } from 'lucide-react';
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <section className="mt-8">
-    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
+    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
     <div className="mt-2 space-y-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
       {children}
     </div>
@@ -33,7 +33,7 @@ export const PrivacyPage = () => {
           <Shield className="h-6 w-6 text-white" />
         </div>
 
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Privacy Policy</h1>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Privacy Policy</h1>
         <p className="mt-2 text-sm text-slate-500">Last updated: {lastUpdated}</p>
 
         <Section title="1. Who we are">

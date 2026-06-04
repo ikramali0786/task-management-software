@@ -40,17 +40,21 @@ export const Sidebar = () => {
     }
   }, [location.pathname]);
 
-  // Close sidebar when screen resizes below lg breakpoint
+  // Keep sidebar state in sync with viewport: collapse the overlay below lg,
+  // and restore the persistent rail when returning to desktop widths.
   useEffect(() => {
     const onResize = () => {
-      if (window.innerWidth < 1024 && sidebarOpen) {
+      const isDesktop = window.innerWidth >= 1024;
+      if (!isDesktop && sidebarOpen) {
         setSidebarOpen(false);
+      } else if (isDesktop && !sidebarOpen) {
+        setSidebarOpen(true);
       }
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sidebarOpen]);
 
   // Close team menu when sidebar collapses
   useEffect(() => {

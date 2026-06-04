@@ -65,7 +65,7 @@ export const ConfirmDialog = () => {
 
                   {/* Text */}
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                       {confirmDialog.title}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">

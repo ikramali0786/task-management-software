@@ -140,17 +140,19 @@ export const ActivityPage = () => {
   const members = activeTeam?.members ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl p-6 md:p-8">
+    <div className="mx-auto w-full max-w-5xl p-6 md:p-8">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-2xl font-bold text-slate-900 dark:text-white">
-            <Activity className="h-6 w-6 text-brand-500" />
-            Activity Timeline
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            All team activity and updates in one place.
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Activity className="h-5 w-5 text-brand-500" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Activity Timeline</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              All team activity and updates in one place.
+            </p>
+          </div>
         </div>
 
         {/* Filter pills */}

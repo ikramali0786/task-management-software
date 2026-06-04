@@ -211,7 +211,7 @@ export function StatusPage() {
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4">
           <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white">TaskFlow Status</h1>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">TaskFlow Status</h1>
             <p className="text-xs text-slate-400">Real-time service health</p>
           </div>
           <a

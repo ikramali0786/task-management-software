@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
+  Settings as SettingsIcon,
 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { usePrefsStore } from '@/store/prefsStore';
@@ -140,12 +142,13 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="mx-auto max-w-2xl p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Settings</h2>
-        <p className="text-sm text-slate-500 mt-1">Manage your account, preferences and notifications.</p>
-      </div>
+    <div className="mx-auto w-full max-w-2xl p-6 md:p-8 space-y-6">
+      <PageHeader
+        icon={SettingsIcon}
+        title="Settings"
+        description="Manage your account, preferences and notifications."
+      />
+      {/* space-y handles the gap; PageHeader carries its own mb */}
 
       {/* Tab Bar */}
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
@@ -156,7 +159,7 @@ export const SettingsPage = () => {
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all',
               activeTab === id
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
             )}
           >
@@ -183,7 +186,7 @@ export const SettingsPage = () => {
               <div className="flex items-center gap-4">
                 <Avatar name={user?.name || 'User'} src={user?.avatar} size="lg" />
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{user?.name}</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{user?.name}</p>
                   <p className="text-sm text-slate-400">{user?.email}</p>
                 </div>
               </div>
@@ -321,7 +324,7 @@ export const SettingsPage = () => {
                   <Lock className="h-4 w-4 text-slate-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Change Password</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Change Password</h3>
                   <p className="text-xs text-slate-400">Use a strong password you don't use elsewhere.</p>
                 </div>
               </div>
@@ -360,7 +363,7 @@ export const SettingsPage = () => {
           {/* ── APPEARANCE ── */}
           {activeTab === 'appearance' && (
             <div className="card">
-              <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">Theme</h3>
+              <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Theme</h3>
               <p className="mb-5 text-xs text-slate-400">Choose how TaskFlow looks to you.</p>
               <div className="grid grid-cols-3 gap-3">
                 {themeOptions.map(({ value, label, icon: Icon, desc }) => (

@@ -60,7 +60,7 @@ export const ResetPasswordPage = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600">
             <Zap className="h-4 w-4 text-white" />
           </div>
-          <span className="text-lg font-bold text-slate-900 dark:text-white">TaskFlow</span>
+          <span className="text-lg font-bold text-slate-900 dark:text-slate-100">TaskFlow</span>
         </div>
 
         {!token ? (
@@ -68,7 +68,7 @@ export const ResetPasswordPage = () => {
             <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10">
               <XCircle className="h-7 w-7 text-red-500" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Invalid link</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Invalid link</h2>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               This reset link is missing its token. Please request a new one.
             </p>
@@ -81,7 +81,7 @@ export const ResetPasswordPage = () => {
             <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
               <CheckCircle2 className="h-7 w-7 text-emerald-500" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Password reset</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Password reset</h2>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               Your password has been updated. Redirecting you to sign in…
             </p>
@@ -89,7 +89,7 @@ export const ResetPasswordPage = () => {
         ) : (
           <>
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Set a new password</h2>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Set a new password</h2>
               <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
                 Choose a strong password you don't use elsewhere.
               </p>

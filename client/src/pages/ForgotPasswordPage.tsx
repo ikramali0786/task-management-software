@@ -38,7 +38,7 @@ export const ForgotPasswordPage = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600">
             <Zap className="h-4 w-4 text-white" />
           </div>
-          <span className="text-lg font-bold text-slate-900 dark:text-white">TaskFlow</span>
+          <span className="text-lg font-bold text-slate-900 dark:text-slate-100">TaskFlow</span>
         </div>
 
         {sent ? (
@@ -46,7 +46,7 @@ export const ForgotPasswordPage = () => {
             <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
               <CheckCircle2 className="h-7 w-7 text-emerald-500" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Check your inbox</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Check your inbox</h2>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               If an account exists for <span className="font-medium text-slate-700 dark:text-slate-300">{getValues('email')}</span>,
               we've sent a link to reset your password. The link expires in 1 hour.
@@ -61,7 +61,7 @@ export const ForgotPasswordPage = () => {
         ) : (
           <>
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Forgot password?</h2>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Forgot password?</h2>
               <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
                 Enter your email and we'll send you a link to reset it.
               </p>

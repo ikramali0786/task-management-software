@@ -361,14 +361,14 @@ export const TeamPage = () => {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-5">
+    <div className="mx-auto w-full max-w-3xl p-6 md:p-8 space-y-5">
       {/* Team Header */}
       <div className="flex items-center gap-4">
         <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl gradient-brand text-2xl font-bold text-white shadow-sm">
           {activeTeam.name[0]}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate">{activeTeam.name}</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 truncate">{activeTeam.name}</h2>
           <p className="text-sm text-slate-500 truncate">{activeTeam.description || 'No description'}</p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -387,7 +387,7 @@ export const TeamPage = () => {
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all',
               activeTab === id
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
             )}
           >
@@ -415,11 +415,11 @@ export const TeamPage = () => {
               <div className="card">
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{activeTeam.members.length}</p>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{activeTeam.members.length}</p>
                     <p className="text-xs text-slate-400 mt-0.5">Members</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                       {stats ? (stats.byStatus['done'] || 0) : '—'}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">Completed</p>
@@ -429,7 +429,7 @@ export const TeamPage = () => {
                     <p className="text-xs text-slate-400 mt-0.5">Overdue</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                       {stats
                         ? Object.values(stats.byStatus).reduce((s, c) => s + c, 0)
                         : '—'}
@@ -509,7 +509,7 @@ export const TeamPage = () => {
               {/* Invite section (admins) */}
               {isAdmin && (
                 <div className="card">
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Invite Members</h3>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Invite Members</h3>
                   {isLocked && (
                     <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 dark:border-amber-800/40 dark:bg-amber-500/10">
                       <Lock className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
@@ -576,7 +576,7 @@ export const TeamPage = () => {
 
               {/* Join another team */}
               <div className="card">
-                <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-white">Join Another Team</h3>
+                <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Join Another Team</h3>
                 <p className="mb-3 text-xs text-slate-500">Have an invite code? Paste it below.</p>
                 <div className="flex gap-2">
                   <div className="flex-1">
@@ -595,7 +595,7 @@ export const TeamPage = () => {
               {/* Members list */}
               <div className="card">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     Members ({activeTeam.members.length})
                   </h3>
                   <button
@@ -702,7 +702,7 @@ export const TeamPage = () => {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         {isLocked ? <Lock className="h-4 w-4 text-red-500" /> : <Unlock className="h-4 w-4 text-emerald-500" />}
-                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Team Lock</h3>
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team Lock</h3>
                       </div>
                       <p className="mt-0.5 text-xs text-slate-500">
                         {isLocked
@@ -748,7 +748,7 @@ export const TeamPage = () => {
                 <>
                   {/* Team info */}
                   <div className="card space-y-4">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Edit2 className="h-4 w-4 text-brand-500" />
                       Team Info
                     </h3>
@@ -812,7 +812,7 @@ export const TeamPage = () => {
 
                   {/* Custom Roles */}
                   <div className="card">
-                    <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Shield className="h-4 w-4 text-brand-500" />
                       Custom Roles
                     </h3>
@@ -821,7 +821,7 @@ export const TeamPage = () => {
 
                   {/* AI & API Keys */}
                   <div className="card space-y-4">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Bot className="h-4 w-4 text-brand-500" />
                       AI &amp; API Keys
                     </h3>
@@ -931,7 +931,7 @@ export const TeamPage = () => {
 
                   {/* Labels */}
                   <div className="card space-y-4">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Tag className="h-4 w-4 text-brand-500" />
                       Labels
                     </h3>
@@ -1082,7 +1082,7 @@ export const TeamPage = () => {
               className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
             >
               <div className="mb-5 flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Role Permissions</h3>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Role Permissions</h3>
                 <button
                   onClick={() => setRolesOpen(false)}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"

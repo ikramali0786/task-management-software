@@ -9,6 +9,7 @@ import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal';
+import { PageHeader } from '@/components/layout/PageContainer';
 import { PriorityBadge } from '@/components/ui/Badge';
 import { AvatarGroup } from '@/components/ui/Avatar';
 import { cn, formatDate, isOverdue } from '@/lib/utils';
@@ -239,20 +240,17 @@ export const MyTasksPage = () => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-brand-50 p-2.5 dark:bg-brand-500/10">
-          <User className="h-5 w-5 text-brand-500" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Tasks</h1>
-          <p className="text-sm text-slate-400">{myTasks.length} task{myTasks.length !== 1 ? 's' : ''} assigned to you</p>
-        </div>
-        <span className="ml-2 rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">
-          {tabTasks.length}
-        </span>
-      </div>
+    <div className="mx-auto w-full max-w-4xl space-y-6 p-6 md:p-8">
+      <PageHeader
+        icon={User}
+        title="My Tasks"
+        description={`${myTasks.length} task${myTasks.length !== 1 ? 's' : ''} assigned to you`}
+        actions={
+          <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">
+            {tabTasks.length}
+          </span>
+        }
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 w-fit">
@@ -263,7 +261,7 @@ export const MyTasksPage = () => {
             className={cn(
               'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
               tab === id
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             )}
           >

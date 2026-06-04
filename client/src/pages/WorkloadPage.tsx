@@ -127,7 +127,7 @@ const StatCard = ({ label, value, icon, colorClass, sub, delay = 0 }: StatCardPr
     </div>
     <div className="min-w-0">
       <p className="text-xs font-medium text-slate-400">{label}</p>
-      <p className="mt-0.5 text-2xl font-bold leading-none text-slate-900 dark:text-white">
+      <p className="mt-0.5 text-2xl font-bold leading-none text-slate-900 dark:text-slate-100">
         {value}
       </p>
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
@@ -189,19 +189,21 @@ export const WorkloadPage = () => {
   }, [workload, sortBy]);
 
   return (
-    <div className="mx-auto max-w-4xl p-6 md:p-8">
+    <div className="mx-auto w-full max-w-4xl p-6 md:p-8">
       {/* ── Page header ─────────────────────────────────────────────── */}
       <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-2xl font-bold text-slate-900 dark:text-white">
-            <BarChart2 className="h-6 w-6 text-brand-500" />
-            Team Workload
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {activeTeam
-              ? `Task distribution for ${activeTeam.name}`
-              : 'Task distribution across your team members.'}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <BarChart2 className="h-5 w-5 text-brand-500" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Team Workload</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              {activeTeam
+                ? `Task distribution for ${activeTeam.name}`
+                : 'Task distribution across your team members.'}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -411,7 +413,7 @@ export const WorkloadPage = () => {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-slate-900 dark:text-white">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">
                           {entry.user.name}
                         </p>
                         {role && (

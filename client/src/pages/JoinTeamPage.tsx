@@ -79,13 +79,13 @@ export const JoinTeamPage = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600">
             <Zap className="h-4 w-4 text-white" />
           </div>
-          <span className="text-lg font-bold text-slate-900 dark:text-white">TaskFlow</span>
+          <span className="text-lg font-bold text-slate-900 dark:text-slate-100">TaskFlow</span>
         </div>
 
         <div className={`mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full ${iconBg}`}>
           {icon}
         </div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{heading}</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{heading}</h2>
 
         {status === 'guest' ? (
           <>

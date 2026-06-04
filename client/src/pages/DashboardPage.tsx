@@ -39,11 +39,12 @@ const cardVariant = {
 };
 
 /* ─── Constants ────────────────────────────────────────────────────────── */
+// Mirrors TASK_STATUSES in types/index.ts so chart colors stay in sync with the palette.
 const STATUS_COLORS: Record<string, string> = {
-  todo: '#94a3b8',
+  todo: '#a89f8f',
   in_progress: '#0d9488',
-  review: '#f59e0b',
-  done: '#22c55e',
+  review: '#d97706',
+  done: '#16a34a',
 };
 
 const STATUS_CHIP: Record<string, string> = {
@@ -256,7 +257,7 @@ export const DashboardPage = () => {
         <div className="rounded-2xl bg-brand-50 p-6 dark:bg-brand-500/10">
           <Plus className="h-10 w-10 text-brand-500" />
         </div>
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">No team yet</h2>
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">No team yet</h2>
         <p className="max-w-sm text-center text-sm text-slate-500">
           Create a team or join one with an invite code to get started.
         </p>
@@ -273,11 +274,11 @@ export const DashboardPage = () => {
 
   /* ── Main render ────────────────────────────────────────────────────── */
   return (
-    <div className="space-y-6 p-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6 p-6 md:p-8">
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Good {greeting},{' '}
             <span className="gradient-text">{user?.name?.split(' ')[0]}</span>
           </h1>
@@ -321,7 +322,7 @@ export const DashboardPage = () => {
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-3xl font-bold text-slate-900 dark:text-white">
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
                 {statsLoading ? (
                   <span className="animate-pulse text-lg text-slate-300 dark:text-slate-600">
                     ···
@@ -351,7 +352,7 @@ export const DashboardPage = () => {
           {/* Widget header */}
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">My Tasks</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">My Tasks</h3>
               <p className="mt-0.5 text-xs text-slate-400">
                 {myTasks.length} open task{myTasks.length !== 1 ? 's' : ''} assigned to you
               </p>
@@ -379,7 +380,7 @@ export const DashboardPage = () => {
                 className={cn(
                   'rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                   myTasksTab === tab.key
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                 )}
               >
@@ -498,7 +499,7 @@ export const DashboardPage = () => {
             className="card"
           >
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Completion Trend
               </h3>
               <span className="text-xs font-semibold text-brand-500">
@@ -551,7 +552,7 @@ export const DashboardPage = () => {
             transition={{ delay: 0.3 }}
             className="card"
           >
-            <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
+            <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
               Task Status
             </h3>
             {pieData.length > 0 ? (
@@ -617,7 +618,7 @@ export const DashboardPage = () => {
             transition={{ delay: 0.35 }}
             className="card"
           >
-            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
               By Priority
             </h3>
             <div className="space-y-3">
@@ -661,7 +662,7 @@ export const DashboardPage = () => {
           transition={{ delay: 0.45 }}
           className="card lg:col-span-2"
         >
-          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
             Recent Activity
           </h3>
           {activityFeed.length === 0 ? (
@@ -699,7 +700,7 @@ export const DashboardPage = () => {
           className="card"
         >
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Team Members
             </h3>
             <button

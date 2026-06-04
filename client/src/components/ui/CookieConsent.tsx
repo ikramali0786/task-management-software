@@ -51,7 +51,7 @@ export const CookieConsent = () => {
                 <Cookie className="h-5 w-5 text-brand-500" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   We value your privacy
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">

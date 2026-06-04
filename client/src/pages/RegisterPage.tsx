@@ -121,7 +121,7 @@ export const RegisterPage = () => {
           <div className="mb-4 inline-flex rounded-2xl bg-brand-500 p-3">
             <Zap className="h-6 w-6 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Create account</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Create account</h2>
           <p className="mt-1 text-sm text-slate-500">Start managing your team's tasks today</p>
         </div>
 

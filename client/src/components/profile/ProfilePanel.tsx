@@ -127,7 +127,7 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
             {/* Header */}
             <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
               <div className="flex-1">
-                <h2 className="text-base font-semibold text-slate-900 dark:text-white">My Profile</h2>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">My Profile</h2>
               </div>
               <button
                 onClick={onClose}
@@ -148,7 +148,7 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold text-slate-900 dark:text-white">{user?.name}</p>
+                <p className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{user?.name}</p>
                 {user?.username && (
                   <p className="truncate text-sm text-slate-400">@{user.username}</p>
                 )}

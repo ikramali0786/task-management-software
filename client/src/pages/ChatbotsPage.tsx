@@ -303,7 +303,7 @@ const BotDrawer = ({ bot, teamId, onSave, onDelete, onClose }: BotDrawerProps) =
     >
       {/* Header */}
       <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-        <h3 className="flex-1 text-base font-semibold text-slate-900 dark:text-white">
+        <h3 className="flex-1 text-base font-semibold text-slate-900 dark:text-slate-100">
           {bot ? 'Edit Bot' : 'New Bot'}
         </h3>
         <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -681,7 +681,7 @@ export const ChatbotsPage = () => {
       {/* Page header */}
       <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
         <Bot className="h-5 w-5 text-brand-500" />
-        <h1 className="text-lg font-bold text-slate-900 dark:text-white">AI Chatbots</h1>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">AI Chatbots</h1>
         <div className="flex-1" />
         {isAdmin && (
           <button
@@ -809,7 +809,7 @@ export const ChatbotsPage = () => {
                   {selectedBot.icon}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white truncate">{selectedBot.name}</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{selectedBot.name}</h3>
                   <p className="text-xs text-slate-400 truncate">{selectedBot.description || selectedBot.model}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
