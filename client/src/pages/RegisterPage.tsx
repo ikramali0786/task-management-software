@@ -82,10 +82,11 @@ export const RegisterPage = () => {
   const password = watch('password', '');
 
   /* requirements */
-  const lengthOk = password.length >= 8 && password.length <= 14;
-  const hasNumber = /[0-9]/.test(password);
+  const lengthOk   = password.length >= 8 && password.length <= 128;
+  const hasUpper   = /[A-Z]/.test(password);
+  const hasNumber  = /[0-9]/.test(password);
   const hasSpecial = /[^a-zA-Z0-9]/.test(password);
-  const showHints = pwFocused || password.length > 0;
+  const showHints  = pwFocused || password.length > 0;
 
   const onSubmit = async (data: FormData) => {
     setFormError(null);
@@ -149,13 +150,19 @@ export const RegisterPage = () => {
             <Input
               label="Password"
               type="password"
-              placeholder="8–14 characters"
+              placeholder="Min 8 chars, uppercase, number, symbol"
               leftIcon={<Lock className="h-4 w-4" />}
               error={errors.password?.message}
               {...register('password', {
                 required: 'Password is required',
-                minLength: { value: 8, message: 'Password must be at least 8 characters.' },
-                maxLength: { value: 14, message: 'Password must be no more than 14 characters.' },
+                minLength: { value: 8,   message: 'At least 8 characters required.' },
+                maxLength: { value: 128, message: 'Password too long.' },
+                validate: (v) => {
+                  if (!/[A-Z]/.test(v))        return 'Must contain at least one uppercase letter.';
+                  if (!/[0-9]/.test(v))         return 'Must contain at least one number.';
+                  if (!/[^a-zA-Z0-9]/.test(v)) return 'Must contain at least one special character.';
+                  return true;
+                },
               })}
               onFocus={() => setPwFocused(true)}
               onBlur={() => setPwFocused(false)}
@@ -175,9 +182,10 @@ export const RegisterPage = () => {
                     Requirements
                   </p>
                   <div className="space-y-1.5">
-                    <Req met={lengthOk} label="8–14 characters" />
-                    <Req met={hasNumber} optional label="Contains a number (0–9)" />
-                    <Req met={hasSpecial} optional label="Contains a special character (!@#$…)" />
+                    <Req met={lengthOk}   label="8–128 characters" />
+                    <Req met={hasUpper}   label="One uppercase letter (A–Z)" />
+                    <Req met={hasNumber}  label="One number (0–9)" />
+                    <Req met={hasSpecial} label="One special character (!@#$…)" />
                   </div>
                 </motion.div>
               )}

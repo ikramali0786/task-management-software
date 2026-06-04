@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mail, Lock, AlertCircle, UserX, KeyRound, Eye, EyeOff,
-  Zap, SquareKanban, Users, Sparkles,
+  Zap, SquareKanban, Users, Sparkles, ShieldAlert,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { Input } from '@/components/ui/Input';
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface FormData { email: string; password: string; rememberMe: boolean; }
-type ErrorField = 'email' | 'password' | 'general';
+type ErrorField = 'email' | 'password' | 'general' | 'locked';
 interface ApiError { message: string; field: ErrorField; }
 
 // ── Left-panel constants ───────────────────────────────────────────────────────
@@ -54,8 +54,9 @@ export const LoginPage = () => {
 
   const classifyError = (message: string): ErrorField => {
     const lower = message.toLowerCase();
-    if (lower.includes('account') || lower.includes('email')) return 'email';
-    if (lower.includes('password')) return 'password';
+    if (lower.includes('locked') || lower.includes('too many'))  return 'locked';
+    if (lower.includes('account') || lower.includes('email'))    return 'email';
+    if (lower.includes('password'))                              return 'password';
     return 'general';
   };
 
@@ -252,6 +253,27 @@ export const LoginPage = () => {
                 </div>
                 <span className="text-sm text-slate-600 dark:text-slate-400">Remember me for 30 days</span>
               </label>
+
+              {/* Account locked banner */}
+              <AnimatePresence>
+                {apiError?.field === 'locked' && (
+                  <motion.div
+                    key="locked"
+                    initial={{ opacity: 0, y: -8, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -6, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex items-start gap-2.5 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3.5 py-3">
+                      <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+                      <div>
+                        <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">Account temporarily locked</p>
+                        <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-0.5">{apiError.message}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* General error banner */}
               <AnimatePresence>

@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import mongoSanitize from 'express-mongo-sanitize';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
@@ -13,8 +14,32 @@ const app = express();
 // express-rate-limit can correctly identify client IPs in production.
 app.set('trust proxy', 1);
 
-// Security
-app.use(helmet());
+// Security headers — strict config for a pure JSON API server
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc:  ["'none'"],
+        scriptSrc:   ["'none'"],
+        styleSrc:    ["'none'"],
+        imgSrc:      ["'none'"],
+        connectSrc:  ["'self'"],
+        frameSrc:    ["'none'"],
+        objectSrc:   ["'none'"],
+        baseUri:     ["'self'"],
+        formAction:  ["'self'"],
+      },
+    },
+    hsts: {
+      maxAge: 31_536_000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard:     { action: 'deny' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    noSniff:        true,
+  })
+);
 app.use(
   cors({
     origin: env.CLIENT_URL,
@@ -38,6 +63,9 @@ app.use(
 app.use(express.json({ limit: '500kb' }));
 app.use(express.urlencoded({ extended: true, limit: '500kb' }));
 app.use(cookieParser());
+
+// Strip $ and . from request body/query/params to block NoSQL injection
+app.use(mongoSanitize());
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

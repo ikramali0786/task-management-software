@@ -26,13 +26,18 @@ const refreshCookieOptions = () => ({
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30d
 });
 
+const passwordSchema = z
+  .string()
+  .min(8,   'Password must be at least 8 characters.')
+  .max(128, 'Password must be no more than 128 characters.')
+  .regex(/[A-Z]/,        'Password must contain at least one uppercase letter.')
+  .regex(/[0-9]/,        'Password must contain at least one number.')
+  .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character (!@#$…).');
+
 const registerSchema = z.object({
-  name: z.string().min(2).max(60),
-  email: z.string().email(),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters.')
-    .max(14, 'Password must be no more than 14 characters.'),
+  name:     z.string().min(2).max(60),
+  email:    z.string().email(),
+  password: passwordSchema,
 });
 
 const loginSchema = z.object({
@@ -224,7 +229,7 @@ export const updateMe = asyncHandler(async (req: Request, res: Response) => {
 export const changePassword = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
     currentPassword: z.string().min(1),
-    newPassword: z.string().min(8),
+    newPassword: passwordSchema,
   });
 
   const parsed = schema.safeParse(req.body);
