@@ -270,7 +270,7 @@ export const SettingsPage = () => {
                 <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
                   <NotifRow
                     icon={Zap}
-                    iconBg="bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                    iconBg="bg-brand-100 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"
                     title="Task Assigned"
                     desc="When someone assigns a task to you"
                     checked={notifyTaskAssigned}
@@ -294,7 +294,7 @@ export const SettingsPage = () => {
                   />
                   <NotifRow
                     icon={Users}
-                    iconBg="bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                    iconBg="bg-brand-100 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"
                     title="Team Events"
                     desc="Invites, new members joining your team"
                     checked={notifyTeamEvents}

@@ -32,7 +32,7 @@ const DEFAULT_PERMS: RolePermissions = {
   viewWorkload: true,
 };
 
-const ROLE_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f97316', '#22c55e', '#0ea5e9', '#f59e0b', '#64748b'];
+const ROLE_COLORS = ['#e8502e', '#0d9488', '#ec4899', '#f97316', '#22c55e', '#0ea5e9', '#f59e0b', '#64748b'];
 
 const PermBadge = ({ has }: { has: boolean }) =>
   has ? (

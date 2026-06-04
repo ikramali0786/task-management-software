@@ -46,7 +46,7 @@ const getIconColors = (item: TimelineItem) => {
     if (item.notifType === 'task_assigned' || item.notifType === 'task_completed')
       return 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400';
     if (item.notifType === 'mention')
-      return 'bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400';
+      return 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400';
     return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
   }
   if (item.message.toLowerCase().includes('deleted'))

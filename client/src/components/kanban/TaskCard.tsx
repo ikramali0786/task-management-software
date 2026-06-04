@@ -186,7 +186,7 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
         )}
         {task.recurrence && task.recurrence.frequency !== 'none' && (
           <span
-            className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400"
+            className="flex items-center gap-1 text-xs text-brand-500 dark:text-brand-400"
             title={`Repeats ${task.recurrence.frequency}`}
           >
             <Repeat className="h-3 w-3" />

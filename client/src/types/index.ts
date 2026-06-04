@@ -270,15 +270,15 @@ export interface KanbanColumn {
 }
 
 export const TASK_STATUSES: { id: TaskStatus; label: string; color: string }[] = [
-  { id: 'todo', label: 'To Do', color: '#94a3b8' },
-  { id: 'in_progress', label: 'In Progress', color: '#6366f1' },
-  { id: 'review', label: 'In Review', color: '#f59e0b' },
-  { id: 'done', label: 'Done', color: '#22c55e' },
+  { id: 'todo', label: 'To Do', color: '#a89f8f' },
+  { id: 'in_progress', label: 'In Progress', color: '#0d9488' },
+  { id: 'review', label: 'In Review', color: '#d97706' },
+  { id: 'done', label: 'Done', color: '#16a34a' },
 ];
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; bg: string }> = {
-  urgent: { label: 'Urgent', color: '#ef4444', bg: 'bg-red-500/10 text-red-500' },
-  high: { label: 'High', color: '#f97316', bg: 'bg-orange-500/10 text-orange-500' },
-  medium: { label: 'Medium', color: '#6366f1', bg: 'bg-indigo-500/10 text-indigo-500' },
-  low: { label: 'Low', color: '#94a3b8', bg: 'bg-slate-400/10 text-slate-400' },
+  urgent: { label: 'Urgent', color: '#dc2626', bg: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+  high: { label: 'High', color: '#ea580c', bg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400' },
+  medium: { label: 'Medium', color: '#ca8a04', bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  low: { label: 'Low', color: '#837a6b', bg: 'bg-slate-400/10 text-slate-500' },
 };

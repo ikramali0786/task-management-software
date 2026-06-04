@@ -47,7 +47,7 @@ const getFileIcon = (contentType: string) => {
 };
 
 const getFileIconColor = (contentType: string): string => {
-  if (contentType.startsWith('image/')) return 'text-violet-500';
+  if (contentType.startsWith('image/')) return 'text-brand-500';
   if (contentType === 'application/pdf') return 'text-red-500';
   if (contentType.includes('spreadsheet') || contentType.includes('excel') || contentType === 'text/csv')
     return 'text-emerald-500';

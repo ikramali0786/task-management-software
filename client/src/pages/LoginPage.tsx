@@ -22,7 +22,7 @@ interface ApiError { message: string; field: ErrorField; }
 const FEATURES = [
   { icon: SquareKanban, color: 'text-brand-400', glow: 'bg-brand-500/20',   label: 'Visual Kanban Boards',    sub: 'Drag, drop, and ship with clarity' },
   { icon: Zap,          color: 'text-amber-400',  glow: 'bg-amber-500/20',   label: 'Real-time Collaboration', sub: 'Live updates — no refresh needed' },
-  { icon: Users,        color: 'text-violet-400', glow: 'bg-violet-500/20',  label: 'Team Management',         sub: 'Roles, permissions, invite codes' },
+  { icon: Users,        color: 'text-brand-400', glow: 'bg-brand-500/20',  label: 'Team Management',         sub: 'Roles, permissions, invite codes' },
   { icon: Sparkles,     color: 'text-emerald-400',glow: 'bg-emerald-500/20', label: 'AI Chatbots',             sub: 'OpenAI-powered workflow assistants' },
 ];
 
@@ -88,7 +88,7 @@ export const LoginPage = () => {
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <Orb cls="left-[-10%] top-[-10%] h-[500px] w-[500px] bg-white/[0.06]"
                  anim={{ x: [0, 40, 0], y: [0, 30, 0] }} dur={14} />
-            <Orb cls="bottom-[-15%] right-[-10%] h-[450px] w-[450px] bg-violet-900/[0.25]"
+            <Orb cls="bottom-[-15%] right-[-10%] h-[450px] w-[450px] bg-brand-900/[0.25]"
                  anim={{ x: [0, -30, 0], y: [0, -40, 0] }} dur={17} delay={3} />
           </div>
 
@@ -101,7 +101,7 @@ export const LoginPage = () => {
           >
             <div className="relative">
               <div className="absolute inset-0 scale-150 rounded-xl bg-brand-500/30 blur-xl" />
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 shadow-lg shadow-brand-500/30">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg shadow-brand-500/30">
                 <Zap className="h-5 w-5 text-white" />
               </div>
             </div>
@@ -183,7 +183,7 @@ export const LoginPage = () => {
             <div className="mb-10 flex items-center gap-3 lg:hidden">
               <div className="relative">
                 <div className="absolute inset-0 scale-150 rounded-xl bg-brand-500/20 blur-lg" />
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600">
+                <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600">
                   <Zap className="h-4 w-4 text-white" />
                 </div>
               </div>

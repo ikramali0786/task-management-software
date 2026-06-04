@@ -39,7 +39,7 @@ const tabVariants = {
 // ── Role meta ─────────────────────────────────────────────────────────────────
 const ROLE_META: Record<string, { label: string; description: string; color: string }> = {
   owner:     { label: 'Owner',     description: 'Full control — edit team, delete, transfer ownership.', color: 'text-amber-500' },
-  admin:     { label: 'Admin',     description: 'Manage members, lock/unlock, generate invite codes.',   color: 'text-purple-500' },
+  admin:     { label: 'Admin',     description: 'Manage members, lock/unlock, generate invite codes.',   color: 'text-brand-500' },
   moderator: { label: 'Moderator', description: 'Create, edit, and delete any task.',                    color: 'text-blue-500' },
   member:    { label: 'Member',    description: 'Create tasks and edit tasks they created.',              color: 'text-slate-600' },
   viewer:    { label: 'Viewer',    description: 'View-only access — cannot create or edit tasks.',        color: 'text-slate-400' },
@@ -56,7 +56,7 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
 
 const STATUS_PILL_COLORS: Record<string, string> = {
   todo: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-  in_progress: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
+  in_progress: 'bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300',
   review: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
   done: 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300',
 };
@@ -111,12 +111,12 @@ export const TeamPage = () => {
   const [labels, setLabels] = useState<TeamLabel[]>([]);
   const [labelsLoaded, setLabelsLoaded] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
-  const [newLabelColor, setNewLabelColor] = useState('#6366f1');
+  const [newLabelColor, setNewLabelColor] = useState('#e8502e');
   const [addingLabel, setAddingLabel] = useState(false);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [editLabelName, setEditLabelName] = useState('');
 
-  const PRESET_COLORS = ['#6366f1', '#22c55e', '#ef4444', '#f59e0b', '#ec4899', '#0ea5e9'];
+  const PRESET_COLORS = ['#e8502e', '#22c55e', '#ef4444', '#f59e0b', '#ec4899', '#0ea5e9'];
 
   // API key
   const [apiKeyData, setApiKeyData] = useState<TeamApiKey | null>(null);

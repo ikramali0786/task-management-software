@@ -22,14 +22,14 @@ import { cn } from '@/lib/utils';
 
 const STATUS_COLORS: Record<string, string> = {
   todo: '#94a3b8',
-  in_progress: '#6366f1',
+  in_progress: '#0d9488',
   review: '#f59e0b',
   done: '#22c55e',
 };
 
 const STATUS_BG: Record<string, string> = {
   todo: 'bg-slate-400',
-  in_progress: 'bg-indigo-500',
+  in_progress: 'bg-brand-500',
   review: 'bg-amber-500',
   done: 'bg-emerald-500',
 };
@@ -293,8 +293,8 @@ export const WorkloadPage = () => {
           <StatCard
             label="In Progress"
             value={inProgressCount}
-            icon={<TrendingUp className="h-5 w-5 text-indigo-500" />}
-            colorClass="bg-indigo-50 dark:bg-indigo-500/10"
+            icon={<TrendingUp className="h-5 w-5 text-brand-500" />}
+            colorClass="bg-brand-50 dark:bg-brand-500/10"
             delay={0.1}
           />
           <StatCard

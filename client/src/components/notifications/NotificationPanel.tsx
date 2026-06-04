@@ -14,9 +14,9 @@ const notifIcons: Record<NotificationType, React.ReactNode> = {
   task_completed: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />,
   task_due_soon: <AlertCircle className="h-3.5 w-3.5 text-amber-500" />,
   task_overdue: <AlertCircle className="h-3.5 w-3.5 text-red-500" />,
-  team_invite: <UserPlus className="h-3.5 w-3.5 text-purple-500" />,
+  team_invite: <UserPlus className="h-3.5 w-3.5 text-brand-500" />,
   member_joined: <UserPlus className="h-3.5 w-3.5 text-cyan-500" />,
-  mention: <AtSign className="h-3.5 w-3.5 text-violet-500" />,
+  mention: <AtSign className="h-3.5 w-3.5 text-brand-500" />,
 };
 
 const NotifItem = ({ notification, onRead }: { notification: Notification; onRead: (id: string) => void }) => (

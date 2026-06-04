@@ -41,14 +41,14 @@ const cardVariant = {
 /* ─── Constants ────────────────────────────────────────────────────────── */
 const STATUS_COLORS: Record<string, string> = {
   todo: '#94a3b8',
-  in_progress: '#6366f1',
+  in_progress: '#0d9488',
   review: '#f59e0b',
   done: '#22c55e',
 };
 
 const STATUS_CHIP: Record<string, string> = {
   todo: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
-  in_progress: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400',
+  in_progress: 'bg-brand-50 text-brand-600 dark:bg-brand-500/20 dark:text-brand-400',
   review: 'bg-amber-50 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
   done: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
 };
@@ -208,16 +208,16 @@ export const DashboardPage = () => {
       icon: CheckSquare,
       color: 'text-brand-500',
       bg: 'bg-brand-50 dark:bg-brand-500/10',
-      accentColor: '#6366f1',
+      accentColor: '#e8502e',
       sub: `${activeTeam?.members.length ?? 0} members in team`,
     },
     {
       label: 'In Progress',
       value: stats?.byStatus.in_progress ?? 0,
       icon: TrendingUp,
-      color: 'text-indigo-500',
-      bg: 'bg-indigo-50 dark:bg-indigo-500/10',
-      accentColor: '#6366f1',
+      color: 'text-brand-500',
+      bg: 'bg-brand-50 dark:bg-brand-500/10',
+      accentColor: '#e8502e',
       sub: `${stats?.byStatus.review ?? 0} in review`,
     },
     {
@@ -513,8 +513,8 @@ export const DashboardPage = () => {
               >
                 <defs>
                   <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#e8502e" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#e8502e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -536,7 +536,7 @@ export const DashboardPage = () => {
                 <Area
                   type="monotone"
                   dataKey="count"
-                  stroke="#6366f1"
+                  stroke="#e8502e"
                   strokeWidth={2}
                   fill="url(#trendGrad)"
                   dot={false}

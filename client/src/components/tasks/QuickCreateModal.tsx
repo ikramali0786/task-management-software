@@ -15,7 +15,7 @@ interface Props {
 const PRIORITIES: { value: TaskPriority; label: string; dot: string }[] = [
   { value: 'urgent', label: 'Urgent', dot: 'bg-red-500' },
   { value: 'high', label: 'High', dot: 'bg-orange-500' },
-  { value: 'medium', label: 'Medium', dot: 'bg-indigo-500' },
+  { value: 'medium', label: 'Medium', dot: 'bg-brand-500' },
   { value: 'low', label: 'Low', dot: 'bg-slate-400' },
 ];
 

@@ -35,7 +35,7 @@ export const ForgotPasswordPage = () => {
       >
         {/* Logo */}
         <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600">
             <Zap className="h-4 w-4 text-white" />
           </div>
           <span className="text-lg font-bold text-slate-900 dark:text-white">TaskFlow</span>
