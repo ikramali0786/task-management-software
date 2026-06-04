@@ -24,6 +24,7 @@ const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage').then(
 const ResetPasswordPage  = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const VerifyEmailPage    = lazy(() => import('@/pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 const JoinTeamPage       = lazy(() => import('@/pages/JoinTeamPage').then(m => ({ default: m.JoinTeamPage })));
+const PrivacyPage        = lazy(() => import('@/pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
@@ -55,6 +56,10 @@ export const router = createBrowserRouter([
   {
     path: '/join',
     element: <JoinTeamPage />,
+  },
+  {
+    path: '/privacy',
+    element: <PrivacyPage />,
   },
   {
     path: '/',

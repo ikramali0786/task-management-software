@@ -225,6 +225,14 @@ export const RegisterPage = () => {
           <Button type="submit" className="w-full" isLoading={isLoading}>
             Create Account
           </Button>
+
+          <p className="text-center text-xs text-slate-400">
+            By creating an account you agree to our{' '}
+            <Link to="/privacy" className="text-brand-500 hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
