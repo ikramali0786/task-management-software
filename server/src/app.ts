@@ -33,9 +33,10 @@ app.use(
   })
 );
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Body parsing — 500 kb covers the largest chatbot conversation payloads
+// (50 messages × 8 000 chars). File uploads bypass this via multer (multipart).
+app.use(express.json({ limit: '500kb' }));
+app.use(express.urlencoded({ extended: true, limit: '500kb' }));
 app.use(cookieParser());
 
 // Health check

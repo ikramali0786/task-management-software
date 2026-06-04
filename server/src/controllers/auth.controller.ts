@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { User } from '../models/User.model';
@@ -6,6 +7,12 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { env } from '../config/env';
+
+const MAX_LOGIN_ATTEMPTS = 10;
+const LOCK_DURATION_MS   = 30 * 60 * 1000; // 30 minutes
+
+const hashToken = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex');
 
 // Session lasts 30 days — appropriate for a team productivity tool where
 // frequent re-authentication would be disruptive.
@@ -62,8 +69,11 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const username = await createUniqueUsername(name);
   const user = await User.create({ name, username, email, password });
 
-  const accessToken = generateAccessToken(user._id.toString());
+  const accessToken  = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());
+
+  // Store hash for rotation validation
+  await User.findByIdAndUpdate(user._id, { refreshTokenHash: hashToken(refreshToken) });
 
   res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
@@ -90,18 +100,40 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
-  const { email, password, rememberMe } = parsed.data;
+  const { email, password } = parsed.data;
 
-  const user = await User.findOne({ email }).select('+password');
+  const user = await User.findOne({ email }).select('+password +loginAttempts +lockUntil +refreshTokenHash');
   if (!user) throw new ApiError(401, 'No account found with this email address.');
 
-  const isMatch = await user.comparePassword(password);
-  if (!isMatch) throw new ApiError(401, 'Incorrect password. Please try again.');
+  // Check account lockout
+  if (user.lockUntil && user.lockUntil > new Date()) {
+    const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
+    throw new ApiError(429, `Account locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`);
+  }
 
-  const accessToken = generateAccessToken(user._id.toString());
+  const isMatch = await user.comparePassword(password);
+
+  if (!isMatch) {
+    // Increment failed attempts
+    user.loginAttempts = (user.loginAttempts || 0) + 1;
+    if (user.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+      user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+      user.loginAttempts = 0;
+    }
+    await user.save({ validateBeforeSave: false });
+    throw new ApiError(401, 'Incorrect password. Please try again.');
+  }
+
+  // Successful login — reset lockout counters
+  user.loginAttempts = 0;
+  user.lockUntil = null;
+  user.lastSeenAt = new Date();
+
+  const accessToken  = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());
 
-  user.lastSeenAt = new Date();
+  // Store hash of refresh token for rotation validation
+  user.refreshTokenHash = hashToken(refreshToken);
   await user.save({ validateBeforeSave: false });
 
   res.cookie('refreshToken', refreshToken, refreshCookieOptions());
@@ -120,7 +152,17 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-export const logout = asyncHandler(async (_req: Request, res: Response) => {
+export const logout = asyncHandler(async (req: Request, res: Response) => {
+  const token = req.cookies?.refreshToken;
+  if (token) {
+    // Invalidate the stored token hash so it can't be reused
+    try {
+      const decoded = verifyRefreshToken(token);
+      await User.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+    } catch {
+      // Token already invalid — no-op
+    }
+  }
   res.clearCookie('refreshToken', refreshCookieOptions());
   sendSuccess(res, null, 'Logged out successfully.');
 });
@@ -130,11 +172,23 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
   if (!token) throw new ApiError(401, 'No refresh token.');
 
   const decoded = verifyRefreshToken(token);
-  const user = await User.findById(decoded.id);
+  const user = await User.findById(decoded.id).select('+refreshTokenHash');
   if (!user || !user.isActive) throw new ApiError(401, 'Invalid refresh token.');
 
-  const newAccessToken = generateAccessToken(user._id.toString());
+  // Verify token matches stored hash (rotation check)
+  const incomingHash = hashToken(token);
+  if (!user.refreshTokenHash || user.refreshTokenHash !== incomingHash) {
+    // Token reuse detected — clear hash to force full re-login
+    await User.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+    throw new ApiError(401, 'Refresh token reuse detected. Please log in again.');
+  }
+
+  const newAccessToken  = generateAccessToken(user._id.toString());
   const newRefreshToken = generateRefreshToken(user._id.toString());
+
+  // Rotate: replace stored hash with new token's hash
+  user.refreshTokenHash = hashToken(newRefreshToken);
+  await user.save({ validateBeforeSave: false });
 
   res.cookie('refreshToken', newRefreshToken, refreshCookieOptions());
   sendSuccess(res, { accessToken: newAccessToken });

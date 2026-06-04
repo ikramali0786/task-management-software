@@ -15,6 +15,10 @@ export interface IUser extends Document {
   lastSeenAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  // Security fields
+  refreshTokenHash: string | null;
+  loginAttempts: number;
+  lockUntil: Date | null;
   comparePassword(candidate: string): Promise<boolean>;
 }
 
@@ -30,6 +34,10 @@ const UserSchema = new Schema<IUser>(
     teams: [{ type: Schema.Types.ObjectId, ref: 'Team' }],
     isActive: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: Date.now },
+    // Security fields
+    refreshTokenHash: { type: String, select: false, default: null },
+    loginAttempts:    { type: Number, select: false, default: 0 },
+    lockUntil:        { type: Date,   select: false, default: null },
   },
   { timestamps: true }
 );

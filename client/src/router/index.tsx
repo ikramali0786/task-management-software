@@ -18,11 +18,16 @@ const ActivityPage = lazy(() => import('@/pages/ActivityPage').then(m => ({ defa
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const ChatbotsPage = lazy(() => import('@/pages/ChatbotsPage').then(m => ({ default: m.ChatbotsPage })));
 const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
-const MyTasksPage = lazy(() => import('@/pages/MyTasksPage').then(m => ({ default: m.MyTasksPage })));
+const MyTasksPage  = lazy(() => import('@/pages/MyTasksPage').then(m => ({ default: m.MyTasksPage })));
+const StatusPage   = lazy(() => import('@/pages/StatusPage').then(m => ({ default: m.StatusPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
 export const router = createBrowserRouter([
+  {
+    path: '/status',
+    element: <StatusPage />,
+  },
   {
     path: '/login',
     element: <GuestGuard><LoginPage /></GuestGuard>,
