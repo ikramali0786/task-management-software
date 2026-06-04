@@ -3,6 +3,7 @@ import app from './app';
 import { connectDB } from './config/db';
 import { initSocket } from './config/socket';
 import { env } from './config/env';
+import { startReminderScheduler } from './services/reminder.service';
 
 const httpServer = http.createServer(app);
 
@@ -16,6 +17,9 @@ const start = async () => {
     console.log(`   Mode: ${env.NODE_ENV}`);
     console.log(`   Client URL: ${env.CLIENT_URL}\n`);
   });
+
+  // Kick off the in-process due-date reminder scheduler.
+  startReminderScheduler();
 };
 
 start().catch((err) => {

@@ -207,7 +207,13 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (parsed.data.dueDate !== undefined) {
-    task.dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+    const nextDue = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+    // Reschedule → clear reminder flags so the new due date can notify afresh.
+    if (!task.dueDate || !nextDue || task.dueDate.getTime() !== nextDue.getTime()) {
+      task.reminderSentAt = null;
+      task.overdueSentAt = null;
+    }
+    task.dueDate = nextDue;
   }
 
   Object.assign(task, {

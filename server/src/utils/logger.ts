@@ -44,6 +44,7 @@ export type AuditEvent =
   | 'auth.email.verify.sent'
   | 'auth.email.verify.success'
   | 'email.send.failure'
+  | 'reminder.scan'
   | 'file.upload.blocked';
 
 export interface AuditPayload {

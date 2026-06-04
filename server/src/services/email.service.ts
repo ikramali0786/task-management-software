@@ -112,6 +112,31 @@ export const sendVerificationEmail = async (
   });
 };
 
+export const sendDueReminderEmail = async (
+  to: string,
+  name: string,
+  taskTitle: string,
+  teamName: string,
+  dueLabel: string,
+  taskUrl: string,
+  overdue = false
+): Promise<void> => {
+  await send({
+    to,
+    subject: overdue
+      ? `Overdue: "${taskTitle}" on TaskFlow`
+      : `Due ${dueLabel}: "${taskTitle}" on TaskFlow`,
+    html: layout(
+      `Hi ${name},`,
+      `<p style="margin:0 0 12px;">Your task <strong>${taskTitle}</strong> in <strong>${teamName}</strong> is ${
+        overdue ? `<span style="color:#dc2626;font-weight:600;">overdue</span>` : `due <strong>${dueLabel}</strong>`
+      }.</p>
+       <p style="margin:0;">Open it in TaskFlow to update its status or adjust the due date.</p>`,
+      { label: 'View task', url: taskUrl }
+    ),
+  });
+};
+
 export const sendTeamInviteEmail = async (
   to: string,
   inviterName: string,
