@@ -8,6 +8,10 @@ import {
   getMe,
   updateMe,
   changePassword,
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+  resendVerification,
 } from '../controllers/auth.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -22,10 +26,22 @@ const authLimiter = rateLimit({
   message: 'Too many attempts from this IP. Please try again in 15 minutes.',
 });
 
+// Email-triggering endpoints — tighter cap (counts successes too) to prevent
+// using TaskFlow as a spam relay against arbitrary inboxes.
+const emailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: 'Too many email requests from this IP. Please try again later.',
+});
+
 router.post('/register', authLimiter, register);
 router.post('/login', authLimiter, login);
 router.post('/logout', logout);
 router.post('/refresh', refreshToken);
+router.post('/forgot-password', emailLimiter, forgotPassword);
+router.post('/reset-password', authLimiter, resetPassword);
+router.post('/verify-email', verifyEmail);
+router.post('/resend-verification', protect, emailLimiter, resendVerification);
 router.get('/me', protect, getMe);
 router.patch('/me', protect, updateMe);
 router.patch('/me/password', protect, changePassword);

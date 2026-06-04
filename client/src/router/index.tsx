@@ -20,6 +20,9 @@ const ChatbotsPage = lazy(() => import('@/pages/ChatbotsPage').then(m => ({ defa
 const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const MyTasksPage  = lazy(() => import('@/pages/MyTasksPage').then(m => ({ default: m.MyTasksPage })));
 const StatusPage   = lazy(() => import('@/pages/StatusPage').then(m => ({ default: m.StatusPage })));
+const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage  = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
+const VerifyEmailPage    = lazy(() => import('@/pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
@@ -35,6 +38,18 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <GuestGuard><RegisterPage /></GuestGuard>,
+  },
+  {
+    path: '/forgot-password',
+    element: <GuestGuard><ForgotPasswordPage /></GuestGuard>,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
+  },
+  {
+    path: '/verify-email',
+    element: <VerifyEmailPage />,
   },
   {
     path: '/',

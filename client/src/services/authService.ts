@@ -27,4 +27,20 @@ export const authService = {
   changePassword: async (data: { currentPassword: string; newPassword: string }) => {
     await api.patch('/auth/me/password', data);
   },
+  forgotPassword: async (email: string) => {
+    const res = await api.post('/auth/forgot-password', { email });
+    return res.data.message as string;
+  },
+  resetPassword: async (data: { token: string; password: string }) => {
+    const res = await api.post('/auth/reset-password', data);
+    return res.data.message as string;
+  },
+  verifyEmail: async (token: string) => {
+    const res = await api.post('/auth/verify-email', { token });
+    return res.data.message as string;
+  },
+  resendVerification: async () => {
+    const res = await api.post('/auth/resend-verification');
+    return res.data.message as string;
+  },
 };

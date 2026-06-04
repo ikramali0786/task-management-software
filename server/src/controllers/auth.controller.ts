@@ -8,6 +8,10 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { env } from '../config/env';
 import { audit } from '../utils/logger';
+import {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from '../services/email.service';
 
 const getIP = (req: Request): string =>
   (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
@@ -19,6 +23,16 @@ const LOCK_DURATION_MS   = 30 * 60 * 1000; // 30 minutes
 
 const hashToken = (token: string) =>
   crypto.createHash('sha256').update(token).digest('hex');
+
+// Generate a cryptographically-random URL-safe token + its sha256 hash.
+// Only the hash is persisted; the raw token travels in the email link.
+const createToken = () => {
+  const raw = crypto.randomBytes(32).toString('hex');
+  return { raw, hash: hashToken(raw) };
+};
+
+const PASSWORD_RESET_TTL_MS    = 60 * 60 * 1000;        // 1 hour
+const EMAIL_VERIFY_TTL_MS      = 24 * 60 * 60 * 1000;   // 24 hours
 
 // Session lasts 30 days — appropriate for a team productivity tool where
 // frequent re-authentication would be disruptive.
@@ -78,9 +92,27 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   if (exists) throw new ApiError(409, 'Email already in use.');
 
   const username = await createUniqueUsername(name);
-  const user = await User.create({ name, username, email, password });
+
+  // Generate an email-verification token up front so we can store its hash
+  // on the new user document and email the raw token in one go.
+  const { raw: verifyRaw, hash: verifyHash } = createToken();
+
+  const user = await User.create({
+    name,
+    username,
+    email,
+    password,
+    emailVerificationTokenHash: verifyHash,
+    emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFY_TTL_MS),
+  });
 
   audit('auth.register', { ip: getIP(req), email, userId: user._id.toString() });
+
+  // Fire-and-forget: a transient mail failure must never block account creation.
+  const verifyUrl = `${env.CLIENT_URL.replace(/\/$/, '')}/verify-email?token=${verifyRaw}`;
+  sendVerificationEmail(email, name, verifyUrl)
+    .then(() => audit('auth.email.verify.sent', { email, userId: user._id.toString() }))
+    .catch(() => { /* failure already audited inside email service */ });
 
   const accessToken  = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());
@@ -102,6 +134,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         avatar: user.avatar,
         theme: user.theme,
         timezone: user.timezone,
+        emailVerified: user.emailVerified,
       },
     },
     'Account created successfully.',
@@ -168,6 +201,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       avatar: user.avatar,
       theme: user.theme,
       timezone: user.timezone,
+      emailVerified: user.emailVerified,
     },
   });
 });
@@ -263,4 +297,118 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
 
   audit('auth.password.changed', { ip: getIP(req), userId: req.user!._id.toString() });
   sendSuccess(res, null, 'Password changed successfully.');
+});
+
+/* ── FORGOT PASSWORD ─────────────────────────────────────────────────────── */
+// Always responds 200 with the same generic message regardless of whether the
+// email exists — prevents account-enumeration via this endpoint.
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ email: z.string().email() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'A valid email address is required.');
+
+  const { email } = parsed.data;
+  const genericMessage =
+    'If an account exists for that email, a password reset link is on its way.';
+
+  const user = await User.findOne({ email });
+  if (user && user.isActive) {
+    const { raw, hash } = createToken();
+    user.passwordResetTokenHash = hash;
+    user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+    await user.save({ validateBeforeSave: false });
+
+    audit('auth.password.forgot', { ip: getIP(req), email, userId: user._id.toString() });
+
+    const resetUrl = `${env.CLIENT_URL.replace(/\/$/, '')}/reset-password?token=${raw}`;
+    try {
+      await sendPasswordResetEmail(email, user.name, resetUrl);
+    } catch {
+      // Don't leak send failures to the client; already audited in email service.
+    }
+  }
+
+  sendSuccess(res, null, genericMessage);
+});
+
+/* ── RESET PASSWORD ──────────────────────────────────────────────────────── */
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    token: z.string().min(1),
+    password: passwordSchema,
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const tokenHash = hashToken(parsed.data.token);
+  const user = await User.findOne({
+    passwordResetTokenHash: tokenHash,
+    passwordResetExpires: { $gt: new Date() },
+  }).select('+passwordResetTokenHash +passwordResetExpires +refreshTokenHash');
+
+  if (!user) {
+    throw new ApiError(400, 'This password reset link is invalid or has expired. Please request a new one.');
+  }
+
+  // Set new password (pre-save hook re-hashes), clear the reset token, and
+  // invalidate any existing session so a leaked token can't be reused.
+  user.password = parsed.data.password;
+  user.passwordResetTokenHash = null;
+  user.passwordResetExpires = null;
+  user.refreshTokenHash = null;
+  user.loginAttempts = 0;
+  user.lockUntil = null;
+  await user.save();
+
+  audit('auth.password.reset', { ip: getIP(req), userId: user._id.toString() });
+  sendSuccess(res, null, 'Password reset successfully. You can now log in with your new password.');
+});
+
+/* ── VERIFY EMAIL ────────────────────────────────────────────────────────── */
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ token: z.string().min(1) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'A verification token is required.');
+
+  const tokenHash = hashToken(parsed.data.token);
+  const user = await User.findOne({
+    emailVerificationTokenHash: tokenHash,
+    emailVerificationExpires: { $gt: new Date() },
+  }).select('+emailVerificationTokenHash +emailVerificationExpires');
+
+  if (!user) {
+    throw new ApiError(400, 'This verification link is invalid or has expired. Request a new one from your account.');
+  }
+
+  user.emailVerified = true;
+  user.emailVerificationTokenHash = null;
+  user.emailVerificationExpires = null;
+  await user.save({ validateBeforeSave: false });
+
+  audit('auth.email.verify.success', { userId: user._id.toString() });
+  sendSuccess(res, null, 'Email verified successfully.');
+});
+
+/* ── RESEND VERIFICATION EMAIL ───────────────────────────────────────────── */
+export const resendVerification = asyncHandler(async (req: Request, res: Response) => {
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new ApiError(404, 'User not found.');
+  if (user.emailVerified) {
+    return sendSuccess(res, null, 'Your email is already verified.');
+  }
+
+  const { raw, hash } = createToken();
+  user.emailVerificationTokenHash = hash;
+  user.emailVerificationExpires = new Date(Date.now() + EMAIL_VERIFY_TTL_MS);
+  await user.save({ validateBeforeSave: false });
+
+  const verifyUrl = `${env.CLIENT_URL.replace(/\/$/, '')}/verify-email?token=${raw}`;
+  try {
+    await sendVerificationEmail(user.email, user.name, verifyUrl);
+    audit('auth.email.verify.sent', { email: user.email, userId: user._id.toString() });
+  } catch {
+    throw new ApiError(502, 'Could not send the verification email right now. Please try again shortly.');
+  }
+
+  sendSuccess(res, null, 'Verification email sent. Check your inbox.');
 });

@@ -19,4 +19,11 @@ export const env = {
   // Public base URL for the bucket — found in Cloudflare dashboard under
   // R2 → taskflow bucket → Settings → Public Access (e.g. https://pub-XXXX.r2.dev)
   R2_PUBLIC_URL: process.env.R2_PUBLIC_URL || '',
+
+  // ── Email (Resend) ───────────────────────────────────────────────────────
+  // RESEND_API_KEY — from https://resend.com/api-keys
+  // EMAIL_FROM — verified sender, e.g. "TaskFlow <no-reply@yourdomain.com>".
+  //   Until a custom domain is verified, Resend allows "onboarding@resend.dev".
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+  EMAIL_FROM: process.env.EMAIL_FROM || 'TaskFlow <onboarding@resend.dev>',
 };

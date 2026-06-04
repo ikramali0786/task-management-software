@@ -238,21 +238,29 @@ export const LoginPage = () => {
                 onChange={(e) => { clearError(); register('password').onChange(e); }}
               />
 
-              {/* Remember me */}
-              <label className="flex cursor-pointer items-center gap-2.5">
-                <div className="relative flex-shrink-0">
-                  <input type="checkbox" className="peer sr-only" {...register('rememberMe')} />
-                  <div className="h-4 w-4 rounded border border-slate-300 bg-white transition-all peer-checked:border-brand-500 peer-checked:bg-brand-500 dark:border-slate-600 dark:bg-slate-800" />
-                  <svg
-                    className="pointer-events-none absolute inset-0 h-4 w-4 scale-0 text-white transition-transform peer-checked:scale-100"
-                    fill="none"
-                    viewBox="0 0 16 16"
-                  >
-                    <path d="M3.5 8l3 3 5.5-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <span className="text-sm text-slate-600 dark:text-slate-400">Remember me for 30 days</span>
-              </label>
+              {/* Remember me + forgot password */}
+              <div className="flex items-center justify-between">
+                <label className="flex cursor-pointer items-center gap-2.5">
+                  <div className="relative flex-shrink-0">
+                    <input type="checkbox" className="peer sr-only" {...register('rememberMe')} />
+                    <div className="h-4 w-4 rounded border border-slate-300 bg-white transition-all peer-checked:border-brand-500 peer-checked:bg-brand-500 dark:border-slate-600 dark:bg-slate-800" />
+                    <svg
+                      className="pointer-events-none absolute inset-0 h-4 w-4 scale-0 text-white transition-transform peer-checked:scale-100"
+                      fill="none"
+                      viewBox="0 0 16 16"
+                    >
+                      <path d="M3.5 8l3 3 5.5-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">Remember me</span>
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                >
+                  Forgot password?
+                </Link>
+              </div>
 
               {/* Account locked banner */}
               <AnimatePresence>

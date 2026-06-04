@@ -39,6 +39,11 @@ export type AuditEvent =
   | 'auth.token.refresh'
   | 'auth.token.reuse'
   | 'auth.password.changed'
+  | 'auth.password.forgot'
+  | 'auth.password.reset'
+  | 'auth.email.verify.sent'
+  | 'auth.email.verify.success'
+  | 'email.send.failure'
   | 'file.upload.blocked';
 
 export interface AuditPayload {

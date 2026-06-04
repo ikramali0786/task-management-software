@@ -12,6 +12,7 @@ export interface User {
   timezone: string;
   theme: Theme;
   teams: Team[];
+  emailVerified?: boolean;
   lastSeenAt?: string;
   createdAt?: string;
 }

@@ -19,6 +19,12 @@ export interface IUser extends Document {
   refreshTokenHash: string | null;
   loginAttempts: number;
   lockUntil: Date | null;
+  // Password reset & email verification
+  emailVerified: boolean;
+  passwordResetTokenHash: string | null;
+  passwordResetExpires: Date | null;
+  emailVerificationTokenHash: string | null;
+  emailVerificationExpires: Date | null;
   comparePassword(candidate: string): Promise<boolean>;
 }
 
@@ -38,6 +44,12 @@ const UserSchema = new Schema<IUser>(
     refreshTokenHash: { type: String, select: false, default: null },
     loginAttempts:    { type: Number, select: false, default: 0 },
     lockUntil:        { type: Date,   select: false, default: null },
+    // Password reset & email verification (token hashes only — never store raw tokens)
+    emailVerified:               { type: Boolean, default: false },
+    passwordResetTokenHash:      { type: String, select: false, default: null },
+    passwordResetExpires:        { type: Date,   select: false, default: null },
+    emailVerificationTokenHash:  { type: String, select: false, default: null },
+    emailVerificationExpires:    { type: Date,   select: false, default: null },
   },
   { timestamps: true }
 );
