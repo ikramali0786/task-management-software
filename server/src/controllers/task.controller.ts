@@ -27,6 +27,71 @@ const getMaxPosition = async (teamId: string, status: TaskStatus): Promise<numbe
   return last ? last.position + 1000 : 1000;
 };
 
+// Zod shape for an optional recurrence rule, reused by create + update.
+const recurrenceSchema = z
+  .object({
+    frequency: z.enum(['none', 'daily', 'weekly', 'monthly']),
+    interval: z.number().int().min(1).max(365).optional(),
+  })
+  .optional();
+
+const advanceDate = (from: Date, frequency: string, interval: number): Date => {
+  const d = new Date(from);
+  const n = Math.max(1, interval);
+  if (frequency === 'daily') d.setDate(d.getDate() + n);
+  else if (frequency === 'weekly') d.setDate(d.getDate() + 7 * n);
+  else if (frequency === 'monthly') d.setMonth(d.getMonth() + n);
+  return d;
+};
+
+// When a recurring task is completed, spawn a fresh "todo" instance with the due
+// date advanced by its interval. The recurrence rule is transferred to the new
+// instance and cleared on the completed one, so toggling done↔todo never spawns
+// duplicates — only a genuine completion of the live instance recurs.
+const spawnNextRecurrence = async (task: any, userId: string): Promise<void> => {
+  const rec = task.recurrence;
+  if (!rec || rec.frequency === 'none') return;
+
+  const interval = rec.interval || 1;
+  const base = task.dueDate ? new Date(task.dueDate) : new Date();
+  const nextDue = advanceDate(base, rec.frequency, interval);
+
+  const position = await getMaxPosition(task.team.toString(), 'todo');
+  const updatedTeam = await Team.findByIdAndUpdate(
+    task.team,
+    { $inc: { taskCounter: 1 } },
+    { new: true, select: 'taskCounter' }
+  );
+  const identifier = updatedTeam?.taskCounter ?? 1;
+
+  const next = await Task.create({
+    identifier,
+    title: task.title,
+    description: task.description,
+    team: task.team,
+    createdBy: userId,
+    assignees: task.assignees,
+    status: 'todo',
+    priority: task.priority,
+    labels: task.labels,
+    dueDate: nextDue,
+    position,
+    recurrence: { frequency: rec.frequency, interval },
+  });
+
+  // The completed task no longer recurs — the new instance carries it forward.
+  task.recurrence = { frequency: 'none', interval: 1 };
+  await task.save();
+
+  const populated = await next.populate([
+    { path: 'assignees', select: 'name avatar' },
+    { path: 'createdBy', select: 'name avatar' },
+  ]);
+
+  const io = getIO();
+  if (io) io.to(`team:${task.team}`).emit('task:created', { task: populated });
+};
+
 export const createTask = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
     title: z.string().min(1).max(200),
@@ -37,6 +102,7 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
     labels: z.array(z.object({ name: z.string(), color: z.string() })).optional(),
     dueDate: z.string().optional().nullable(),
+    recurrence: recurrenceSchema,
   });
 
   const parsed = schema.safeParse(req.body);
@@ -67,6 +133,9 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     priority: parsed.data.priority || 'medium',
     labels: parsed.data.labels || [],
     dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
+    recurrence: parsed.data.recurrence
+      ? { frequency: parsed.data.recurrence.frequency, interval: parsed.data.recurrence.interval || 1 }
+      : { frequency: 'none', interval: 1 },
     position,
   });
 
@@ -185,6 +254,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     labels: z.array(z.object({ name: z.string(), color: z.string() })).optional(),
     dueDate: z.string().optional().nullable(),
     position: z.number().optional(),
+    recurrence: recurrenceSchema,
   });
 
   const parsed = schema.safeParse(req.body);
@@ -198,6 +268,13 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
 
   const prevAssignees = task.assignees.map((a) => a.toString());
   const prevStatus = task.status;
+
+  if (parsed.data.recurrence !== undefined) {
+    task.recurrence = {
+      frequency: parsed.data.recurrence.frequency,
+      interval: parsed.data.recurrence.interval || 1,
+    } as any;
+  }
 
   // Handle completedAt
   if (parsed.data.status === 'done' && task.status !== 'done') {
@@ -275,6 +352,8 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
         message: `"${task.title}" was marked as done by ${req.user!.name}.`,
       });
     }
+    // Recurring task completed → spawn the next occurrence.
+    await spawnNextRecurrence(task, userId);
   }
 
   sendSuccess(res, { task: populated });
@@ -303,6 +382,11 @@ export const updateTaskStatus = asyncHandler(async (req: Request, res: Response)
       taskId: task._id,
       changes: { status: parsed.data.status },
     });
+  }
+
+  // Recurring task completed → spawn the next occurrence.
+  if (parsed.data.status === 'done' && prevStatus !== 'done') {
+    await spawnNextRecurrence(task, req.user!._id.toString());
   }
 
   sendSuccess(res, { task });

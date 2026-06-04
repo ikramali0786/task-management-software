@@ -102,6 +102,13 @@ export interface TimeEntry {
   loggedAt: string;
 }
 
+export type RecurrenceFrequency = 'none' | 'daily' | 'weekly' | 'monthly';
+
+export interface Recurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;
+}
+
 export interface Task {
   _id: string;
   identifier?: number;     // per-team sequential ID, e.g. 1, 2, 3
@@ -115,6 +122,7 @@ export interface Task {
   labels: TaskLabel[];
   dueDate: string | null;
   completedAt: string | null;
+  recurrence?: Recurrence;
   position: number;
   isArchived: boolean;
   subtasks: Subtask[];

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, GripVertical, ListChecks, CheckSquare, Square, MessageSquare, Paperclip, ShieldAlert } from 'lucide-react';
+import { Calendar, GripVertical, ListChecks, CheckSquare, Square, MessageSquare, Paperclip, ShieldAlert, Repeat } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
@@ -182,6 +182,14 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
           )}>
             <Calendar className="h-3 w-3" />
             {formatDate(task.dueDate)}
+          </span>
+        )}
+        {task.recurrence && task.recurrence.frequency !== 'none' && (
+          <span
+            className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400"
+            title={`Repeats ${task.recurrence.frequency}`}
+          >
+            <Repeat className="h-3 w-3" />
           </span>
         )}
       </div>

@@ -2,6 +2,12 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low';
+export type RecurrenceFrequency = 'none' | 'daily' | 'weekly' | 'monthly';
+
+export interface IRecurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;   // every N days/weeks/months (default 1)
+}
 
 export interface ISubtask {
   _id: mongoose.Types.ObjectId;
@@ -34,6 +40,7 @@ export interface ITask extends Document {
   completedAt: Date | null;
   reminderSentAt: Date | null;   // when a "due soon" reminder was last sent
   overdueSentAt: Date | null;    // when an "overdue" alert was last sent
+  recurrence: IRecurrence;       // auto-spawn the next instance on completion
   position: number;
   isArchived: boolean;
   subtasks: ISubtask[];
@@ -91,6 +98,14 @@ const TaskSchema = new Schema<ITask>(
     completedAt: { type: Date, default: null },
     reminderSentAt: { type: Date, default: null },
     overdueSentAt: { type: Date, default: null },
+    recurrence: {
+      frequency: {
+        type: String,
+        enum: ['none', 'daily', 'weekly', 'monthly'],
+        default: 'none',
+      },
+      interval: { type: Number, default: 1, min: 1, max: 365 },
+    },
     position: { type: Number, default: 0 },
     isArchived: { type: Boolean, default: false },
     subtasks: { type: [SubtaskSchema], default: [] },

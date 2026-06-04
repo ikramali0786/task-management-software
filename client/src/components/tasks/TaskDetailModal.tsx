@@ -4,9 +4,9 @@ import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
-  Paperclip, MessageSquare, AlertTriangle, Clock, Info, ShieldAlert,
+  Paperclip, MessageSquare, AlertTriangle, Clock, Info, ShieldAlert, Repeat,
 } from 'lucide-react';
-import { Task, TaskStatus, TaskPriority, Subtask, TimeEntry, TASK_STATUSES, PRIORITY_CONFIG, User } from '@/types';
+import { Task, TaskStatus, TaskPriority, Subtask, TimeEntry, TASK_STATUSES, PRIORITY_CONFIG, User, RecurrenceFrequency } from '@/types';
 import { taskService } from '@/services/taskService';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
@@ -141,7 +141,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSave = async (changes: Partial<Task>) => {
     setSaving(true);
-    const SAFE_FIELDS: (keyof Task)[] = ['title', 'description', 'status', 'priority', 'dueDate', 'labels', 'completedAt'];
+    const SAFE_FIELDS: (keyof Task)[] = ['title', 'description', 'status', 'priority', 'dueDate', 'labels', 'completedAt', 'recurrence'];
     const optimistic: Partial<Task> = {};
     for (const key of SAFE_FIELDS) {
       if (key in changes) (optimistic as any)[key] = (changes as any)[key];
@@ -709,6 +709,34 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   <p className={cn('mt-1.5 flex items-center gap-1 text-xs font-medium', dueDateStatus.color)}>
                     <Clock className="h-3 w-3" />
                     {dueDateStatus.label}
+                  </p>
+                )}
+              </div>
+
+              {/* Repeat / recurrence */}
+              <div>
+                <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <Repeat className="h-3.5 w-3.5" /> Repeat
+                </label>
+                <select
+                  value={fullTask.recurrence?.frequency ?? 'none'}
+                  onChange={(e) => {
+                    const frequency = e.target.value as RecurrenceFrequency;
+                    handleSave({
+                      recurrence: { frequency, interval: fullTask.recurrence?.interval || 1 },
+                    } as any);
+                  }}
+                  className="input-field w-full"
+                >
+                  <option value="none">Does not repeat</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+                {fullTask.recurrence && fullTask.recurrence.frequency !== 'none' && (
+                  <p className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
+                    <Info className="h-3 w-3" />
+                    A new task is created when this one is completed.
                   </p>
                 )}
               </div>
