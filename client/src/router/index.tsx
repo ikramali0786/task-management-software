@@ -23,6 +23,7 @@ const StatusPage   = lazy(() => import('@/pages/StatusPage').then(m => ({ defaul
 const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage  = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const VerifyEmailPage    = lazy(() => import('@/pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
+const JoinTeamPage       = lazy(() => import('@/pages/JoinTeamPage').then(m => ({ default: m.JoinTeamPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
   {
     path: '/verify-email',
     element: <VerifyEmailPage />,
+  },
+  {
+    path: '/join',
+    element: <JoinTeamPage />,
   },
   {
     path: '/',

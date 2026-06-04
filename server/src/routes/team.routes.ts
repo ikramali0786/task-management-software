@@ -5,6 +5,7 @@ import {
   getTeam,
   updateTeam,
   generateInviteCode,
+  inviteByEmail,
   joinTeam,
   joinTeamByCode,
   toggleTeamLock,
@@ -32,6 +33,7 @@ router.post('/join', joinTeamByCode);          // join by code only (no teamId n
 router.get('/:teamId', getTeam);
 router.patch('/:teamId', updateTeam);
 router.post('/:teamId/invite', generateInviteCode);
+router.post('/:teamId/invite-email', inviteByEmail);
 router.post('/:teamId/join', joinTeam);
 router.patch('/:teamId/lock', toggleTeamLock); // toggle lock
 router.delete('/:teamId/leave', leaveTeam);

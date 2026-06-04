@@ -22,6 +22,10 @@ export const teamService = {
     const res = await api.post(`/teams/${teamId}/invite`);
     return res.data.data as { inviteCode: string; expiresAt: string };
   },
+  inviteByEmail: async (teamId: string, email: string) => {
+    const res = await api.post(`/teams/${teamId}/invite-email`, { email });
+    return res.data.message as string;
+  },
   joinTeam: async (teamId: string, code: string) => {
     const res = await api.post(`/teams/${teamId}/join`, { code });
     return res.data.data.team as Team;

@@ -8,6 +8,8 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
+import { env } from '../config/env';
+import { sendTeamInviteEmail } from '../services/email.service';
 
 const generateSlug = (name: string): string => {
   return (
@@ -105,6 +107,43 @@ export const generateInviteCode = asyncHandler(async (req: Request, res: Respons
   await team.save();
 
   sendSuccess(res, { inviteCode: code, expiresAt }, 'Invite code generated.', 201);
+});
+
+/* ── INVITE BY EMAIL ─────────────────────────────────────────────────────── */
+// Generates a longer-lived invite code (7 days) and emails the recipient a
+// link to /join?code=… . Unlike the 5-minute copy-paste codes, these need to
+// survive long enough for someone to open their inbox and act on it.
+export const inviteByEmail = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ email: z.string().email() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'A valid email address is required.');
+  const { email } = parsed.data;
+
+  const team = await Team.findById(req.params.teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+
+  const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
+  if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
+
+  // Don't bother inviting someone who's already on the team.
+  const existing = await User.findOne({ email });
+  if (existing && team.members.some((m) => m.user.toString() === existing._id.toString())) {
+    throw new ApiError(409, 'That person is already a member of this team.');
+  }
+
+  const code = crypto.randomBytes(16).toString('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  team.inviteCodes.push({ code, expiresAt, usedBy: null as any });
+  await team.save();
+
+  const inviteUrl = `${env.CLIENT_URL.replace(/\/$/, '')}/join?code=${code}`;
+  try {
+    await sendTeamInviteEmail(email, req.user!.name, team.name, inviteUrl);
+  } catch {
+    throw new ApiError(502, 'Could not send the invite email right now. Please try again shortly.');
+  }
+
+  sendSuccess(res, { email, expiresAt }, `Invite sent to ${email}.`, 201);
 });
 
 export const joinTeam = asyncHandler(async (req: Request, res: Response) => {

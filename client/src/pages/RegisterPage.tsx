@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Mail, Lock, Zap, Hash, AlertCircle, Check, X } from 'lucide-react';
@@ -69,6 +69,9 @@ const Req = ({
 export const RegisterPage = () => {
   const { register: registerUser, isLoading } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Prefill the invite code when arriving from a team-invite email link.
+  const invitedCode = searchParams.get('invite') || sessionStorage.getItem('pendingInviteCode') || '';
   const [formError, setFormError] = useState<string | null>(null);
   const [pwFocused, setPwFocused] = useState(false);
 
@@ -77,7 +80,7 @@ export const RegisterPage = () => {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<FormData>();
+  } = useForm<FormData>({ defaultValues: { teamCode: invitedCode } });
 
   const password = watch('password', '');
 
@@ -99,6 +102,7 @@ export const RegisterPage = () => {
           // Non-fatal — user created, team join skipped
         }
       }
+      sessionStorage.removeItem('pendingInviteCode');
       navigate('/');
     } catch (err: any) {
       setFormError(err.response?.data?.message || 'Registration failed. Please try again.');

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy, Check, UserPlus, Crown, Shield, Trash2, Lock, Unlock, Hash,
   Info, Edit2, Save, X, Eye, Zap, Users, LayoutGrid, MessageCircle,
-  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle, Tag,
+  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle, Tag, Mail, Send,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -82,6 +82,10 @@ export const TeamPage = () => {
   const [inviteCode, setInviteCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
+
+  // Invite by email
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   // Join team
   const [joinCode, setJoinCode] = useState('');
@@ -198,6 +202,25 @@ export const TeamPage = () => {
     navigator.clipboard.writeText(inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleInviteByEmail = async () => {
+    const email = inviteEmail.trim();
+    if (!email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      addToast({ type: 'error', title: 'Enter a valid email address' });
+      return;
+    }
+    setSendingInvite(true);
+    try {
+      await teamService.inviteByEmail(activeTeam._id, email);
+      addToast({ type: 'success', title: 'Invite sent', message: `An invite is on its way to ${email}.` });
+      setInviteEmail('');
+    } catch (err: any) {
+      addToast({ type: 'error', title: err.response?.data?.message || 'Failed to send invite' });
+    } finally {
+      setSendingInvite(false);
+    }
   };
 
   const handleJoin = async () => {
@@ -496,6 +519,35 @@ export const TeamPage = () => {
                     </div>
                   )}
                   <div className="space-y-3">
+                    {/* Invite by email */}
+                    <div>
+                      <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                        <Mail className="h-3.5 w-3.5" /> Invite by email
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Input
+                            type="email"
+                            placeholder="teammate@example.com"
+                            leftIcon={<Mail className="h-4 w-4" />}
+                            value={inviteEmail}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInviteEmail(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleInviteByEmail()}
+                          />
+                        </div>
+                        <Button onClick={handleInviteByEmail} isLoading={sendingInvite} className="flex-shrink-0 gap-2">
+                          <Send className="h-4 w-4" /> Send
+                        </Button>
+                      </div>
+                      <p className="mt-1.5 text-xs text-slate-400">We'll email them a link to join. Valid for 7 days.</p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                      <span className="text-xs text-slate-400">or share a code</span>
+                      <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                    </div>
+
                     <Button onClick={handleGenerateCode} isLoading={generatingCode} variant="secondary" className="gap-2">
                       <UserPlus className="h-4 w-4" />
                       Generate Invite Code

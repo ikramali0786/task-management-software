@@ -1,7 +1,21 @@
 import { create } from 'zustand';
 import { User } from '../types';
 import { authService } from '../services/authService';
+import { teamService } from '../services/teamService';
 import { initSocket, disconnectSocket, joinTeamRooms } from '../lib/socket';
+
+// If the user arrived via a team-invite link before authenticating, finish the
+// join now that they're signed in. Best-effort — never blocks the auth flow.
+const consumePendingInvite = async () => {
+  const code = sessionStorage.getItem('pendingInviteCode');
+  if (!code) return;
+  sessionStorage.removeItem('pendingInviteCode');
+  try {
+    await teamService.joinByCode(code);
+  } catch {
+    /* expired / already a member — ignore */
+  }
+};
 
 interface AuthStore {
   user: User | null;
@@ -26,6 +40,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const { accessToken, user } = await authService.login({ email, password, rememberMe });
       localStorage.setItem('accessToken', accessToken);
+      await consumePendingInvite();
 
       const socket = initSocket(accessToken);
       const teamIds = (user.teams || []).map((t) => (typeof t === 'string' ? t : t._id));
