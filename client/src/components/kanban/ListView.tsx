@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronUp, ChevronDown, Calendar, MessageSquare, Paperclip, Inbox } from 'lucide-react';
+import { ChevronUp, ChevronDown, Calendar, MessageSquare, Paperclip, Inbox, ShieldAlert } from 'lucide-react';
 import { Task, TASK_STATUSES, PRIORITY_CONFIG } from '@/types';
 import { AvatarGroup } from '@/components/ui/Avatar';
 import { useUIStore } from '@/store/uiStore';
@@ -131,6 +131,14 @@ export const ListView = ({ filteredTaskIds, tasks }: Props) => {
                 {(task.attachmentCount ?? 0) > 0 && (
                   <span className="flex flex-shrink-0 items-center gap-0.5 text-[10px] text-slate-400">
                     <Paperclip className="h-3 w-3" />{task.attachmentCount}
+                  </span>
+                )}
+                {(task.blockedBy?.length ?? 0) > 0 && (
+                  <span
+                    className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                    title={`Blocked by ${task.blockedBy!.length} task${task.blockedBy!.length > 1 ? 's' : ''}`}
+                  >
+                    <ShieldAlert className="h-3 w-3" />{task.blockedBy!.length}
                   </span>
                 )}
               </div>
