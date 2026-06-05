@@ -7,6 +7,7 @@ export type RecurrenceFrequency = 'none' | 'daily' | 'weekly' | 'monthly';
 export interface IRecurrence {
   frequency: RecurrenceFrequency;
   interval: number;   // every N days/weeks/months (default 1)
+  endDate: Date | null; // stop recurring after this date (null = forever)
 }
 
 export interface ISubtask {
@@ -105,6 +106,7 @@ const TaskSchema = new Schema<ITask>(
         default: 'none',
       },
       interval: { type: Number, default: 1, min: 1, max: 365 },
+      endDate: { type: Date, default: null },
     },
     position: { type: Number, default: 0 },
     isArchived: { type: Boolean, default: false },

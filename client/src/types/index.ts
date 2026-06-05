@@ -137,6 +137,7 @@ export type RecurrenceFrequency = 'none' | 'daily' | 'weekly' | 'monthly';
 export interface Recurrence {
   frequency: RecurrenceFrequency;
   interval: number;
+  endDate?: string | null;
 }
 
 export interface Task {

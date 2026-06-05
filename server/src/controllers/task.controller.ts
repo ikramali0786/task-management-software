@@ -34,6 +34,7 @@ const recurrenceSchema = z
   .object({
     frequency: z.enum(['none', 'daily', 'weekly', 'monthly']),
     interval: z.number().int().min(1).max(365).optional(),
+    endDate: z.string().nullable().optional(),
   })
   .optional();
 
@@ -58,6 +59,13 @@ const spawnNextRecurrence = async (task: any, userId: string): Promise<void> => 
   const base = task.dueDate ? new Date(task.dueDate) : new Date();
   const nextDue = advanceDate(base, rec.frequency, interval);
 
+  // Stop recurring once the next occurrence would fall after the end date.
+  if (rec.endDate && nextDue > new Date(rec.endDate)) {
+    task.recurrence = { frequency: 'none', interval: 1, endDate: null };
+    await task.save();
+    return;
+  }
+
   const position = await getMaxPosition(task.team.toString(), 'todo');
   const updatedTeam = await Team.findByIdAndUpdate(
     task.team,
@@ -78,11 +86,11 @@ const spawnNextRecurrence = async (task: any, userId: string): Promise<void> => 
     labels: task.labels,
     dueDate: nextDue,
     position,
-    recurrence: { frequency: rec.frequency, interval },
+    recurrence: { frequency: rec.frequency, interval, endDate: rec.endDate ?? null },
   });
 
   // The completed task no longer recurs — the new instance carries it forward.
-  task.recurrence = { frequency: 'none', interval: 1 };
+  task.recurrence = { frequency: 'none', interval: 1, endDate: null };
   await task.save();
 
   const populated = await next.populate([
@@ -137,8 +145,12 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     labels: parsed.data.labels || [],
     dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
     recurrence: parsed.data.recurrence
-      ? { frequency: parsed.data.recurrence.frequency, interval: parsed.data.recurrence.interval || 1 }
-      : { frequency: 'none', interval: 1 },
+      ? {
+          frequency: parsed.data.recurrence.frequency,
+          interval: parsed.data.recurrence.interval || 1,
+          endDate: parsed.data.recurrence.endDate ? new Date(parsed.data.recurrence.endDate) : null,
+        }
+      : { frequency: 'none', interval: 1, endDate: null },
     position,
   });
 
@@ -302,6 +314,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     task.recurrence = {
       frequency: parsed.data.recurrence.frequency,
       interval: parsed.data.recurrence.interval || 1,
+      endDate: parsed.data.recurrence.endDate ? new Date(parsed.data.recurrence.endDate) : null,
     } as any;
   }
 

@@ -740,10 +740,30 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   <option value="monthly">Monthly</option>
                 </select>
                 {fullTask.recurrence && fullTask.recurrence.frequency !== 'none' && (
-                  <p className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
-                    <Info className="h-3 w-3" />
-                    A new task is created when this one is completed.
-                  </p>
+                  <>
+                    <div className="mt-2">
+                      <label className="mb-1 block text-[11px] font-medium text-slate-400">Ends on (optional)</label>
+                      <input
+                        type="date"
+                        value={fullTask.recurrence?.endDate ? fullTask.recurrence.endDate.slice(0, 10) : ''}
+                        onChange={(e) =>
+                          handleSave({
+                            recurrence: {
+                              frequency: fullTask.recurrence!.frequency,
+                              interval: fullTask.recurrence?.interval || 1,
+                              endDate: e.target.value || null,
+                            },
+                          } as any)
+                        }
+                        className="input-field w-full"
+                      />
+                    </div>
+                    <p className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
+                      <Info className="h-3 w-3" />
+                      A new task is created when this one is completed
+                      {fullTask.recurrence?.endDate ? ', until the end date.' : '.'}
+                    </p>
+                  </>
                 )}
               </div>
 
