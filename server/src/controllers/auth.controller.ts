@@ -2,6 +2,12 @@ import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { User } from '../models/User.model';
+import { Team } from '../models/Team.model';
+import { Task } from '../models/Task.model';
+import { Comment } from '../models/Comment.model';
+import { Notification } from '../models/Notification.model';
+import { Chatbot } from '../models/Chatbot.model';
+import { Discussion } from '../models/Discussion.model';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../services/auth.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
@@ -221,6 +227,75 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   }
   res.clearCookie('refreshToken', refreshCookieOptions());
   sendSuccess(res, null, 'Logged out successfully.');
+});
+
+/* ── EXPORT MY DATA (GDPR) ───────────────────────────────────────────────── */
+export const exportMyData = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id;
+  const [user, teams, tasks, comments] = await Promise.all([
+    User.findById(userId).lean(),
+    Team.find({ 'members.user': userId }).select('name slug description plan').lean(),
+    Task.find({ $or: [{ createdBy: userId }, { assignees: userId }] })
+      .select('identifier title status priority dueDate team createdAt')
+      .lean(),
+    Comment.find({ author: userId }).select('body task createdAt').lean(),
+  ]);
+
+  audit('auth.account.export', { userId: userId.toString() });
+  sendSuccess(
+    res,
+    {
+      exportedAt: new Date().toISOString(),
+      profile: user
+        ? { name: user.name, email: user.email, username: user.username, createdAt: user.createdAt }
+        : null,
+      teams,
+      tasks,
+      comments,
+    },
+    'Data export ready.'
+  );
+});
+
+/* ── DELETE ACCOUNT (GDPR) ───────────────────────────────────────────────── */
+export const deleteAccount = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id;
+
+  // Block deletion while the user still solely owns a team with other members —
+  // they must transfer ownership first so the team isn't orphaned.
+  const ownedTeams = await Team.find({ owner: userId });
+  const blocking = ownedTeams.filter((t) => t.members.length > 1);
+  if (blocking.length) {
+    throw new ApiError(
+      400,
+      `Transfer ownership of "${blocking.map((t) => t.name).join('", "')}" before deleting your account.`
+    );
+  }
+
+  // Cascade-delete the teams the user solely owns, with their content.
+  for (const t of ownedTeams) {
+    await Promise.all([
+      Task.deleteMany({ team: t._id }),
+      Chatbot.deleteMany({ team: t._id }),
+      Discussion.deleteMany({ team: t._id }),
+    ]);
+    await t.deleteOne();
+  }
+
+  // Detach the user from every other team and unassign from tasks.
+  await Team.updateMany({ 'members.user': userId }, { $pull: { members: { user: userId } } });
+  await Task.updateMany({ assignees: userId }, { $pull: { assignees: userId } });
+
+  // Remove the user's own content + notifications, then the account itself.
+  await Promise.all([
+    Comment.deleteMany({ author: userId }),
+    Notification.deleteMany({ $or: [{ recipient: userId }, { actor: userId }] }),
+  ]);
+  await User.deleteOne({ _id: userId });
+
+  res.clearCookie('refreshToken', refreshCookieOptions());
+  audit('auth.account.deleted', { userId: userId.toString() });
+  sendSuccess(res, null, 'Your account has been permanently deleted.');
 });
 
 export const refreshToken = asyncHandler(async (req: Request, res: Response) => {

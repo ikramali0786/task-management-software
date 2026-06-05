@@ -43,4 +43,11 @@ export const authService = {
     const res = await api.post('/auth/resend-verification');
     return res.data.message as string;
   },
+  exportData: async () => {
+    const res = await api.get('/auth/me/export');
+    return res.data.data as Record<string, unknown>;
+  },
+  deleteAccount: async () => {
+    await api.delete('/auth/me');
+  },
 };

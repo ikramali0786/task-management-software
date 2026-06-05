@@ -6,6 +6,7 @@ import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
   Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock, Mail,
+  Download, AlertTriangle,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
@@ -124,8 +125,8 @@ const UsageMeter = ({ label, used, max }: { label: string; used: number; max: nu
 
 /* ─── Main Page ─────────────────────────────────────────── */
 export const SettingsPage = () => {
-  const { user, updateUser } = useAuthStore();
-  const { theme, setTheme, addToast, openUpgrade } = useUIStore();
+  const { user, updateUser, logout } = useAuthStore();
+  const { theme, setTheme, addToast, openUpgrade, showConfirm } = useUIStore();
   const { plan, isPro, limits, aiUsed, memberUsage, billingEnabled, team } = usePlan();
   const fetchTeams = useTeamStore((s) => s.fetchTeams);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -166,6 +167,54 @@ export const SettingsPage = () => {
 
   const [activeTab, setActiveTab] = useState<Tab>(searchParams.get('billing') ? 'billing' : 'general');
   const [emailNotif, setEmailNotif] = useState(user?.emailNotifications !== false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const data = await authService.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `taskflow-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addToast({ type: 'success', title: 'Export ready', message: 'Your data download has started.' });
+    } catch {
+      addToast({ type: 'error', title: 'Export failed', message: 'Please try again.' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = await showConfirm({
+      title: 'Delete your account?',
+      message:
+        'This permanently deletes your account and any teams you solely own, including their tasks. This cannot be undone.',
+      confirmLabel: 'Delete account',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await authService.deleteAccount();
+      addToast({ type: 'success', title: 'Account deleted' });
+      await logout();
+      window.location.href = '/login';
+    } catch (err: any) {
+      setDeleting(false);
+      addToast({
+        type: 'error',
+        title: "Couldn't delete account",
+        message: err?.response?.data?.message || 'Please try again.',
+      });
+    }
+  };
 
   const handleEmailNotif = async (v: boolean) => {
     setEmailNotif(v);
@@ -530,6 +579,7 @@ export const SettingsPage = () => {
 
           {/* ── SECURITY ── */}
           {activeTab === 'security' && (
+            <div className="space-y-6">
             <div className="card">
               <div className="mb-5 flex items-center gap-3">
                 <div className="rounded-xl bg-slate-100 p-2 dark:bg-slate-800">
@@ -569,6 +619,39 @@ export const SettingsPage = () => {
                   Update Password
                 </Button>
               </form>
+            </div>
+
+            {/* Data & danger zone */}
+            <div className="card">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your data</h3>
+              <p className="mt-0.5 mb-4 text-xs text-slate-400">Export a copy of your data, or permanently delete your account.</p>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="secondary" size="sm" isLoading={exporting} onClick={handleExport}>
+                  <Download className="mr-1.5 h-3.5 w-3.5" /> Export my data
+                </Button>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900/40 dark:bg-red-500/5">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-red-100 p-2 dark:bg-red-500/15">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-400">Delete account</p>
+                    <p className="mt-0.5 text-xs text-red-600/80 dark:text-red-400/70">
+                      Permanently deletes your account and any teams you solely own. This cannot be undone.
+                    </p>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleting}
+                      className="mt-3 rounded-lg bg-red-500 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                    >
+                      {deleting ? 'Deleting…' : 'Delete my account'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
             </div>
           )}
 

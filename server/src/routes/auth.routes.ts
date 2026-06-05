@@ -12,6 +12,8 @@ import {
   resetPassword,
   verifyEmail,
   resendVerification,
+  exportMyData,
+  deleteAccount,
 } from '../controllers/auth.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -45,5 +47,7 @@ router.post('/resend-verification', protect, emailLimiter, resendVerification);
 router.get('/me', protect, getMe);
 router.patch('/me', protect, updateMe);
 router.patch('/me/password', protect, changePassword);
+router.get('/me/export', protect, exportMyData);
+router.delete('/me', protect, deleteAccount);
 
 export default router;
