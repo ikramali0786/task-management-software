@@ -9,6 +9,7 @@ import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { teamService } from '@/services/teamService';
+import { joinTeamRooms } from '@/lib/socket';
 import { taskService } from '@/services/taskService';
 import { apiKeyService } from '@/services/apiKeyService';
 import { labelService } from '@/services/labelService';
@@ -227,7 +228,8 @@ export const TeamPage = () => {
     if (!joinCode.trim()) return;
     setJoining(true);
     try {
-      await teamService.joinByCode(joinCode.trim());
+      const team = await teamService.joinByCode(joinCode.trim());
+      if (team?._id) joinTeamRooms([team._id]);
       await fetchTeams();
       addToast({ type: 'success', title: 'Joined team!' });
       setJoinCode('');

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, Mail, Lock, Hash, AlertCircle, Check, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { teamService } from '@/services/teamService';
+import { joinTeamRooms } from '@/lib/socket';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AuthLayout } from '@/components/auth/AuthLayout';
@@ -98,7 +99,8 @@ export const RegisterPage = () => {
       await registerUser(data.name, data.email, data.password);
       if (data.teamCode?.trim()) {
         try {
-          await teamService.joinByCode(data.teamCode.trim());
+          const team = await teamService.joinByCode(data.teamCode.trim());
+          if (team?._id) joinTeamRooms([team._id]);
         } catch {
           // Non-fatal — user created, team join skipped
         }

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Zap, CheckCircle2, XCircle, Loader2, Users } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { teamService } from '@/services/teamService';
+import { joinTeamRooms } from '@/lib/socket';
 
 type Status = 'loading' | 'success' | 'error' | 'guest';
 
@@ -39,6 +40,7 @@ export const JoinTeamPage = () => {
       .joinByCode(code)
       .then((team) => {
         sessionStorage.removeItem('pendingInviteCode');
+        if (team?._id) joinTeamRooms([team._id]);
         setStatus('success');
         setMessage(`You've joined ${team?.name || 'the team'}. Redirecting…`);
         setTimeout(() => navigate('/team', { replace: true }), 1800);

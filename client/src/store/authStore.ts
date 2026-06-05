@@ -11,7 +11,9 @@ const consumePendingInvite = async () => {
   if (!code) return;
   sessionStorage.removeItem('pendingInviteCode');
   try {
-    await teamService.joinByCode(code);
+    const team = await teamService.joinByCode(code);
+    // Queue the new team's socket room; it flushes once the socket connects.
+    if (team?._id) joinTeamRooms([team._id]);
   } catch {
     /* expired / already a member — ignore */
   }
