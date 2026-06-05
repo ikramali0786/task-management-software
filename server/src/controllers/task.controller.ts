@@ -11,6 +11,7 @@ import { ApiError } from '../utils/ApiError';
 import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
+import { assertPermission, assertCanEditTask, assertCanDeleteTask, hasPermission } from '../utils/permissions';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -109,7 +110,8 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(parsed.data.teamId, userId);
+  const team = await verifyTeamMember(parsed.data.teamId, userId);
+  assertPermission(team, userId, 'createTask', "You don't have permission to create tasks in this team.");
 
   const status = parsed.data.status || 'todo';
   const position = await getMaxPosition(parsed.data.teamId, status as TaskStatus);
@@ -264,7 +266,8 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
   if (!task) throw new ApiError(404, 'Task not found.');
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(task.team.toString(), userId);
+  const team = await verifyTeamMember(task.team.toString(), userId);
+  assertCanEditTask(team, userId, task);
 
   const prevAssignees = task.assignees.map((a) => a.toString());
   const prevStatus = task.status;
@@ -367,7 +370,11 @@ export const updateTaskStatus = asyncHandler(async (req: Request, res: Response)
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const uid = req.user!._id.toString();
+    const team = await verifyTeamMember(task.team.toString(), uid);
+    assertCanEditTask(team, uid, task);
+  }
 
   const prevStatus = task.status;
   task.status = parsed.data.status;
@@ -403,7 +410,11 @@ export const updateTaskPosition = asyncHandler(async (req: Request, res: Respons
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const uid = req.user!._id.toString();
+    const team = await verifyTeamMember(task.team.toString(), uid);
+    assertCanEditTask(team, uid, task);
+  }
 
   task.position = parsed.data.position;
   if (parsed.data.status) task.status = parsed.data.status;
@@ -418,10 +429,7 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
 
   const userId = req.user!._id.toString();
   const team = await verifyTeamMember(task.team.toString(), userId);
-
-  const isAdmin = team.members.find((m) => m.user.toString() === userId)?.role === 'admin';
-  const isCreator = task.createdBy.toString() === userId;
-  if (!isAdmin && !isCreator) throw new ApiError(403, 'Only the creator or admin can delete tasks.');
+  assertCanDeleteTask(team, userId, task);
 
   const teamId = task.team.toString();
   const taskId = task._id.toString();
@@ -506,7 +514,11 @@ export const reorderSubtasks = asyncHandler(async (req: Request, res: Response) 
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const _uid = req.user!._id.toString();
+    const _team = await verifyTeamMember(task.team.toString(), _uid);
+    assertCanEditTask(_team, _uid, task);
+  }
 
   // Build a map for O(1) lookup
   const subtaskMap = new Map((task.subtasks as any[]).map((s: any) => [s._id.toString(), s]));
@@ -539,7 +551,11 @@ export const addSubtask = asyncHandler(async (req: Request, res: Response) => {
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const _uid = req.user!._id.toString();
+    const _team = await verifyTeamMember(task.team.toString(), _uid);
+    assertCanEditTask(_team, _uid, task);
+  }
 
   (task.subtasks as any).push({ title: sanitizeText(parsed.data.title), completed: false });
   await task.save();
@@ -566,7 +582,11 @@ export const updateSubtask = asyncHandler(async (req: Request, res: Response) =>
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const _uid = req.user!._id.toString();
+    const _team = await verifyTeamMember(task.team.toString(), _uid);
+    assertCanEditTask(_team, _uid, task);
+  }
 
   const subtask = (task.subtasks as any).id(req.params.subtaskId);
   if (!subtask) throw new ApiError(404, 'Subtask not found.');
@@ -590,7 +610,11 @@ export const deleteSubtask = asyncHandler(async (req: Request, res: Response) =>
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const _uid = req.user!._id.toString();
+    const _team = await verifyTeamMember(task.team.toString(), _uid);
+    assertCanEditTask(_team, _uid, task);
+  }
 
   const subtask = (task.subtasks as any).id(req.params.subtaskId);
   if (!subtask) throw new ApiError(404, 'Subtask not found.');
@@ -692,7 +716,8 @@ export const bulkUpdateTasks = asyncHandler(async (req: Request, res: Response) 
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(parsed.data.teamId, userId);
+  const bulkTeam = await verifyTeamMember(parsed.data.teamId, userId);
+  assertPermission(bulkTeam, userId, 'editAnyTask', "You don't have permission to bulk-edit tasks.");
 
   const updateFields: Record<string, unknown> = {};
   if (parsed.data.changes.status) updateFields.status = parsed.data.changes.status;
@@ -741,10 +766,16 @@ export const bulkDeleteTasks = asyncHandler(async (req: Request, res: Response) 
   const userId = req.user!._id.toString();
   const team = await verifyTeamMember(parsed.data.teamId, userId);
 
-  const member = team.members.find((m) => m.user.toString() === userId);
-  const isAdmin = member && ['owner', 'admin'].includes(member.role);
+  const canDeleteAny = hasPermission(team, userId, 'deleteAnyTask');
+  const canDeleteOwn = hasPermission(team, userId, 'deleteOwnTask');
+  if (!canDeleteAny && !canDeleteOwn) {
+    throw new ApiError(403, "You don't have permission to delete tasks.", {
+      code: 'PERMISSION_DENIED',
+      details: { permission: 'deleteTask' },
+    });
+  }
 
-  const filter = isAdmin
+  const filter = canDeleteAny
     ? { _id: { $in: parsed.data.taskIds }, team: parsed.data.teamId }
     : { _id: { $in: parsed.data.taskIds }, team: parsed.data.teamId, createdBy: userId };
 
@@ -780,7 +811,10 @@ export const logTime = asyncHandler(async (req: Request, res: Response) => {
   if (!task) throw new ApiError(404, 'Task not found.');
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(task.team.toString(), userId);
+  {
+    const _team = await verifyTeamMember(task.team.toString(), userId);
+    assertCanEditTask(_team, userId, task);
+  }
 
   (task.timeEntries as any).push({
     user: userId,
@@ -836,7 +870,11 @@ export const updateEstimate = asyncHandler(async (req: Request, res: Response) =
   const task = await Task.findById(req.params.taskId);
   if (!task) throw new ApiError(404, 'Task not found.');
 
-  await verifyTeamMember(task.team.toString(), req.user!._id.toString());
+  {
+    const _uid = req.user!._id.toString();
+    const _team = await verifyTeamMember(task.team.toString(), _uid);
+    assertCanEditTask(_team, _uid, task);
+  }
 
   (task as any).estimatedMinutes = parsed.data.estimatedMinutes;
   await task.save();
@@ -868,7 +906,10 @@ export const addDependency = asyncHandler(async (req: Request, res: Response) =>
   if (!blockerTask) throw new ApiError(404, 'Blocker task not found.');
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(task.team.toString(), userId);
+  {
+    const _team = await verifyTeamMember(task.team.toString(), userId);
+    assertCanEditTask(_team, userId, task);
+  }
 
   // Add bidirectionally (addToSet prevents duplicates)
   await Promise.all([
@@ -904,7 +945,10 @@ export const removeDependency = asyncHandler(async (req: Request, res: Response)
   if (!task) throw new ApiError(404, 'Task not found.');
 
   const userId = req.user!._id.toString();
-  await verifyTeamMember(task.team.toString(), userId);
+  {
+    const _team = await verifyTeamMember(task.team.toString(), userId);
+    assertCanEditTask(_team, userId, task);
+  }
 
   // Remove bidirectionally
   await Promise.all([

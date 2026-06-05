@@ -10,6 +10,7 @@ import { ApiError } from '../utils/ApiError';
 import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
+import { assertPermission } from '../utils/permissions';
 
 const verifyTaskAccess = async (taskId: string, userId: string) => {
   const task = await Task.findById(taskId);
@@ -60,6 +61,7 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
 
   const userId = req.user!._id.toString();
   const { task, team } = await verifyTaskAccess(parsed.data.taskId, userId);
+  assertPermission(team, userId, 'commentOnTasks', "You don't have permission to comment in this team.");
 
   // Validate parentComment belongs to same task
   if (parsed.data.parentCommentId) {

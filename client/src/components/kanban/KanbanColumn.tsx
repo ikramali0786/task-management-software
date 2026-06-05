@@ -8,6 +8,7 @@ import { SortableTaskCard } from './TaskCard';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
 import { useUIStore } from '@/store/uiStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import { cn } from '@/lib/utils';
 
 const statusConfig = TASK_STATUSES.reduce((acc, s) => {
@@ -47,6 +48,7 @@ interface KanbanColumnProps {
 export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedIds, onToggleSelect, teamId }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: 'column', status } });
   const { createTask } = useTaskStore();
+  const { can } = usePermissions();
   const { activeTeam } = useTeamStore();
   const { addToast } = useUIStore();
 
@@ -258,7 +260,7 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
                   </button>
                 </div>
               </motion.div>
-            ) : (
+            ) : can('createTask') ? (
               <motion.button
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -268,7 +270,7 @@ export const KanbanColumn = ({ status, taskIds, tasks, selectionMode, selectedId
                 <Plus className="h-4 w-4" />
                 Add task
               </motion.button>
-            )
+            ) : null
           )}
         </AnimatePresence>
       </div>

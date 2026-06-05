@@ -17,6 +17,7 @@ import {
   assertMemberCapacity,
   assertTeamCapacity,
 } from '../utils/teamPlan';
+import { assertPermission } from '../utils/permissions';
 
 const generateSlug = (name: string): string => {
   return (
@@ -94,10 +95,7 @@ export const updateTeam = asyncHandler(async (req: Request, res: Response) => {
   const team = await Team.findById(req.params.teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
-  // Owner OR admin can edit the team
-  const isOwner = team.owner.toString() === req.user!._id.toString();
-  const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
-  if (!isOwner && (!member || member.role !== 'admin')) throw new ApiError(403, 'Admin or owner only.');
+  assertPermission(team, req.user!._id.toString(), 'manageTeamSettings', 'You don\'t have permission to edit team settings.');
 
   Object.assign(team, parsed.data);
   await team.save();
@@ -109,8 +107,7 @@ export const generateInviteCode = asyncHandler(async (req: Request, res: Respons
   const team = await Team.findById(req.params.teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
-  const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
-  if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
+  assertPermission(team, req.user!._id.toString(), 'inviteMembers', "You don't have permission to invite members.");
 
   const code = crypto.randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
@@ -134,8 +131,7 @@ export const inviteByEmail = asyncHandler(async (req: Request, res: Response) =>
   const team = await Team.findById(req.params.teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
-  const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
-  if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
+  assertPermission(team, req.user!._id.toString(), 'inviteMembers', "You don't have permission to invite members.");
 
   // Don't bother inviting someone who's already on the team.
   const existing = await User.findOne({ email });
@@ -222,10 +218,7 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
   const team = await Team.findById(teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
-  const requestingMember = team.members.find(
-    (m) => m.user.toString() === req.user!._id.toString()
-  );
-  if (!requestingMember || requestingMember.role !== 'admin') throw new ApiError(403, 'Admin only.');
+  assertPermission(team, req.user!._id.toString(), 'manageMembers', "You don't have permission to manage members.");
   if (team.owner.toString() === userId) throw new ApiError(400, 'Cannot remove team owner.');
 
   team.members = team.members.filter((m) => m.user.toString() !== userId) as any;
@@ -247,13 +240,7 @@ export const updateMemberRole = asyncHandler(async (req: Request, res: Response)
   const team = await Team.findById(teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
-  const requestingMember = team.members.find(
-    (m) => m.user.toString() === req.user!._id.toString()
-  );
-  const requestIsOwner = team.owner.toString() === req.user!._id.toString();
-  if (!requestIsOwner && (!requestingMember || requestingMember.role !== 'admin')) {
-    throw new ApiError(403, 'Admin or owner only.');
-  }
+  assertPermission(team, req.user!._id.toString(), 'manageMembers', "You don't have permission to manage members.");
 
   const targetMember = team.members.find((m) => m.user.toString() === userId);
   if (!targetMember) throw new ApiError(404, 'Member not found.');
@@ -345,8 +332,7 @@ export const toggleTeamLock = asyncHandler(async (req: Request, res: Response) =
   const team = await Team.findById(req.params.teamId);
   if (!team) throw new ApiError(404, 'Team not found.');
 
-  const member = team.members.find((m) => m.user.toString() === req.user!._id.toString());
-  if (!member || member.role !== 'admin') throw new ApiError(403, 'Admin only.');
+  assertPermission(team, req.user!._id.toString(), 'manageTeamSettings', "You don't have permission to lock this team.");
 
   team.settings.isLocked = !team.settings.isLocked;
   await team.save();
@@ -462,8 +448,7 @@ export const createCustomRole = asyncHandler(async (req: Request, res: Response)
   if (!team) throw new ApiError(404, 'Team not found.');
 
   const member = team.members.find((m) => m.user.toString() === userId);
-  if (!member || !['owner', 'admin'].includes(member.role))
-    throw new ApiError(403, 'Only admins can manage roles.');
+  assertPermission(team, userId, 'manageTeamSettings', "You don't have permission to manage roles.");
 
   // Plan gate: custom roles are a Pro feature.
   await assertFeature(team, 'customRoles', req.user!.email);
@@ -508,8 +493,7 @@ export const updateCustomRole = asyncHandler(async (req: Request, res: Response)
   if (!team) throw new ApiError(404, 'Team not found.');
 
   const member = team.members.find((m) => m.user.toString() === userId);
-  if (!member || !['owner', 'admin'].includes(member.role))
-    throw new ApiError(403, 'Only admins can manage roles.');
+  assertPermission(team, userId, 'manageTeamSettings', "You don't have permission to manage roles.");
 
   const roleIdx = team.customRoles.findIndex((r) => r._id.toString() === req.params.roleId);
   if (roleIdx === -1) throw new ApiError(404, 'Custom role not found.');
@@ -533,8 +517,7 @@ export const deleteCustomRole = asyncHandler(async (req: Request, res: Response)
   if (!team) throw new ApiError(404, 'Team not found.');
 
   const member = team.members.find((m) => m.user.toString() === userId);
-  if (!member || !['owner', 'admin'].includes(member.role))
-    throw new ApiError(403, 'Only admins can manage roles.');
+  assertPermission(team, userId, 'manageTeamSettings', "You don't have permission to manage roles.");
 
   const role = team.customRoles.find((r) => r._id.toString() === req.params.roleId);
   if (!role) throw new ApiError(404, 'Custom role not found.');

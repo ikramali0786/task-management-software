@@ -38,6 +38,15 @@ api.interceptors.response.use(
       useUIStore.getState().openUpgrade(feature);
     }
 
+    // Permission denied — surface a clear toast (the server enforces role perms).
+    if (error.response?.status === 403 && error.response?.data?.code === 'PERMISSION_DENIED') {
+      useUIStore.getState().addToast({
+        type: 'error',
+        title: 'Permission denied',
+        message: error.response?.data?.message || "You don't have permission to do that.",
+      });
+    }
+
     // Never intercept 401s from credential-based auth endpoints — a failed login,
     // registration, or refresh should surface directly to the caller.
     // NOTE: /auth/me IS a protected endpoint that needs the refresh flow,

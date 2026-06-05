@@ -10,6 +10,7 @@ import { Task, TaskStatus, TaskPriority, Subtask, TimeEntry, TASK_STATUSES, PRIO
 import { taskService } from '@/services/taskService';
 import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useUIStore } from '@/store/uiStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn, formatRelative } from '@/lib/utils';
@@ -29,6 +30,7 @@ interface TaskDetailModalProps {
 export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const { tasks, updateTask, deleteTask, applySocketUpdate } = useTaskStore();
   const { activeTeam } = useTeamStore();
+  const { canDeleteTask } = usePermissions();
   const { addToast } = useUIStore();
 
   const task = tasks[taskId];
@@ -340,14 +342,17 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
             </span>
           )}
 
-          <button
-            onClick={() => setConfirmDelete(true)}
-            disabled={deleting}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
-            title="Delete task"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canDeleteTask(task) && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleting}
+              aria-label="Delete task"
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+              title="Delete task"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Inline delete confirmation */}
