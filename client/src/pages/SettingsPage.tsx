@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
-  Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock,
+  Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock, Mail,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
@@ -165,6 +165,18 @@ export const SettingsPage = () => {
   };
 
   const [activeTab, setActiveTab] = useState<Tab>(searchParams.get('billing') ? 'billing' : 'general');
+  const [emailNotif, setEmailNotif] = useState(user?.emailNotifications !== false);
+
+  const handleEmailNotif = async (v: boolean) => {
+    setEmailNotif(v);
+    try {
+      const updated = await authService.updateMe({ emailNotifications: v });
+      updateUser(updated);
+    } catch {
+      setEmailNotif(!v);
+      addToast({ type: 'error', title: 'Failed to update email setting' });
+    }
+  };
   const [profileSaving, setProfileSaving] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
 
@@ -447,6 +459,14 @@ export const SettingsPage = () => {
                 </p>
 
                 <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                  <NotifRow
+                    icon={Mail}
+                    iconBg="bg-brand-100 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"
+                    title="Email notifications"
+                    desc="Email me about task assignments, mentions and due reminders"
+                    checked={emailNotif}
+                    onChange={handleEmailNotif}
+                  />
                   <NotifRow
                     icon={Zap}
                     iconBg="bg-brand-100 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"

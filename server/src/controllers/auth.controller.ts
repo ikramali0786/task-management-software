@@ -263,6 +263,7 @@ export const updateMe = asyncHandler(async (req: Request, res: Response) => {
     avatar: z.string().url().optional().nullable(),
     timezone: z.string().optional(),
     theme: z.enum(['light', 'dark', 'system']).optional(),
+    emailNotifications: z.boolean().optional(),
   });
 
   const parsed = schema.safeParse(req.body);

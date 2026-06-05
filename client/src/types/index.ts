@@ -11,6 +11,7 @@ export interface User {
   avatar: string | null;
   timezone: string;
   theme: Theme;
+  emailNotifications?: boolean;
   teams: Team[];
   emailVerified?: boolean;
   lastSeenAt?: string;

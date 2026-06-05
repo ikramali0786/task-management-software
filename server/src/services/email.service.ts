@@ -448,3 +448,46 @@ export const sendTeamInviteEmail = async (
     }),
   });
 };
+
+export const sendTaskAssignedEmail = async (
+  to: string,
+  name: string,
+  opts: { taskTitle: string; teamName: string; assignedBy: string; url: string }
+): Promise<void> => {
+  await send({
+    to,
+    subject: `${opts.assignedBy} assigned you a task: "${opts.taskTitle}"`,
+    html: renderEmail({
+      preview: `${opts.assignedBy} assigned you "${opts.taskTitle}" in ${opts.teamName}.`,
+      eyebrow: 'Task assigned',
+      heading: 'You have a new task',
+      intro: `<p style="margin:0 0 14px;">Hi ${esc(name)}, <strong class="ink" style="color:${C.ink};">${esc(opts.assignedBy)}</strong> assigned a task to you on TaskFlow.</p>`,
+      panel: detailPanel(panelRow('Task', esc(opts.taskTitle)) + panelRow('Team', esc(opts.teamName))),
+      cta: { label: 'View task', url: opts.url },
+      outro: `<p style="margin:0;">Open TaskFlow to see the details, add subtasks, or start working.</p>`,
+      footerNote:
+        "You're receiving this because you were assigned a task. Manage email notifications in your TaskFlow settings.",
+    }),
+  });
+};
+
+export const sendMentionEmail = async (
+  to: string,
+  name: string,
+  opts: { taskTitle: string; teamName: string; byName: string; url: string }
+): Promise<void> => {
+  await send({
+    to,
+    subject: `${opts.byName} mentioned you on "${opts.taskTitle}"`,
+    html: renderEmail({
+      preview: `${opts.byName} mentioned you in a comment on "${opts.taskTitle}".`,
+      eyebrow: 'You were mentioned',
+      heading: `${esc(opts.byName)} mentioned you`,
+      intro: `<p style="margin:0 0 14px;">Hi ${esc(name)}, <strong class="ink" style="color:${C.ink};">${esc(opts.byName)}</strong> mentioned you in a comment on a task in <strong class="ink" style="color:${C.ink};">${esc(opts.teamName)}</strong>.</p>`,
+      panel: detailPanel(panelRow('Task', esc(opts.taskTitle)) + panelRow('Team', esc(opts.teamName))),
+      cta: { label: 'View the conversation', url: opts.url },
+      footerNote:
+        "You're receiving this because you were mentioned. Manage email notifications in your TaskFlow settings.",
+    }),
+  });
+};

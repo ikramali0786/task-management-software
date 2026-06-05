@@ -11,6 +11,7 @@ import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
 import { assertPermission } from '../utils/permissions';
+import { emailTaskAssigned, emailMention } from '../services/emailNotify.service';
 
 const verifyTaskAccess = async (taskId: string, userId: string) => {
   const task = await Task.findById(taskId);
@@ -120,6 +121,7 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
         metadata: { taskTitle: task.title },
       });
     }
+    void emailTaskAssigned(newAssignees, req.user!.name, task.title, team.name);
   }
 
   const newlyAssigned = new Set(newAssignees); // already received task_assigned above
@@ -137,6 +139,7 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
       message: `${req.user!.name} mentioned you in a comment on "${task.title}".`,
       metadata: { taskTitle: task.title },
     });
+    void emailMention(mid, req.user!.name, task.title, team.name);
   }
 
   // Notify the remaining task participants (assignees + creator) of the comment.

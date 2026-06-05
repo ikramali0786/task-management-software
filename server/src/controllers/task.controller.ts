@@ -12,6 +12,7 @@ import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
 import { assertPermission, assertCanEditTask, assertCanDeleteTask, hasPermission } from '../utils/permissions';
+import { emailTaskAssigned } from '../services/emailNotify.service';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -153,19 +154,19 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Notify assignees
-  for (const assigneeId of (parsed.data.assignees || [])) {
-    if (assigneeId !== userId) {
-      await createNotification({
-        recipientId: assigneeId,
-        actorId: userId,
-        type: 'task_assigned',
-        taskId: task._id.toString(),
-        teamId: parsed.data.teamId,
-        message: `${req.user!.name} assigned you to "${task.title}".`,
-        metadata: { taskTitle: task.title },
-      });
-    }
+  const createdAssignees = (parsed.data.assignees || []).filter((a) => a !== userId);
+  for (const assigneeId of createdAssignees) {
+    await createNotification({
+      recipientId: assigneeId,
+      actorId: userId,
+      type: 'task_assigned',
+      taskId: task._id.toString(),
+      teamId: parsed.data.teamId,
+      message: `${req.user!.name} assigned you to "${task.title}".`,
+      metadata: { taskTitle: task.title },
+    });
   }
+  void emailTaskAssigned(createdAssignees, req.user!.name, task.title, team.name);
 
   sendSuccess(res, { task: populated }, 'Task created.', 201);
 });
@@ -366,6 +367,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
       message: `${req.user!.name} assigned you to "${task.title}".`,
     });
   }
+  void emailTaskAssigned(newAssignees, req.user!.name, task.title, team.name);
 
   // Notify on completion
   if (parsed.data.status === 'done' && prevStatus !== 'done') {

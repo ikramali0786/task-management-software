@@ -10,6 +10,7 @@ export interface IUser extends Document {
   avatar: string | null;
   timezone: string;
   theme: 'light' | 'dark' | 'system';
+  emailNotifications: boolean;
   teams: mongoose.Types.ObjectId[];
   isActive: boolean;
   lastSeenAt: Date;
@@ -37,6 +38,7 @@ const UserSchema = new Schema<IUser>(
     avatar: { type: String, default: null },
     timezone: { type: String, default: 'UTC' },
     theme: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
+    emailNotifications: { type: Boolean, default: true },
     teams: [{ type: Schema.Types.ObjectId, ref: 'Team' }],
     isActive: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: Date.now },
