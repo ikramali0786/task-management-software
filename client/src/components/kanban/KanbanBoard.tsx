@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -136,8 +137,13 @@ export const KanbanBoard = ({ filteredTaskIds, selectionMode, onExitSelection }:
   };
 
   // ── DnD sensors ───────────────────────────────────────────────────────────
+  // Whole-card drag works across input types:
+  //  • Mouse — drag begins after a 5px move, so a plain click still opens the task.
+  //  • Touch — a 200ms long-press begins a drag, so a quick swipe still scrolls
+  //    the column/board instead of grabbing a card.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 

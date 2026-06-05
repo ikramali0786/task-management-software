@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, GripVertical, ListChecks, CheckSquare, Square, MessageSquare, Paperclip, ShieldAlert, Repeat } from 'lucide-react';
+import { Calendar, ListChecks, CheckSquare, Square, MessageSquare, Paperclip, ShieldAlert, Repeat } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
@@ -156,6 +156,7 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
             onKeyDown={handleTitleKeyDown}
             onBlur={saveTitleEdit}
             onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             className="w-full resize-none bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
           />
         ) : (
@@ -252,6 +253,7 @@ export const TaskCard = ({ task, isDragging, selectionMode, isSelected, onToggle
               : 'border-t border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700'
           )}
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <EmojiReactionBar
             resourceId={task._id}
@@ -296,18 +298,20 @@ export const SortableTaskCard = ({ task, selectionMode, isSelected, onToggleSele
     zIndex: isDragging ? 999 : undefined,
   };
 
+  // Whole-card drag (Trello/Linear style): the entire card is the drag surface,
+  // so there's no floating handle to collide with the title. A click still opens
+  // the task and a double-click still edits — the mouse sensor's 5px activation
+  // distance (and the touch sensor's long-press) distinguishes a tap/scroll from
+  // a drag. Interactive children (title editor,
+  // emoji bar) stop pointerdown so dragging within them never starts a card drag.
   return (
-    <div ref={setNodeRef} style={style} className={cn('group relative', isDragging && 'opacity-30')}>
-      {!selectionMode && (
-        <div
-          {...attributes}
-          {...listeners}
-          className="absolute right-2 top-2 z-10 cursor-grab rounded-md p-1 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-slate-100 dark:text-slate-600 dark:hover:bg-slate-700"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </div>
-      )}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn('group relative', isDragging && 'opacity-30')}
+    >
       <TaskCard
         task={task}
         isDragging={isDragging}
