@@ -15,6 +15,8 @@ import {
 import { useTeamStore } from '@/store/teamStore';
 import { taskService } from '@/services/taskService';
 import { WorkloadEntry, ProjectProgress, TASK_STATUSES } from '@/types';
+import { PageContainer, PageHeader } from '@/components/layout/PageContainer';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 
@@ -189,24 +191,18 @@ export const WorkloadPage = () => {
   }, [workload, sortBy]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl p-6 md:p-8">
+    <PageContainer width="default">
       {/* ── Page header ─────────────────────────────────────────────── */}
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
-            <BarChart2 className="h-5 w-5 text-brand-500" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Team Workload</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {activeTeam
-                ? `Task distribution for ${activeTeam.name}`
-                : 'Task distribution across your team members.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
+      <PageHeader
+        icon={BarChart2}
+        title="Team Workload"
+        description={
+          activeTeam
+            ? `Task distribution for ${activeTeam.name}`
+            : 'Task distribution across your team members.'
+        }
+        actions={
+          <>
           {/* Sort dropdown */}
           {!loading && workload.length > 0 && (
             <div className="relative">
@@ -271,8 +267,9 @@ export const WorkloadPage = () => {
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
           </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* ── Stat cards ──────────────────────────────────────────────── */}
       {!loading && (
@@ -361,8 +358,17 @@ export const WorkloadPage = () => {
 
       {/* ── Body ────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-[88px] rounded-2xl" />
+            ))}
+          </div>
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-2xl" />
+            ))}
+          </div>
         </div>
       ) : sortedWorkload.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -512,6 +518,6 @@ export const WorkloadPage = () => {
           </motion.div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 };

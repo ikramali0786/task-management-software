@@ -303,6 +303,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         {/* Header bar */}
         <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
           <button
+            aria-label="Close"
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
           >

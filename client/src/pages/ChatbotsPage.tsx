@@ -8,6 +8,7 @@ import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { chatbotService } from '@/services/chatbotService';
+import { Button } from '@/components/ui/Button';
 import { chatSessionService } from '@/services/chatSessionService';
 import { Chatbot, ChatMessage, ChatMessageAttachment } from '@/types';
 import { cn } from '@/lib/utils';
@@ -19,7 +20,9 @@ const EMOJI_PICKS = [
   '🛠️','📋','🗂️','✅','💻','📈','🔥','🌟','🎨','🔧',
 ];
 
-const COLOR_PICKS = ['indigo','violet','blue','sky','emerald','teal','amber','rose','orange','pink'];
+// Curated, on-brand bot palette — ember leads, the rest are harmonious accents
+// for differentiating multiple bots. No deceptive duplicates.
+const COLOR_PICKS = ['ember','amber','rose','pink','violet','sky','teal','emerald'];
 
 const MODEL_OPTIONS = [
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini (fast)' },
@@ -28,16 +31,18 @@ const MODEL_OPTIONS = [
 ];
 
 const COLOR_CLASSES: Record<string, { bg: string; text: string; ring: string }> = {
-  indigo: { bg: 'bg-brand-500',   text: 'text-brand-600 dark:text-brand-400',  ring: 'ring-brand-400' },
-  violet: { bg: 'bg-brand-500',   text: 'text-brand-600 dark:text-brand-400',  ring: 'ring-brand-400' },
-  blue:   { bg: 'bg-blue-500',     text: 'text-blue-600 dark:text-blue-400',      ring: 'ring-blue-400' },
-  sky:    { bg: 'bg-sky-500',      text: 'text-sky-600 dark:text-sky-400',        ring: 'ring-sky-400' },
-  emerald:{ bg: 'bg-emerald-500',  text: 'text-emerald-600 dark:text-emerald-400',ring: 'ring-emerald-400' },
-  teal:   { bg: 'bg-teal-500',     text: 'text-teal-600 dark:text-teal-400',      ring: 'ring-teal-400' },
+  ember:  { bg: 'bg-brand-500',   text: 'text-brand-600 dark:text-brand-400',    ring: 'ring-brand-400' },
   amber:  { bg: 'bg-amber-500',    text: 'text-amber-600 dark:text-amber-400',    ring: 'ring-amber-400' },
   rose:   { bg: 'bg-rose-500',     text: 'text-rose-600 dark:text-rose-400',      ring: 'ring-rose-400' },
-  orange: { bg: 'bg-orange-500',   text: 'text-orange-600 dark:text-orange-400',  ring: 'ring-orange-400' },
   pink:   { bg: 'bg-pink-500',     text: 'text-pink-600 dark:text-pink-400',      ring: 'ring-pink-400' },
+  violet: { bg: 'bg-violet-500',   text: 'text-violet-600 dark:text-violet-400',  ring: 'ring-violet-400' },
+  sky:    { bg: 'bg-sky-500',      text: 'text-sky-600 dark:text-sky-400',        ring: 'ring-sky-400' },
+  teal:   { bg: 'bg-teal-500',     text: 'text-teal-600 dark:text-teal-400',      ring: 'ring-teal-400' },
+  emerald:{ bg: 'bg-emerald-500',  text: 'text-emerald-600 dark:text-emerald-400',ring: 'ring-emerald-400' },
+  // Legacy aliases — bots created before the palette refresh.
+  indigo: { bg: 'bg-brand-500',   text: 'text-brand-600 dark:text-brand-400',    ring: 'ring-brand-400' },
+  orange: { bg: 'bg-brand-500',   text: 'text-brand-600 dark:text-brand-400',    ring: 'ring-brand-400' },
+  blue:   { bg: 'bg-sky-500',      text: 'text-sky-600 dark:text-sky-400',        ring: 'ring-sky-400' },
 };
 
 const ACCEPTED_FILE_TYPES = [
@@ -248,7 +253,7 @@ const BotDrawer = ({ bot, teamId, onSave, onDelete, onClose }: BotDrawerProps) =
   const { showConfirm, addToast } = useUIStore();
   const [name, setName] = useState(bot?.name || '');
   const [icon, setIcon] = useState(bot?.icon || '🤖');
-  const [color, setColor] = useState(bot?.color || 'indigo');
+  const [color, setColor] = useState(bot?.color || 'ember');
   const [description, setDescription] = useState(bot?.description || '');
   const [model, setModel] = useState<string>(bot?.model || 'gpt-4o-mini');
   const [systemPrompt, setSystemPrompt] = useState(bot?.systemPrompt || '');
@@ -429,14 +434,10 @@ const BotDrawer = ({ bot, teamId, onSave, onDelete, onClose }: BotDrawerProps) =
         >
           Cancel
         </button>
-        <button
-          onClick={handleSave}
-          disabled={saving || !name.trim()}
-          className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+        <Button onClick={handleSave} disabled={saving || !name.trim()} isLoading={saving}>
+          {!saving && <Save className="h-3.5 w-3.5" />}
           {saving ? 'Saving…' : 'Save Bot'}
-        </button>
+        </Button>
       </div>
     </motion.div>
   );
@@ -672,7 +673,7 @@ export const ChatbotsPage = () => {
   const openEdit = (bot: Chatbot) => { setEditingBot(bot); setDrawerOpen(true); };
   const closeDrawer = () => { setDrawerOpen(false); setEditingBot(null); };
 
-  const colorClasses = selectedBot ? (COLOR_CLASSES[selectedBot.color] || COLOR_CLASSES['indigo']) : COLOR_CLASSES['indigo'];
+  const colorClasses = selectedBot ? (COLOR_CLASSES[selectedBot.color] || COLOR_CLASSES['ember']) : COLOR_CLASSES['ember'];
 
   const canSend = (input.trim().length > 0 || !!attachedFile) && !sending;
 
@@ -684,21 +685,18 @@ export const ChatbotsPage = () => {
         <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">AI Chatbots</h1>
         <div className="flex-1" />
         {isAdmin && (
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
-          >
+          <Button onClick={openCreate} size="sm">
             <Plus className="h-4 w-4" />
             New Bot
-          </button>
+          </Button>
         )}
       </div>
 
-      {/* Body */}
-      <div className="relative flex flex-1 overflow-hidden">
+      {/* Body — stacks (list above chat) on mobile, splits side-by-side on md+ */}
+      <div className="relative flex flex-1 flex-col overflow-hidden md:flex-row">
 
-        {/* LEFT SIDEBAR */}
-        <div className="flex w-72 flex-shrink-0 flex-col border-r border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+        {/* LEFT SIDEBAR — bot list */}
+        <div className="flex max-h-[38vh] w-full flex-shrink-0 flex-col border-b border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 md:max-h-none md:w-72 md:border-b-0 md:border-r">
           <div className="flex-1 overflow-y-auto p-3">
             {loadingBots ? (
               <div className="flex items-center justify-center py-12">
@@ -720,7 +718,7 @@ export const ChatbotsPage = () => {
             ) : (
               <div className="space-y-1">
                 {bots.map((bot) => {
-                  const cc = COLOR_CLASSES[bot.color] || COLOR_CLASSES['indigo'];
+                  const cc = COLOR_CLASSES[bot.color] || COLOR_CLASSES['ember'];
                   const isSelected = selectedBot?._id === bot._id;
                   return (
                     <button
@@ -791,13 +789,10 @@ export const ChatbotsPage = () => {
                 </p>
               </div>
               {isAdmin && bots.length === 0 && (
-                <button
-                  onClick={openCreate}
-                  className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
-                >
+                <Button onClick={openCreate}>
                   <Plus className="h-4 w-4" />
                   Create First Bot
-                </button>
+                </Button>
               )}
             </div>
           ) : (

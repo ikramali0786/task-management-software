@@ -1,5 +1,6 @@
 import { Component, ReactNode, ErrorInfo } from 'react';
 import { RefreshCw, Zap } from 'lucide-react';
+import { Button } from './Button';
 
 interface Props {
   children: ReactNode;
@@ -53,19 +54,11 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={this.handleReset}
-              className="rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600"
-            >
-              Try again
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
+            <Button onClick={this.handleReset}>Try again</Button>
+            <Button variant="secondary" onClick={() => window.location.reload()}>
               <RefreshCw className="h-3.5 w-3.5" />
               Refresh page
-            </button>
+            </Button>
           </div>
 
           {this.state.error && (

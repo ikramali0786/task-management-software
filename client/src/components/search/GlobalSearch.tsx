@@ -237,6 +237,7 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
                 />
                 {query ? (
                   <button
+                    aria-label="Clear search"
                     onClick={() => setQuery('')}
                     className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                   >

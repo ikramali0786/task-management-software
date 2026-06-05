@@ -103,6 +103,7 @@ export const QuickCreateModal = ({ isOpen, onClose }: Props) => {
                   </span>
                 )}
                 <button
+                  aria-label="Close"
                   onClick={onClose}
                   className="ml-auto rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                 >

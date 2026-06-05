@@ -130,6 +130,7 @@ export const ProfilePanel = ({ isOpen, onClose }: ProfilePanelProps) => {
                 <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">My Profile</h2>
               </div>
               <button
+                aria-label="Close"
                 onClick={onClose}
                 className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
               >

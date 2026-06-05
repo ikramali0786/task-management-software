@@ -66,6 +66,19 @@
   ::selection {
     background: rgba(232, 80, 46, 0.18);
   }
+
+  /* Consistent keyboard-focus ring across every interactive element. Only
+     shows for keyboard users (:focus-visible), never on mouse click. The
+     outline follows each element's border-radius automatically. */
+  a:focus-visible,
+  button:focus-visible,
+  [role='button']:focus-visible,
+  [role='switch']:focus-visible,
+  summary:focus-visible,
+  [tabindex]:not([tabindex='-1']):focus-visible {
+    outline: 2px solid #e8502e;
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
@@ -132,4 +145,10 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-feature-settings: 'tnum' 1;
   }
+}
+
+/* Indeterminate loading bar — slides a short segment across its track. */
+@keyframes loadingbar {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
 }

@@ -26,6 +26,7 @@ const ToastItem = ({ toast }: { toast: Toast }) => {
         {toast.message && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{toast.message}</p>}
       </div>
       <button
+        aria-label="Dismiss notification"
         onClick={() => removeToast(toast.id)}
         className="shrink-0 rounded p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
       >

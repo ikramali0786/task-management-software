@@ -177,7 +177,7 @@ export const TaskFilterBar = ({
       )}
 
       {/* Main toolbar row */}
-      <div className="flex items-center gap-3 px-6 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 sm:px-6">
 
         {/* ── Team / board label ─────────────────────────────────────── */}
         <div className="flex flex-shrink-0 items-center gap-2 pr-1">

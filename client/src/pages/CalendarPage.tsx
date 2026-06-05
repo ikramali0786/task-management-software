@@ -30,7 +30,7 @@ function toDateKey(date: Date) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const CalendarPage = () => {
-  const { tasks } = useTaskStore();
+  const { tasks, isLoading } = useTaskStore();
   const { activeModal, activeTaskId, openTaskDetail, closeModal } = useUIStore();
 
   const today = new Date();
@@ -75,7 +75,7 @@ export const CalendarPage = () => {
   return (
     <div className="flex h-full flex-col bg-white dark:bg-slate-900">
       {/* Header */}
-      <div className="flex flex-shrink-0 items-center gap-4 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+      <div className="flex flex-shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-5 w-5 text-brand-500" />
           <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Calendar</h1>
@@ -109,7 +109,7 @@ export const CalendarPage = () => {
         </button>
 
         {/* Legend */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto hidden items-center gap-3 sm:flex">
           {TASK_STATUSES.map(({ id, label, color }) => (
             <div key={id} className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
@@ -118,6 +118,13 @@ export const CalendarPage = () => {
           ))}
         </div>
       </div>
+
+      {/* Loading bar — indeterminate while tasks are fetching */}
+      {isLoading && (
+        <div className="h-0.5 flex-shrink-0 overflow-hidden bg-brand-100 dark:bg-brand-500/20" aria-hidden="true">
+          <div className="h-full w-1/3 animate-[loadingbar_1.1s_ease-in-out_infinite] rounded-full bg-brand-500" />
+        </div>
+      )}
 
       {/* Day-of-week headers */}
       <div className="grid flex-shrink-0 grid-cols-7 border-b border-slate-100 dark:border-slate-800">

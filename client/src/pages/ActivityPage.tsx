@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useTeamStore } from '@/store/teamStore';
+import { PageContainer, PageHeader } from '@/components/layout/PageContainer';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn, formatRelative, formatLastSeen } from '@/lib/utils';
 
@@ -95,7 +97,7 @@ const lineItem = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const ActivityPage = () => {
-  const { notifications, taskActivities } = useNotificationStore();
+  const { notifications, taskActivities, isLoading } = useNotificationStore();
   const { activeTeam } = useTeamStore();
   const [filter, setFilter] = useState<FilterType>('all');
 
@@ -140,48 +142,51 @@ export const ActivityPage = () => {
   const members = activeTeam?.members ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-5xl p-6 md:p-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
-            <Activity className="h-5 w-5 text-brand-500" />
+    <PageContainer width="wide">
+      <PageHeader
+        icon={Activity}
+        title="Activity Timeline"
+        description="All team activity and updates in one place."
+        actions={
+          <div className="flex items-center gap-1 rounded-xl border border-slate-100 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            {(['all', 'task', 'notification'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all',
+                  filter === f
+                    ? 'bg-brand-500 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                )}
+              >
+                {f === 'all' && <Filter className="h-3 w-3" />}
+                {f === 'task' && <SquareKanban className="h-3 w-3" />}
+                {f === 'notification' && <Bell className="h-3 w-3" />}
+                {f}
+              </button>
+            ))}
           </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Activity Timeline</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              All team activity and updates in one place.
-            </p>
-          </div>
-        </div>
-
-        {/* Filter pills */}
-        <div className="flex items-center gap-1 rounded-xl border border-slate-100 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          {(['all', 'task', 'notification'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all',
-                filter === f
-                  ? 'bg-brand-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              )}
-            >
-              {f === 'all' && <Filter className="h-3 w-3" />}
-              {f === 'task' && <SquareKanban className="h-3 w-3" />}
-              {f === 'notification' && <Bell className="h-3 w-3" />}
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       {/* Two-column layout on md+ */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* Timeline — takes 2/3 */}
         <div className="md:col-span-2">
-          {filtered.length === 0 ? (
+          {isLoading && filtered.length === 0 ? (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <Skeleton className="h-9 w-9 flex-shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-2 pt-1">
+                    <Skeleton className="h-3.5 w-2/3" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -350,6 +355,6 @@ export const ActivityPage = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 };
