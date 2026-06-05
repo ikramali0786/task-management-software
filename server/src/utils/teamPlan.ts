@@ -1,4 +1,5 @@
 import { User } from '../models/User.model';
+import { env } from '../config/env';
 import {
   Plan,
   PlanFeature,
@@ -7,6 +8,9 @@ import {
   planPayload,
 } from '../config/plans';
 import { ApiError } from './ApiError';
+
+/** True when Stripe self-serve checkout is configured (keys + price present). */
+const billingEnabled = Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_PRO_MONTHLY);
 
 /**
  * Helpers for resolving a team's *effective* subscription plan and enforcing
@@ -39,7 +43,7 @@ export const effectivePlan = async (
 export const serializeTeam = async (team: any, requesterEmail?: string | null) => {
   const plan = await effectivePlan(team, requesterEmail);
   const obj = typeof team?.toObject === 'function' ? team.toObject() : team;
-  return { ...obj, ...planPayload(plan) };
+  return { ...obj, ...planPayload(plan), billingEnabled };
 };
 
 /** Serialize a list of teams (parallel). */

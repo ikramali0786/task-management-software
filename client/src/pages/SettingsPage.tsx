@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,6 +12,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { usePrefsStore } from '@/store/prefsStore';
 import { usePlan } from '@/hooks/usePlan';
+import { useTeamStore } from '@/store/teamStore';
+import { billingService } from '@/services/billingService';
 import { FEATURE_MATRIX, PRO_PRICE } from '@/lib/plans';
 import { authService } from '@/services/authService';
 import { Input } from '@/components/ui/Input';
@@ -123,14 +126,45 @@ const UsageMeter = ({ label, used, max }: { label: string; used: number; max: nu
 export const SettingsPage = () => {
   const { user, updateUser } = useAuthStore();
   const { theme, setTheme, addToast, openUpgrade } = useUIStore();
-  const { plan, isPro, limits, aiUsed, memberUsage, team } = usePlan();
+  const { plan, isPro, limits, aiUsed, memberUsage, billingEnabled, team } = usePlan();
+  const fetchTeams = useTeamStore((s) => s.fetchTeams);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [portalLoading, setPortalLoading] = useState(false);
   const {
     soundEnabled, setSoundEnabled,
     notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted, notifyTeamEvents,
     setNotifyPref,
   } = usePrefsStore();
 
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  // Handle the return from Stripe Checkout / Customer Portal.
+  useEffect(() => {
+    const status = searchParams.get('billing');
+    if (!status) return;
+    if (status === 'success') {
+      addToast({ type: 'success', title: 'Welcome to Pro! 🎉', message: 'Your subscription is active.' });
+      fetchTeams();
+    } else if (status === 'cancelled') {
+      addToast({ type: 'info', title: 'Checkout cancelled', message: 'No changes were made.' });
+    } else if (status === 'portal') {
+      fetchTeams();
+    }
+    searchParams.delete('billing');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleManageBilling = async () => {
+    if (!team) return;
+    setPortalLoading(true);
+    try {
+      await billingService.portal(team._id);
+    } catch (err: any) {
+      setPortalLoading(false);
+      addToast({ type: 'error', title: "Couldn't open billing portal", message: err?.response?.data?.message || 'Please try again.' });
+    }
+  };
+
+  const [activeTab, setActiveTab] = useState<Tab>(searchParams.get('billing') ? 'billing' : 'general');
   const [profileSaving, setProfileSaving] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
 
@@ -281,9 +315,20 @@ export const SettingsPage = () => {
                     </div>
                   </div>
                   {isPro ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
-                      <Check className="h-3.5 w-3.5" /> Active
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {team?.stripeCustomerId && billingEnabled && (
+                        <button
+                          onClick={handleManageBilling}
+                          disabled={portalLoading}
+                          className="rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/25 disabled:opacity-70"
+                        >
+                          {portalLoading ? 'Opening…' : 'Manage billing'}
+                        </button>
+                      )}
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
+                        <Check className="h-3.5 w-3.5" /> Active
+                      </span>
+                    </div>
                   ) : (
                     <Button size="sm" onClick={() => openUpgrade()}>
                       <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Upgrade

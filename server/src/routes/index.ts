@@ -11,6 +11,7 @@ import uploadRoutes from './upload.routes';
 import apiKeyRoutes from './apiKey.routes';
 import chatbotRoutes from './chatbot.routes';
 import chatSessionRoutes from './chatSession.routes';
+import billingRoutes from './billing.routes';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/uploads', uploadRoutes);
 router.use('/api-keys', apiKeyRoutes);
 router.use('/chatbots', chatbotRoutes);
 router.use('/chat-sessions', chatSessionRoutes);
+router.use('/billing', billingRoutes);
 
 export default router;

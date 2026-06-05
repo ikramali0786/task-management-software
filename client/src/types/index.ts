@@ -92,6 +92,8 @@ export interface Team {
   limits?: PlanLimits;
   planStatus?: 'active' | 'past_due' | 'canceled';
   aiUsage?: { month: string; count: number };
+  billingEnabled?: boolean;
+  stripeCustomerId?: string | null;
 }
 
 export interface TaskLabel {

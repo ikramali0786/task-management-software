@@ -13,6 +13,8 @@ interface UsePlan {
   aiUsed: number;
   /** Member count vs cap (null cap = unlimited). */
   memberUsage: { count: number; max: number | null };
+  /** True when Stripe self-serve checkout is live on the server. */
+  billingEnabled: boolean;
   team: Team | null;
 }
 
@@ -34,6 +36,7 @@ export const usePlan = (): UsePlan => {
       can: (feature: PlanFeature) => Boolean(limits.features?.[feature]),
       aiUsed: team?.aiUsage?.count ?? 0,
       memberUsage: { count: team?.members?.length ?? 0, max: limits.maxMembersPerTeam ?? null },
+      billingEnabled: Boolean(team?.billingEnabled),
       team: team ?? null,
     };
   }, [team]);

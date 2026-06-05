@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, X, Sparkles, Zap, Crown } from 'lucide-react';
+import { Check, X, Sparkles, Zap, Crown, Loader2 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { usePlan } from '@/hooks/usePlan';
+import { billingService } from '@/services/billingService';
 import { FEATURE_MATRIX, PRO_PRICE } from '@/lib/plans';
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -19,18 +21,32 @@ const FEATURE_LABELS: Record<string, string> = {
 
 export const UpgradeModal = () => {
   const { upgrade, closeUpgrade, addToast } = useUIStore();
-  const { isPro } = usePlan();
+  const { isPro, billingEnabled, team } = usePlan();
+  const [loading, setLoading] = useState(false);
 
   const reason = upgrade.feature ? FEATURE_LABELS[upgrade.feature] : null;
 
-  const handleUpgrade = () => {
-    // Stripe self-serve checkout is wired server-side behind STRIPE_* env vars.
-    // Until those are configured this surfaces a clear next-step message.
-    addToast({
-      type: 'info',
-      title: 'Upgrade to Pro',
-      message: 'Self-serve billing is being set up. Contact us to enable Pro for your team.',
-    });
+  const handleUpgrade = async () => {
+    if (!billingEnabled || !team) {
+      addToast({
+        type: 'info',
+        title: 'Upgrade to Pro',
+        message: 'Self-serve billing is being set up. Contact us to enable Pro for your team.',
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Redirects to Stripe Checkout on success.
+      await billingService.checkout(team._id, 'monthly');
+    } catch (err: any) {
+      setLoading(false);
+      addToast({
+        type: 'error',
+        title: "Couldn't start checkout",
+        message: err?.response?.data?.message || 'Please try again in a moment.',
+      });
+    }
   };
 
   return (
@@ -109,10 +125,15 @@ export const UpgradeModal = () => {
                 <>
                   <button
                     onClick={handleUpgrade}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white shadow-ember transition-transform hover:-translate-y-0.5"
+                    disabled={loading}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white shadow-ember transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
                     style={{ background: 'linear-gradient(135deg,#e8502e 0%,#f97316 55%,#fb923c 100%)' }}
                   >
-                    <Zap className="h-4 w-4" /> Upgrade — ${PRO_PRICE.monthly}/mo
+                    {loading ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Redirecting…</>
+                    ) : (
+                      <><Zap className="h-4 w-4" /> Upgrade — ${PRO_PRICE.monthly}/mo</>
+                    )}
                   </button>
                   <p className="mt-2.5 text-center text-xs text-slate-400">
                     or ${PRO_PRICE.yearly}/year · cancel anytime

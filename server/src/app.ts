@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import routes from './routes';
+import { handleStripeWebhook } from './controllers/billing.controller';
 import { errorHandler } from './middleware/error.middleware';
 
 const app = express();
@@ -57,6 +58,10 @@ app.use(
     message: 'Too many requests. Please try again later.',
   })
 );
+
+// Stripe webhook — must receive the raw, unparsed body for signature
+// verification, so it is mounted BEFORE the JSON body parser below.
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 // Body parsing — 500 kb covers the largest chatbot conversation payloads
 // (50 messages × 8 000 chars). File uploads bypass this via multer (multipart).
