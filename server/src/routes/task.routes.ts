@@ -9,6 +9,7 @@ import {
   deleteTask,
   getTaskStats,
   getWorkload,
+  searchTasks,
   addSubtask,
   updateSubtask,
   deleteSubtask,
@@ -28,9 +29,10 @@ const router = Router();
 
 router.use(protect);
 
-// Stats & workload (must be before /:taskId)
+// Stats, workload & cross-team search (must be before /:taskId)
 router.get('/stats', getTaskStats);
 router.get('/workload', getWorkload);
+router.get('/search', searchTasks);
 
 // Bulk actions (must be before /:taskId)
 router.post('/bulk/update', bulkUpdateTasks);

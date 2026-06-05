@@ -10,6 +10,11 @@ export const taskService = {
     const res = await api.get(`/tasks/${taskId}`);
     return res.data.data.task as Task;
   },
+  // Cross-team quick search (Cmd+K). Returns lightweight task hits.
+  search: async (q: string) => {
+    const res = await api.get('/tasks/search', { params: { q } });
+    return res.data.data.tasks as (Task & { teamName?: string })[];
+  },
   createTask: async (data: Partial<Task> & { teamId: string }) => {
     const res = await api.post('/tasks', data);
     return res.data.data.task as Task;

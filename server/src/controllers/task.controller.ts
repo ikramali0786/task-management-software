@@ -226,6 +226,31 @@ export const getTasks = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, { tasks: tasksWithCounts, total, page: parseInt(page), limit: parseInt(limit) });
 });
 
+// Cross-team quick search (Cmd+K) — searches titles/descriptions across every
+// team the user belongs to, with partial (substring) matching.
+export const searchTasks = asyncHandler(async (req: Request, res: Response) => {
+  const q = ((req.query.q as string) || '').trim();
+  if (q.length < 2) return sendSuccess(res, { tasks: [] });
+
+  const userId = req.user!._id;
+  const teams = await Team.find({ 'members.user': userId, isArchived: false }).select('_id name');
+  const teamMap = new Map(teams.map((t) => [t._id.toString(), t.name]));
+
+  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const tasks = await Task.find({
+    team: { $in: teams.map((t) => t._id) },
+    isArchived: false,
+    $or: [{ title: rx }, { description: rx }],
+  })
+    .select('title identifier status priority team dueDate assignees')
+    .sort({ updatedAt: -1 })
+    .limit(20)
+    .lean();
+
+  const results = tasks.map((t) => ({ ...t, teamName: teamMap.get(t.team.toString()) || '' }));
+  sendSuccess(res, { tasks: results });
+});
+
 export const getTask = asyncHandler(async (req: Request, res: Response) => {
   const task = await Task.findById(req.params.taskId)
     .populate('assignees', 'name avatar email')

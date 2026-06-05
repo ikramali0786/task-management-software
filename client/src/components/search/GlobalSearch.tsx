@@ -6,9 +6,9 @@ import {
   CalendarDays, Users, BarChart2, Activity, Settings, Plus,
   Moon, Sun, PanelLeftClose, Bot,
 } from 'lucide-react';
-import { useTaskStore } from '@/store/taskStore';
 import { useTeamStore } from '@/store/teamStore';
 import { useUIStore } from '@/store/uiStore';
+import { taskService } from '@/services/taskService';
 import { TASK_STATUSES, Task, Team, User as TUser } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -36,8 +36,8 @@ interface Props {
 }
 
 export const GlobalSearch = ({ isOpen, onClose }: Props) => {
-  const { tasks } = useTaskStore();
   const { teams, setActiveTeam } = useTeamStore();
+  const [serverTasks, setServerTasks] = useState<Task[]>([]);
   const { openTaskDetail, setQuickCreateOpen, toggleSidebarCollapsed, setTheme, theme } = useUIStore();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -84,13 +84,10 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
     }
     const q = searchQuery;
 
-    const taskList = Object.values(tasks)
-      .filter(
-        (t) =>
-          !t.isArchived &&
-          (t.title.toLowerCase().includes(q) ||
-            (t.description && t.description.toLowerCase().includes(q)))
-      )
+    // Tasks come from the cross-team server search (serverTasks); we only
+    // re-rank so title-prefix matches float to the top.
+    const taskList = serverTasks
+      .slice()
       .sort((a, b) => {
         const aExact = a.title.toLowerCase().startsWith(q);
         const bExact = b.title.toLowerCase().startsWith(q);
@@ -125,7 +122,7 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
     ];
 
     return { taskHits: taskList, teamHits: teamList, memberHits: trimmedMembers, flat: flatList };
-  }, [searchQuery, tasks, teams, isCommandMode]);
+  }, [searchQuery, serverTasks, teams, isCommandMode]);
 
   const itemCount = isCommandMode ? filteredCommands.length : flat.length;
 
@@ -134,10 +131,28 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
     if (isOpen) {
       setQuery('');
       setActiveIdx(0);
+      setServerTasks([]);
       const raf = requestAnimationFrame(() => inputRef.current?.focus());
       return () => cancelAnimationFrame(raf);
     }
   }, [isOpen]);
+
+  // Debounced cross-team task search (server-backed — finds tasks in any team,
+  // not just the active board's loaded tasks).
+  useEffect(() => {
+    if (isCommandMode || searchQuery.length < 2) {
+      setServerTasks([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        setServerTasks(await taskService.search(searchQuery));
+      } catch {
+        setServerTasks([]);
+      }
+    }, 180);
+    return () => clearTimeout(handle);
+  }, [searchQuery, isCommandMode]);
 
   // Reset selection index when results change
   useEffect(() => {
