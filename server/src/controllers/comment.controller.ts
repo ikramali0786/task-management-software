@@ -122,6 +122,40 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
     }
   }
 
+  const newlyAssigned = new Set(newAssignees); // already received task_assigned above
+  const mentionedSet = new Set(mentionedUserIds);
+
+  // Mentioned users who were NOT newly assigned still deserve a heads-up.
+  for (const mid of mentionedUserIds) {
+    if (mid === userId || newlyAssigned.has(mid)) continue;
+    await createNotification({
+      recipientId: mid,
+      actorId: userId,
+      type: 'mention',
+      taskId: task._id.toString(),
+      teamId: team._id.toString(),
+      message: `${req.user!.name} mentioned you in a comment on "${task.title}".`,
+      metadata: { taskTitle: task.title },
+    });
+  }
+
+  // Notify the remaining task participants (assignees + creator) of the comment.
+  const participants = new Set<string>();
+  task.assignees.forEach((a) => participants.add(a.toString()));
+  if (task.createdBy) participants.add(task.createdBy.toString());
+  for (const pid of participants) {
+    if (pid === userId || newlyAssigned.has(pid) || mentionedSet.has(pid)) continue;
+    await createNotification({
+      recipientId: pid,
+      actorId: userId,
+      type: 'comment',
+      taskId: task._id.toString(),
+      teamId: team._id.toString(),
+      message: `${req.user!.name} commented on "${task.title}".`,
+      metadata: { taskTitle: task.title },
+    });
+  }
+
   const io = getIO();
   if (io) {
     io.to(`team:${team._id}`).emit('comment:created', {

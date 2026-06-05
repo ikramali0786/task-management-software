@@ -206,9 +206,12 @@ export const useSocketEvents = () => {
         task_assigned: 'notifyTaskAssigned',
         task_updated: 'notifyTaskUpdated',
         task_completed: 'notifyTaskCompleted',
+        comment: 'notifyComments',
+        mention: 'notifyComments',
+        task_due_soon: 'notifyDueReminders',
+        task_overdue: 'notifyDueReminders',
         team_invite: 'notifyTeamEvents',
         member_joined: 'notifyTeamEvents',
-        mention: 'notifyTeamEvents',
       };
       const prefKey = typeMap[notification.type];
       if (prefKey && prefs[prefKey] === false) return;

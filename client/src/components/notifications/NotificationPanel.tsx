@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, CheckCheck, Zap, UserPlus, CheckCircle2, AlertCircle, AtSign } from 'lucide-react';
+import { Bell, CheckCheck, Zap, UserPlus, CheckCircle2, AlertCircle, AtSign, MessageSquare } from 'lucide-react';
 import { Slideover } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
@@ -17,6 +17,7 @@ const notifIcons: Record<NotificationType, React.ReactNode> = {
   team_invite: <UserPlus className="h-3.5 w-3.5 text-brand-500" />,
   member_joined: <UserPlus className="h-3.5 w-3.5 text-cyan-500" />,
   mention: <AtSign className="h-3.5 w-3.5 text-brand-500" />,
+  comment: <MessageSquare className="h-3.5 w-3.5 text-sky-500" />,
 };
 
 const NotifItem = ({ notification, onRead }: { notification: Notification; onRead: (id: string) => void }) => (

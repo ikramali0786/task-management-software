@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
-  Settings as SettingsIcon, Crown, Check, Sparkles,
+  Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
@@ -132,7 +132,7 @@ export const SettingsPage = () => {
   const [portalLoading, setPortalLoading] = useState(false);
   const {
     soundEnabled, setSoundEnabled,
-    notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted, notifyTeamEvents,
+    notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted, notifyComments, notifyDueReminders, notifyTeamEvents,
     setNotifyPref,
   } = usePrefsStore();
 
@@ -470,6 +470,22 @@ export const SettingsPage = () => {
                     desc="When a task you're on is marked done"
                     checked={notifyTaskCompleted}
                     onChange={(v) => setNotifyPref('notifyTaskCompleted', v)}
+                  />
+                  <NotifRow
+                    icon={MessageSquare}
+                    iconBg="bg-sky-100 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                    title="Comments & Mentions"
+                    desc="When someone comments on or @mentions you on a task"
+                    checked={notifyComments}
+                    onChange={(v) => setNotifyPref('notifyComments', v)}
+                  />
+                  <NotifRow
+                    icon={CalendarClock}
+                    iconBg="bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    title="Due Reminders"
+                    desc="When a task is due soon or overdue"
+                    checked={notifyDueReminders}
+                    onChange={(v) => setNotifyPref('notifyDueReminders', v)}
                   />
                   <NotifRow
                     icon={Users}

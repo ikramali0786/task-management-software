@@ -6,6 +6,8 @@ interface PrefsState {
   notifyTaskAssigned: boolean;
   notifyTaskUpdated: boolean;
   notifyTaskCompleted: boolean;
+  notifyComments: boolean;
+  notifyDueReminders: boolean;
   notifyTeamEvents: boolean;
   setSoundEnabled: (v: boolean) => void;
   setNotifyPref: (key: keyof Omit<PrefsState, 'setSoundEnabled' | 'setNotifyPref'>, v: boolean) => void;
@@ -18,6 +20,8 @@ export const usePrefsStore = create<PrefsState>()(
       notifyTaskAssigned: true,
       notifyTaskUpdated: true,
       notifyTaskCompleted: true,
+      notifyComments: true,
+      notifyDueReminders: true,
       notifyTeamEvents: true,
       setSoundEnabled: (v) => set({ soundEnabled: v }),
       setNotifyPref: (key, v) => set({ [key]: v }),

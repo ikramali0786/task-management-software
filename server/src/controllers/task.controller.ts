@@ -359,6 +359,30 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     await spawnNextRecurrence(task, userId);
   }
 
+  // Notify existing assignees of meaningful content edits (not the editor, not
+  // brand-new assignees who already received task_assigned, not completions).
+  const contentChanged =
+    parsed.data.title !== undefined ||
+    parsed.data.description !== undefined ||
+    parsed.data.priority !== undefined ||
+    parsed.data.dueDate !== undefined ||
+    parsed.data.labels !== undefined ||
+    parsed.data.recurrence !== undefined;
+  const justCompleted = parsed.data.status === 'done' && prevStatus !== 'done';
+  if (contentChanged && !justCompleted) {
+    const recipients = prevAssignees.filter((a) => a !== userId && !newAssignees.includes(a));
+    for (const recipientId of recipients) {
+      await createNotification({
+        recipientId,
+        actorId: userId,
+        type: 'task_updated',
+        taskId: task._id.toString(),
+        teamId: task.team.toString(),
+        message: `${req.user!.name} updated "${task.title}".`,
+      });
+    }
+  }
+
   sendSuccess(res, { task: populated });
 });
 

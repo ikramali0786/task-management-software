@@ -8,7 +8,8 @@ export type NotificationType =
   | 'task_overdue'
   | 'team_invite'
   | 'member_joined'
-  | 'mention';
+  | 'mention'
+  | 'comment';
 
 export interface INotification extends Document {
   _id: mongoose.Types.ObjectId;
