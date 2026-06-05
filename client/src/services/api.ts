@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useUIStore } from '@/store/uiStore';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
@@ -30,6 +31,12 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Plan paywall — surface the upgrade modal anywhere a gated action 403s.
+    if (error.response?.status === 403 && error.response?.data?.code === 'PLAN_LIMIT') {
+      const feature = error.response?.data?.details?.feature ?? null;
+      useUIStore.getState().openUpgrade(feature);
+    }
 
     // Never intercept 401s from credential-based auth endpoints — a failed login,
     // registration, or refresh should surface directly to the caller.

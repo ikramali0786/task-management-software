@@ -25,6 +25,9 @@ interface UIStore {
   activeTaskId: string | null;
   toasts: Toast[];
   confirmDialog: ConfirmDialogState | null;
+  upgrade: { isOpen: boolean; feature: string | null };
+  openUpgrade: (feature?: string | null) => void;
+  closeUpgrade: () => void;
   setTheme: (theme: Theme) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -73,6 +76,10 @@ export const useUIStore = create<UIStore>((set) => ({
   activeTaskId: null,
   toasts: [],
   confirmDialog: null,
+  upgrade: { isOpen: false, feature: null },
+
+  openUpgrade: (feature = null) => set({ upgrade: { isOpen: true, feature } }),
+  closeUpgrade: () => set({ upgrade: { isOpen: false, feature: null } }),
 
   setTheme: (theme) => {
     localStorage.setItem('theme', theme);

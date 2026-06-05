@@ -8,6 +8,7 @@ import { ShortcutsModal } from '@/components/ui/ShortcutsModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { QuickCreateModal } from '@/components/tasks/QuickCreateModal';
+import { UpgradeModal } from '@/components/billing/UpgradeModal';
 import { useTeamStore } from '@/store/teamStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -127,6 +128,9 @@ export const AppLayout = () => {
 
       {/* Quick create task modal — N */}
       <QuickCreateModal isOpen={quickCreateOpen} onClose={() => setQuickCreateOpen(false)} />
+
+      {/* Pro upgrade modal — opens on any PLAN_LIMIT response or manual trigger */}
+      <UpgradeModal />
     </div>
   );
 };

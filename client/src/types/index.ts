@@ -50,6 +50,27 @@ export interface TeamMember {
   joinedAt: string;
 }
 
+export type Plan = 'free' | 'pro';
+
+export interface PlanLimits {
+  maxTeamsOwned: number | null;
+  maxMembersPerTeam: number | null;
+  aiMessagesPerMonth: number;
+  maxBots: number | null;
+  maxFileBytes: number;
+  activityHistoryDays: number | null;
+  features: {
+    timeTracking: boolean;
+    recurringTasks: boolean;
+    customRoles: boolean;
+    emailReminders: boolean;
+    advancedAnalytics: boolean;
+    export: boolean;
+  };
+}
+
+export type PlanFeature = keyof PlanLimits['features'];
+
 export interface Team {
   _id: string;
   name: string;
@@ -65,6 +86,12 @@ export interface Team {
   };
   customRoles: CustomRole[];
   createdAt: string;
+  // ── Subscription (attached by the API) ─────────────────────────────────────
+  plan?: Plan;
+  isPro?: boolean;
+  limits?: PlanLimits;
+  planStatus?: 'active' | 'past_due' | 'canceled';
+  aiUsage?: { month: string; count: number };
 }
 
 export interface TaskLabel {

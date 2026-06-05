@@ -4,12 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
-  Settings as SettingsIcon,
+  Settings as SettingsIcon, Crown, Check, Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { usePrefsStore } from '@/store/prefsStore';
+import { usePlan } from '@/hooks/usePlan';
+import { FEATURE_MATRIX, PRO_PRICE } from '@/lib/plans';
 import { authService } from '@/services/authService';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -17,10 +19,11 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { Theme } from '@/types';
 
-type Tab = 'general' | 'notifications' | 'security' | 'appearance';
+type Tab = 'general' | 'billing' | 'notifications' | 'security' | 'appearance';
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'general', label: 'General', icon: User },
+  { id: 'billing', label: 'Billing', icon: Crown },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'security', label: 'Security', icon: Lock },
   { id: 'appearance', label: 'Appearance', icon: Sun },
@@ -89,10 +92,38 @@ const NotifRow = ({
   </div>
 );
 
+/* ─── Usage Meter ───────────────────────────────────────── */
+const UsageMeter = ({ label, used, max }: { label: string; used: number; max: number | null }) => {
+  const unlimited = max === null || !Number.isFinite(max);
+  const pct = unlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, max!)) * 100));
+  const near = !unlimited && pct >= 80;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="mb-2 flex items-baseline justify-between">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          {used}
+          <span className="text-slate-400"> / {unlimited ? '∞' : max}</span>
+        </p>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+        <div
+          className={cn(
+            'h-full rounded-full transition-all',
+            unlimited ? 'bg-emerald-400' : near ? 'bg-amber-500' : 'bg-brand-500'
+          )}
+          style={{ width: unlimited ? '100%' : `${pct}%`, opacity: unlimited ? 0.4 : 1 }}
+        />
+      </div>
+    </div>
+  );
+};
+
 /* ─── Main Page ─────────────────────────────────────────── */
 export const SettingsPage = () => {
   const { user, updateUser } = useAuthStore();
-  const { theme, setTheme, addToast } = useUIStore();
+  const { theme, setTheme, addToast, openUpgrade } = useUIStore();
+  const { plan, isPro, limits, aiUsed, memberUsage, team } = usePlan();
   const {
     soundEnabled, setSoundEnabled,
     notifyTaskAssigned, notifyTaskUpdated, notifyTaskCompleted, notifyTeamEvents,
@@ -221,6 +252,106 @@ export const SettingsPage = () => {
                   </Button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* ── BILLING ── */}
+          {activeTab === 'billing' && (
+            <div className="space-y-6">
+              {/* Current plan card */}
+              <div className="card overflow-hidden p-0">
+                <div className={cn(
+                  'flex items-center justify-between gap-4 px-6 py-5',
+                  isPro ? 'gradient-brand text-white' : 'bg-slate-50 dark:bg-slate-800/60'
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      'flex h-11 w-11 items-center justify-center rounded-xl',
+                      isPro ? 'bg-white/15' : 'bg-brand-100 dark:bg-brand-500/15'
+                    )}>
+                      <Crown className={cn('h-5 w-5', isPro ? 'text-white' : 'text-brand-500')} />
+                    </div>
+                    <div>
+                      <p className={cn('text-xs font-semibold uppercase tracking-wider', isPro ? 'text-white/70' : 'text-slate-400')}>
+                        Current plan
+                      </p>
+                      <p className={cn('text-lg font-bold', isPro ? 'text-white' : 'text-slate-900 dark:text-slate-100')}>
+                        TaskFlow {plan === 'pro' ? 'Pro' : 'Free'}
+                      </p>
+                    </div>
+                  </div>
+                  {isPro ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white">
+                      <Check className="h-3.5 w-3.5" /> Active
+                    </span>
+                  ) : (
+                    <Button size="sm" onClick={() => openUpgrade()}>
+                      <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Upgrade
+                    </Button>
+                  )}
+                </div>
+
+                {/* Usage meters (current team) */}
+                {team && (
+                  <div className="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-2">
+                    <UsageMeter
+                      label="Team members"
+                      used={memberUsage.count}
+                      max={memberUsage.max}
+                    />
+                    <UsageMeter
+                      label="AI messages this month"
+                      used={aiUsed}
+                      max={limits.aiMessagesPerMonth}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Feature comparison */}
+              <div className="card">
+                <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {isPro ? "What's included in Pro" : 'Free vs Pro'}
+                </h3>
+                <p className="mb-4 text-xs text-slate-400">
+                  {isPro
+                    ? 'Your team has every Pro feature unlocked.'
+                    : `Upgrade for $${PRO_PRICE.monthly}/mo (or $${PRO_PRICE.yearly}/year) to unlock everything below.`}
+                </p>
+                <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 text-sm">
+                  <div />
+                  <div className="pb-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Free</div>
+                  <div className="flex items-center gap-1 pb-2 text-xs font-semibold uppercase tracking-wide text-brand-500">
+                    <Sparkles className="h-3 w-3" /> Pro
+                  </div>
+                  {FEATURE_MATRIX.map((row) => (
+                    <div key={row.label} className="contents">
+                      <div className="border-t border-slate-100 py-2.5 text-slate-700 dark:border-slate-800 dark:text-slate-300">
+                        {row.label}
+                      </div>
+                      <div className="flex items-center justify-center border-t border-slate-100 py-2.5 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                        {row.free === '—'
+                          ? <span className="text-slate-300 dark:text-slate-600">—</span>
+                          : row.free === 'Included'
+                          ? <Check className="h-4 w-4 text-emerald-500" />
+                          : row.free}
+                      </div>
+                      <div className="flex items-center justify-center border-t border-slate-100 py-2.5 text-xs font-medium text-slate-900 dark:border-slate-800 dark:text-slate-100">
+                        {row.pro === 'Included'
+                          ? <Check className="h-4 w-4 text-brand-500" />
+                          : row.pro}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!isPro && (
+                  <div className="mt-5">
+                    <Button onClick={() => openUpgrade()} className="w-full sm:w-auto">
+                      <Zap className="mr-1.5 h-4 w-4" /> Upgrade to Pro — ${PRO_PRICE.monthly}/mo
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

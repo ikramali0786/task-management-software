@@ -10,6 +10,13 @@ import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
 import { env } from '../config/env';
 import { sendTeamInviteEmail } from '../services/email.service';
+import {
+  serializeTeam,
+  serializeTeams,
+  assertFeature,
+  assertMemberCapacity,
+  assertTeamCapacity,
+} from '../utils/teamPlan';
 
 const generateSlug = (name: string): string => {
   return (
@@ -32,6 +39,11 @@ export const createTeam = asyncHandler(async (req: Request, res: Response) => {
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const userId = req.user!._id.toString();
+
+  // Plan gate: Free owners are capped on how many teams they can create.
+  const ownedCount = await Team.countDocuments({ owner: userId, isArchived: false });
+  await assertTeamCapacity(ownedCount, req.user!.email);
+
   const slug = generateSlug(parsed.data.name);
 
   const team = await Team.create({
@@ -43,16 +55,16 @@ export const createTeam = asyncHandler(async (req: Request, res: Response) => {
 
   await User.findByIdAndUpdate(userId, { $addToSet: { teams: team._id } });
 
-  sendSuccess(res, { team }, 'Team created.', 201);
+  sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Team created.', 201);
 });
 
 export const getMyTeams = asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user!._id;
   const teams = await Team.find({ 'members.user': userId, isArchived: false })
     .populate('members.user', 'name avatar email lastSeenAt')
-    .populate('owner', 'name avatar');
+    .populate('owner', 'name avatar email');
 
-  sendSuccess(res, { teams });
+  sendSuccess(res, { teams: await serializeTeams(teams, req.user!.email) });
 });
 
 export const getTeam = asyncHandler(async (req: Request, res: Response) => {
@@ -67,7 +79,7 @@ export const getTeam = asyncHandler(async (req: Request, res: Response) => {
   );
   if (!isMember) throw new ApiError(403, 'Not a member of this team.');
 
-  sendSuccess(res, { team });
+  sendSuccess(res, { team: await serializeTeam(team, req.user!.email) });
 });
 
 export const updateTeam = asyncHandler(async (req: Request, res: Response) => {
@@ -169,6 +181,9 @@ export const joinTeam = asyncHandler(async (req: Request, res: Response) => {
   const alreadyMember = team.members.some((m) => m.user.toString() === userId);
   if (alreadyMember) throw new ApiError(409, 'Already a member of this team.');
 
+  // Plan gate: Free teams are capped on member count.
+  await assertMemberCapacity(team, req.user!.email);
+
   team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date() });
 
   const invite = team.inviteCodes.find((c) => c.code === parsed.data.code)!;
@@ -199,7 +214,7 @@ export const joinTeam = asyncHandler(async (req: Request, res: Response) => {
   }
 
   await team.populate('members.user', 'name avatar email');
-  sendSuccess(res, { team }, 'Joined team successfully.');
+  sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Joined team successfully.');
 });
 
 export const removeMember = asyncHandler(async (req: Request, res: Response) => {
@@ -292,6 +307,9 @@ export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) =
   const alreadyMember = team.members.some((m) => m.user.toString() === userId);
   if (alreadyMember) throw new ApiError(409, 'Already a member of this team.');
 
+  // Plan gate: Free teams are capped on member count.
+  await assertMemberCapacity(team, req.user!.email);
+
   team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date() });
 
   const invite = team.inviteCodes.find((c) => c.code === parsed.data.code)!;
@@ -319,7 +337,7 @@ export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) =
   }
 
   await team.populate('members.user', 'name avatar email');
-  sendSuccess(res, { team }, 'Joined team successfully.');
+  sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Joined team successfully.');
 });
 
 // Toggle team lock (admin only)
@@ -446,6 +464,9 @@ export const createCustomRole = asyncHandler(async (req: Request, res: Response)
   const member = team.members.find((m) => m.user.toString() === userId);
   if (!member || !['owner', 'admin'].includes(member.role))
     throw new ApiError(403, 'Only admins can manage roles.');
+
+  // Plan gate: custom roles are a Pro feature.
+  await assertFeature(team, 'customRoles', req.user!.email);
 
   const nameConflict = [
     ...BUILT_IN_ROLES.map((r) => r.name.toLowerCase()),

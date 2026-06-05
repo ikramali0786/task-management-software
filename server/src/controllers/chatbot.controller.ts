@@ -11,6 +11,8 @@ import { ApiError } from '../utils/ApiError';
 import { getDecryptedKey } from './apiKey.controller';
 import { validateMagicBytes, isReadableText } from '../utils/magicBytes';
 import { audit } from '../utils/logger';
+import { consumeAiMessage, effectivePlan } from '../utils/teamPlan';
+import { PLAN_LIMITS } from '../config/plans';
 
 // Local interface so we don't depend on Express.Multer namespace augmentation
 interface UploadedFile {
@@ -65,8 +67,22 @@ export const createChatbot = asyncHandler(async (req: Request, res: Response) =>
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
 
   const userId = req.user!._id.toString();
-  const { member } = await verifyMember(parsed.data.teamId, userId);
+  const { team, member } = await verifyMember(parsed.data.teamId, userId);
   requireAdmin(member);
+
+  // Plan gate: Free teams are capped on number of chatbots.
+  const plan = await effectivePlan(team, req.user!.email);
+  const maxBots = PLAN_LIMITS[plan].maxBots;
+  if (Number.isFinite(maxBots)) {
+    const botCount = await Chatbot.countDocuments({ team: parsed.data.teamId, isActive: true });
+    if (botCount >= maxBots) {
+      throw new ApiError(
+        403,
+        `The ${plan} plan allows ${maxBots} chatbot${maxBots === 1 ? '' : 's'} per team. Upgrade to Pro for more.`,
+        { code: 'PLAN_LIMIT', details: { feature: 'maxBots', limit: maxBots, plan } }
+      );
+    }
+  }
 
   const chatbot = await Chatbot.create({
     team: parsed.data.teamId,
@@ -165,7 +181,10 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   const chatbot = await Chatbot.findById(req.params.chatbotId);
   if (!chatbot || !chatbot.isActive) throw new ApiError(404, 'Chatbot not found.');
 
-  await verifyMember(parsed.data.teamId, req.user!._id.toString());
+  const { team } = await verifyMember(parsed.data.teamId, req.user!._id.toString());
+
+  // Plan gate: consume one message from the team's monthly AI quota.
+  await consumeAiMessage(team, req.user!.email);
 
   const apiKeyPlain = await getDecryptedKey(parsed.data.teamId);
   if (!apiKeyPlain) {

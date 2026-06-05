@@ -55,6 +55,14 @@ export interface ITeam extends Document {
     isLocked: boolean;
     defaultTaskPriority: 'urgent' | 'high' | 'medium' | 'low';
   };
+  // ── Subscription ───────────────────────────────────────────────────────────
+  plan: 'free' | 'pro';
+  planStatus: 'active' | 'past_due' | 'canceled';
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  currentPeriodEnd: Date | null;
+  // Per-team monthly AI usage meter (resets each calendar month).
+  aiUsage: { month: string; count: number };
   isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -122,6 +130,16 @@ const TeamSchema = new Schema<ITeam>(
         enum: ['urgent', 'high', 'medium', 'low'],
         default: 'medium',
       },
+    },
+    // ── Subscription ─────────────────────────────────────────────────────────
+    plan: { type: String, enum: ['free', 'pro'], default: 'free' },
+    planStatus: { type: String, enum: ['active', 'past_due', 'canceled'], default: 'active' },
+    stripeCustomerId: { type: String, default: null },
+    stripeSubscriptionId: { type: String, default: null },
+    currentPeriodEnd: { type: Date, default: null },
+    aiUsage: {
+      month: { type: String, default: '' }, // 'YYYY-MM'
+      count: { type: Number, default: 0 },
     },
     isArchived: { type: Boolean, default: false },
   },
