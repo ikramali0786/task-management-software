@@ -333,6 +333,48 @@ export const sendVerificationEmail = async (
   });
 };
 
+// A numbered "getting started" step inside the welcome panel.
+const stepRow = (n: number, title: string, body: string, last = false): string => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+    style="${last ? '' : `border-bottom:1px solid ${C.border};`}">
+    <tr>
+      <td width="36" valign="top" style="padding:14px 14px 14px 0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr><td width="32" height="32" align="center" valign="middle"
+            style="width:32px;height:32px;border-radius:9px;background:${C.emberSoft};font-family:${FONT_DISPLAY};font-size:15px;font-weight:800;color:${C.ember};line-height:32px;">${n}</td></tr>
+        </table>
+      </td>
+      <td valign="top" style="padding:14px 0;">
+        <div class="ink" style="font-family:${FONT_BODY};font-size:15px;font-weight:700;color:${C.ink};">${title}</div>
+        <div class="muted" style="font-family:${FONT_BODY};font-size:13.5px;line-height:1.55;color:${C.muted};margin-top:2px;">${body}</div>
+      </td>
+    </tr>
+  </table>`;
+
+export const sendWelcomeEmail = async (to: string, name: string): Promise<void> => {
+  const appUrl = APP_URL.replace(/\/$/, '');
+  const firstName = esc(name.trim().split(/\s+/)[0] || name);
+  await send({
+    to,
+    subject: 'Welcome to TaskFlow 🎉',
+    html: renderEmail({
+      preview: `You're all set, ${firstName}. Here's how to get the most out of TaskFlow.`,
+      eyebrow: "You're verified",
+      heading: `Welcome aboard, ${firstName} 🎉`,
+      intro: `<p style="margin:0 0 4px;">Your email is confirmed and your workspace is ready. TaskFlow gives your team visual Kanban boards, real-time collaboration, subtask checklists and AI-powered chatbots — all in one place.</p>`,
+      panel: detailPanel(
+        stepRow(1, 'Create your first team', 'Spin up a workspace and invite teammates with a single shareable code.') +
+          stepRow(2, 'Build a board', 'Add tasks, drag them across columns, and watch updates sync live for everyone.') +
+          stepRow(3, 'Try an AI chatbot', 'Connect an OpenAI key and let an assistant draft, summarise and plan your work.', true)
+      ),
+      cta: { label: 'Open your workspace', url: appUrl },
+      outro: `<p style="margin:0;">Need a hand getting started? Just reply to this email — we're happy to help.</p>`,
+      footerNote:
+        "You're receiving this because you just verified your TaskFlow account. Welcome to the team!",
+    }),
+  });
+};
+
 export const sendDueReminderEmail = async (
   to: string,
   name: string,

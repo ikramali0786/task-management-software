@@ -11,6 +11,7 @@ import { audit } from '../utils/logger';
 import {
   sendPasswordResetEmail,
   sendVerificationEmail,
+  sendWelcomeEmail,
 } from '../services/email.service';
 
 const getIP = (req: Request): string =>
@@ -380,12 +381,21 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(400, 'This verification link is invalid or has expired. Request a new one from your account.');
   }
 
+  const wasUnverified = !user.emailVerified;
   user.emailVerified = true;
   user.emailVerificationTokenHash = null;
   user.emailVerificationExpires = null;
   await user.save({ validateBeforeSave: false });
 
   audit('auth.email.verify.success', { userId: user._id.toString() });
+
+  // Welcome the user the first time they verify (fire-and-forget — never blocks).
+  if (wasUnverified) {
+    sendWelcomeEmail(user.email, user.name).catch(() => {
+      /* failure already audited inside the email service */
+    });
+  }
+
   sendSuccess(res, null, 'Email verified successfully.');
 });
 
