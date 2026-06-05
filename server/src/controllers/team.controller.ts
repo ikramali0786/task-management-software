@@ -404,7 +404,7 @@ const BUILT_IN_ROLES = [
   {
     _id: 'moderator',
     name: 'Moderator',
-    color: '#6366f1',
+    color: '#e8502e',
     isBuiltIn: true,
     permissions: {
       createTask: true, editOwnTask: true, editAnyTask: true,
@@ -445,7 +445,7 @@ export const getTeamRoles = asyncHandler(async (req: Request, res: Response) => 
 export const createCustomRole = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
     name: z.string().min(1).max(40),
-    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#6366f1'),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#e8502e'),
     permissions: z.object({
       createTask: z.boolean(), editOwnTask: z.boolean(), editAnyTask: z.boolean(),
       deleteOwnTask: z.boolean(), deleteAnyTask: z.boolean(), manageMembers: z.boolean(),
@@ -562,7 +562,7 @@ export const getLabels = asyncHandler(async (req: Request, res: Response) => {
 export const addLabel = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
     name: z.string().min(1).max(50),
-    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#6366f1'),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().default('#e8502e'),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);

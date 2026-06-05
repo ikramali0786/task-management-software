@@ -86,7 +86,7 @@ const PermissionsSchema = new Schema<IRolePermissions>(
 
 const CustomRoleSchema = new Schema<ICustomRole>({
   name: { type: String, required: true, maxlength: 40 },
-  color: { type: String, default: '#6366f1' },
+  color: { type: String, default: '#e8502e' },
   permissions: { type: PermissionsSchema, default: () => ({}) },
 });
 
@@ -101,7 +101,7 @@ const MemberSchema = new Schema<IMember>(
 
 const LabelSchema = new Schema<ILabel>({
   name: { type: String, required: true, maxlength: 50 },
-  color: { type: String, default: '#6366f1' },
+  color: { type: String, default: '#e8502e' },
 });
 
 const TeamSchema = new Schema<ITeam>(

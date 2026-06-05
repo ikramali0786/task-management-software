@@ -91,7 +91,7 @@ const TaskSchema = new Schema<ITask>(
     labels: [
       {
         name: { type: String, required: true },
-        color: { type: String, default: '#6366f1' },
+        color: { type: String, default: '#e8502e' },
       },
     ],
     dueDate: { type: Date, default: null },

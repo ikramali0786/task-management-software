@@ -27,7 +27,7 @@ const ChatbotSchema = new Schema<IChatbot>(
       default: 'gpt-4o-mini',
     },
     icon: { type: String, default: '🤖' },
-    color: { type: String, default: 'indigo' },
+    color: { type: String, default: 'ember' },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     isActive: { type: Boolean, default: true },
   },

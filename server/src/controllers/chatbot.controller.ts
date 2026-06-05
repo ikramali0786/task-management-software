@@ -91,7 +91,7 @@ export const createChatbot = asyncHandler(async (req: Request, res: Response) =>
     systemPrompt: parsed.data.systemPrompt || '',
     model: parsed.data.model || 'gpt-4o-mini',
     icon: parsed.data.icon || '🤖',
-    color: parsed.data.color || 'indigo',
+    color: parsed.data.color || 'ember',
     createdBy: userId,
   });
 
