@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,7 +6,7 @@ import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
   Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock, Mail,
-  Download, AlertTriangle,
+  Download, AlertTriangle, Minus,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
@@ -416,40 +416,76 @@ export const SettingsPage = () => {
 
               {/* Feature comparison */}
               <div className="card">
-                <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {isPro ? "What's included in Pro" : 'Free vs Pro'}
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {isPro ? "What's included in Pro" : 'Compare plans'}
                 </h3>
-                <p className="mb-4 text-xs text-slate-400">
+                <p className="mb-4 mt-0.5 text-xs text-slate-400">
                   {isPro
                     ? 'Your team has every Pro feature unlocked.'
                     : `Upgrade for $${PRO_PRICE.monthly}/mo (or $${PRO_PRICE.yearly}/year) to unlock everything below.`}
                 </p>
-                <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 text-sm">
-                  <div />
-                  <div className="pb-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Free</div>
-                  <div className="flex items-center gap-1 pb-2 text-xs font-semibold uppercase tracking-wide text-brand-500">
-                    <Sparkles className="h-3 w-3" /> Pro
-                  </div>
-                  {FEATURE_MATRIX.map((row) => (
-                    <div key={row.label} className="contents">
-                      <div className="border-t border-slate-100 py-2.5 text-slate-700 dark:border-slate-800 dark:text-slate-300">
-                        {row.label}
-                      </div>
-                      <div className="flex items-center justify-center border-t border-slate-100 py-2.5 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                        {row.free === '—'
-                          ? <span className="text-slate-300 dark:text-slate-600">—</span>
-                          : row.free === 'Included'
-                          ? <Check className="h-4 w-4 text-emerald-500" />
-                          : row.free}
-                      </div>
-                      <div className="flex items-center justify-center border-t border-slate-100 py-2.5 text-xs font-medium text-slate-900 dark:border-slate-800 dark:text-slate-100">
-                        {row.pro === 'Included'
-                          ? <Check className="h-4 w-4 text-brand-500" />
-                          : row.pro}
-                      </div>
+
+                <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="grid grid-cols-[1fr_auto_auto] text-sm">
+                    {/* Header */}
+                    <div className="bg-slate-50/60 px-4 py-3 dark:bg-slate-800/40" />
+                    <div className="bg-slate-50/60 px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:bg-slate-800/40">
+                      Free
                     </div>
-                  ))}
+                    <div className="flex flex-col items-center gap-1 bg-brand-50 px-5 py-2.5 dark:bg-brand-500/10">
+                      <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+                        <Sparkles className="h-3 w-3" /> Pro
+                      </span>
+                      {isPro ? (
+                        <span className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+                          Your plan
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-brand-500">${PRO_PRICE.monthly}/mo</span>
+                      )}
+                    </div>
+
+                    {FEATURE_MATRIX.map((row, i) => {
+                      const newSection = i === 0 || FEATURE_MATRIX[i - 1].section !== row.section;
+                      return (
+                        <Fragment key={row.label}>
+                          {newSection && (
+                            <>
+                              <div className="col-span-2 border-t border-slate-200 bg-slate-50/40 px-4 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:bg-slate-800/30">
+                                {row.section}
+                              </div>
+                              <div className="border-t border-slate-200 bg-brand-50 dark:border-slate-800 dark:bg-brand-500/10" />
+                            </>
+                          )}
+                          <div className="flex items-center border-t border-slate-100 px-4 py-2.5 text-slate-700 dark:border-slate-800/70 dark:text-slate-300">
+                            {row.label}
+                          </div>
+                          <div className="flex items-center justify-center border-t border-slate-100 px-3 py-2.5 text-center text-xs text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
+                            {row.free === '—' ? (
+                              <Minus className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
+                            ) : row.free === 'Included' ? (
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500">
+                                <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                              </span>
+                            ) : (
+                              row.free
+                            )}
+                          </div>
+                          <div className="flex items-center justify-center border-t border-brand-100 bg-brand-50 px-5 py-2.5 text-center text-xs font-medium text-slate-900 dark:border-brand-500/10 dark:bg-brand-500/10 dark:text-slate-100">
+                            {row.pro === 'Included' ? (
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 shadow-sm shadow-brand-500/30">
+                                <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                              </span>
+                            ) : (
+                              row.pro
+                            )}
+                          </div>
+                        </Fragment>
+                      );
+                    })}
+                  </div>
                 </div>
+
                 {!isPro && (
                   <div className="mt-5">
                     <Button onClick={() => openUpgrade()} className="w-full sm:w-auto">

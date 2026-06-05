@@ -38,19 +38,19 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 };
 
 /** Human-readable feature rows for the billing comparison table. */
-export const FEATURE_MATRIX: Array<{ label: string; free: string; pro: string }> = [
-  { label: 'Members per team', free: 'Up to 5', pro: 'Unlimited' },
-  { label: 'Teams', free: '1', pro: 'Unlimited' },
-  { label: 'Kanban boards & tasks', free: 'Unlimited', pro: 'Unlimited' },
-  { label: 'AI chatbots', free: '1 bot · 50 msgs/mo', pro: 'Unlimited bots · 2,000 msgs/mo' },
-  { label: 'File attachments', free: '5 MB / file', pro: '100 MB / file' },
-  { label: 'Activity history', free: '14 days', pro: 'Full history' },
-  { label: 'Time tracking', free: '—', pro: 'Included' },
-  { label: 'Recurring tasks', free: '—', pro: 'Included' },
-  { label: 'Custom roles & permissions', free: '—', pro: 'Included' },
-  { label: 'Email reminders', free: '—', pro: 'Included' },
-  { label: 'Advanced analytics', free: '—', pro: 'Included' },
-  { label: 'CSV / PDF export', free: '—', pro: 'Included' },
+export const FEATURE_MATRIX: Array<{ section: string; label: string; free: string; pro: string }> = [
+  { section: 'Workspace', label: 'Members per team', free: 'Up to 5', pro: 'Unlimited' },
+  { section: 'Workspace', label: 'Teams', free: '1', pro: 'Unlimited' },
+  { section: 'Workspace', label: 'Kanban boards & tasks', free: 'Unlimited', pro: 'Unlimited' },
+  { section: 'AI & storage', label: 'AI chatbots', free: '1 bot · 50 msgs/mo', pro: 'Unlimited · 2,000 msgs/mo' },
+  { section: 'AI & storage', label: 'File attachments', free: '5 MB / file', pro: '100 MB / file' },
+  { section: 'AI & storage', label: 'Activity history', free: '14 days', pro: 'Full history' },
+  { section: 'Productivity', label: 'Time tracking', free: '—', pro: 'Included' },
+  { section: 'Productivity', label: 'Recurring tasks', free: '—', pro: 'Included' },
+  { section: 'Productivity', label: 'Custom roles & permissions', free: '—', pro: 'Included' },
+  { section: 'Reporting & alerts', label: 'Email reminders', free: '—', pro: 'Included' },
+  { section: 'Reporting & alerts', label: 'Advanced analytics', free: '—', pro: 'Included' },
+  { section: 'Reporting & alerts', label: 'CSV / PDF export', free: '—', pro: 'Included' },
 ];
 
 export const PRO_PRICE = { monthly: 9, yearly: 90 };
