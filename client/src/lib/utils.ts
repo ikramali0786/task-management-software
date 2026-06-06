@@ -11,6 +11,12 @@ export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 // sites stay unchanged while honouring the user's preference.
 
 let _userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+let _userLocale: string | undefined; // undefined = browser default
+
+/** Set the locale used for date/number formatting (driven by the active i18n language). */
+export const setUserLocale = (locale?: string | null): void => {
+  _userLocale = locale || undefined;
+};
 
 export const setUserTimeZone = (tz?: string | null): void => {
   if (!tz) return;
@@ -40,7 +46,7 @@ export const formatDate = (date: string | Date | null): string => {
   const key = dateKeyInTz(d);
   if (key === dateKeyInTz(new Date())) return 'Today';
   if (key === dateKeyInTz(new Date(Date.now() + 86_400_000))) return 'Tomorrow';
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(_userLocale, {
     timeZone: _userTimeZone,
     month: 'short',
     day: 'numeric',
@@ -108,7 +114,7 @@ export const formatLastSeen = (
   if (days === 1) return { label: 'Active · 1 day ago', isActive: false };
   if (days < 7) return { label: `Active · ${days} days ago`, isActive: false };
   return {
-    label: `Active · ${new Intl.DateTimeFormat(undefined, {
+    label: `Active · ${new Intl.DateTimeFormat(_userLocale, {
       timeZone: _userTimeZone,
       month: 'short',
       day: 'numeric',

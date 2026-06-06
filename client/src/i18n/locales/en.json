@@ -1,0 +1,57 @@
+{
+  "common": {
+    "save": "Save",
+    "saveChanges": "Save Changes",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "loading": "Loading…",
+    "search": "Search"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "board": "Kanban Board",
+    "myTasks": "My Tasks",
+    "calendar": "Calendar",
+    "team": "Team",
+    "workload": "Workload",
+    "activity": "Activity",
+    "chatbots": "AI Chatbots",
+    "settings": "Settings"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "welcomeSubtitle": "Sign in to continue to your workspace.",
+    "emailLabel": "Email address",
+    "passwordLabel": "Password",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot password?",
+    "signIn": "Sign In",
+    "or": "or",
+    "noAccount": "Don't have an account?",
+    "createOneFree": "Create one free"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your account, preferences and notifications.",
+    "tabs": {
+      "general": "General",
+      "billing": "Billing",
+      "notifications": "Notifications",
+      "security": "Security",
+      "appearance": "Appearance"
+    },
+    "fullName": "Full Name",
+    "username": "Username",
+    "emailAddress": "Email address",
+    "emailCannotChange": "Email cannot be changed.",
+    "timezone": "Timezone",
+    "timezoneHint": "Dates and reminders are shown in this timezone.",
+    "language": "Language",
+    "languageHint": "Choose the language for the TaskFlow interface.",
+    "theme": "Theme",
+    "themeHint": "Choose how TaskFlow looks to you."
+  },
+  "language": {
+    "en": "English"
+  }
+}

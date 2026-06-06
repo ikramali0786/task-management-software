@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
   Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User,
@@ -13,18 +14,19 @@ import { Avatar } from '@/components/ui/Avatar';
 import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true, shortcut: 'D' },
-  { to: '/my-tasks', icon: User, label: 'My Tasks', shortcut: 'M' },
-  { to: '/board', icon: Kanban, label: 'Kanban Board', shortcut: 'B' },
-  { to: '/calendar', icon: CalendarDays, label: 'Calendar', shortcut: 'L' },
-  { to: '/chatbots', icon: Bot, label: 'AI Chatbots', shortcut: 'C' },
-  { to: '/team', icon: Users, label: 'Team', shortcut: 'T' },
-  { to: '/workload', icon: BarChart2, label: 'Workload', shortcut: 'W' },
-  { to: '/activity', icon: Activity, label: 'Activity', shortcut: 'A' },
-  { to: '/settings', icon: Settings, label: 'Settings', shortcut: 'S' },
+  { to: '/', icon: LayoutDashboard, i18nKey: 'nav.dashboard', end: true, shortcut: 'D' },
+  { to: '/my-tasks', icon: User, i18nKey: 'nav.myTasks', shortcut: 'M' },
+  { to: '/board', icon: Kanban, i18nKey: 'nav.board', shortcut: 'B' },
+  { to: '/calendar', icon: CalendarDays, i18nKey: 'nav.calendar', shortcut: 'L' },
+  { to: '/chatbots', icon: Bot, i18nKey: 'nav.chatbots', shortcut: 'C' },
+  { to: '/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
+  { to: '/workload', icon: BarChart2, i18nKey: 'nav.workload', shortcut: 'W' },
+  { to: '/activity', icon: Activity, i18nKey: 'nav.activity', shortcut: 'A' },
+  { to: '/settings', icon: Settings, i18nKey: 'nav.settings', shortcut: 'S' },
 ];
 
 export const Sidebar = () => {
+  const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const { teams, activeTeam, setActiveTeam } = useTeamStore();
   const { sidebarOpen, setSidebarOpen, sidebarCollapsed } = useUIStore();
@@ -203,7 +205,7 @@ export const Sidebar = () => {
                   key={item.to}
                   to={item.to}
                   end={item.end}
-                  title={sidebarCollapsed ? item.label : undefined}
+                  title={sidebarCollapsed ? t(item.i18nKey) : undefined}
                   className={({ isActive }) => cn(
                     'sidebar-link group',
                     isActive && 'active',
@@ -213,7 +215,7 @@ export const Sidebar = () => {
                   <item.icon className="h-4 w-4 flex-shrink-0" />
                   {!sidebarCollapsed && (
                     <>
-                      <span className="flex-1">{item.label}</span>
+                      <span className="flex-1">{t(item.i18nKey)}</span>
                       {item.shortcut && (
                         <kbd className="ml-auto hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 lg:inline-flex dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
                           {item.shortcut}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,6 +20,7 @@ interface ApiError { message: string; field: ErrorField; }
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const LoginPage = () => {
+  const { t } = useTranslation();
   const { login, isLoading } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,10 +60,10 @@ export const LoginPage = () => {
     : AlertCircle;
 
   return (
-    <AuthLayout heading="Welcome back" subheading="Sign in to continue to your workspace.">
+    <AuthLayout heading={t('auth.welcomeBack')} subheading={t('auth.welcomeSubtitle')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <Input
-          label="Email address"
+          label={t('auth.emailLabel')}
           type="email"
           placeholder="you@example.com"
           leftIcon={<Mail className="h-4 w-4" />}
@@ -74,7 +76,7 @@ export const LoginPage = () => {
         />
 
         <Input
-          label="Password"
+          label={t('auth.passwordLabel')}
           type={showPassword ? 'text' : 'password'}
           placeholder="••••••••"
           leftIcon={<Lock className="h-4 w-4" />}
@@ -111,13 +113,13 @@ export const LoginPage = () => {
                 <path d="M3.5 8l3 3 5.5-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-sm text-slate-600 dark:text-slate-400">Remember me</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">{t('auth.rememberMe')}</span>
           </label>
           <Link
             to="/forgot-password"
             className="text-sm font-medium text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
-            Forgot password?
+            {t('auth.forgotPassword')}
           </Link>
         </div>
 
@@ -161,25 +163,25 @@ export const LoginPage = () => {
         </AnimatePresence>
 
         <Button type="submit" className="w-full" isLoading={isLoading}>
-          Sign In
+          {t('auth.signIn')}
         </Button>
       </form>
 
       {/* Divider */}
       <div className="my-6 flex items-center gap-3">
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-700" />
-        <span className="text-xs text-slate-400">or</span>
+        <span className="text-xs text-slate-400">{t('auth.or')}</span>
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-700" />
       </div>
 
       {/* Register link */}
       <p className="text-center text-sm text-slate-500">
-        Don&apos;t have an account?{' '}
+        {t('auth.noAccount')}{' '}
         <Link
           to="/register"
           className="font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
         >
-          Create one free
+          {t('auth.createOneFree')}
         </Link>
       </p>
     </AuthLayout>

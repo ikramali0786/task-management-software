@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,6 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { usePrefsStore } from '@/store/prefsStore';
 import { usePlan } from '@/hooks/usePlan';
+import { LANGUAGES } from '@/i18n';
 import { useTeamStore } from '@/store/teamStore';
 import { billingService } from '@/services/billingService';
 import { FEATURE_MATRIX, PRO_PRICE } from '@/lib/plans';
@@ -25,12 +27,12 @@ import { Theme } from '@/types';
 
 type Tab = 'general' | 'billing' | 'notifications' | 'security' | 'appearance';
 
-const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: 'general', label: 'General', icon: User },
-  { id: 'billing', label: 'Billing', icon: Crown },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'security', label: 'Security', icon: Lock },
-  { id: 'appearance', label: 'Appearance', icon: Sun },
+const TABS: { id: Tab; i18nKey: string; icon: React.ElementType }[] = [
+  { id: 'general', i18nKey: 'settings.tabs.general', icon: User },
+  { id: 'billing', i18nKey: 'settings.tabs.billing', icon: Crown },
+  { id: 'notifications', i18nKey: 'settings.tabs.notifications', icon: Bell },
+  { id: 'security', i18nKey: 'settings.tabs.security', icon: Lock },
+  { id: 'appearance', i18nKey: 'settings.tabs.appearance', icon: Sun },
 ];
 
 // Full IANA zone list where supported, with a sensible fallback for older runtimes.
@@ -135,6 +137,7 @@ const UsageMeter = ({ label, used, max }: { label: string; used: number; max: nu
 
 /* ─── Main Page ─────────────────────────────────────────── */
 export const SettingsPage = () => {
+  const { t, i18n } = useTranslation();
   const { user, updateUser, logout } = useAuthStore();
   const { theme, setTheme, addToast, openUpgrade, showConfirm } = useUIStore();
   const { plan, isPro, limits, aiUsed, memberUsage, billingEnabled, team } = usePlan();
@@ -297,14 +300,14 @@ export const SettingsPage = () => {
     <div className="mx-auto w-full max-w-2xl p-6 md:p-8 space-y-6">
       <PageHeader
         icon={SettingsIcon}
-        title="Settings"
-        description="Manage your account, preferences and notifications."
+        title={t('settings.title')}
+        description={t('settings.description')}
       />
       {/* space-y handles the gap; PageHeader carries its own mb */}
 
       {/* Tab Bar */}
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {TABS.map(({ id, i18nKey, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -316,7 +319,7 @@ export const SettingsPage = () => {
             )}
           >
             <Icon className="h-3.5 w-3.5" />
-            <span className="hidden sm:block">{label}</span>
+            <span className="hidden sm:block">{t(i18nKey)}</span>
           </button>
         ))}
       </div>
@@ -345,19 +348,19 @@ export const SettingsPage = () => {
 
               <form onSubmit={handleProfile(onProfileSave)} className="space-y-4">
                 <Input
-                  label="Full Name"
+                  label={t('settings.fullName')}
                   placeholder="John Doe"
                   error={peErrors.name?.message}
                   {...regProfile('name', { required: 'Name is required' })}
                 />
                 <Input
-                  label="Username"
+                  label={t('settings.username')}
                   placeholder="johndoe"
                   {...regProfile('username')}
                 />
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
-                    Email address
+                    {t('settings.emailAddress')}
                   </label>
                   <input
                     value={user?.email || ''}
@@ -365,11 +368,11 @@ export const SettingsPage = () => {
                     readOnly
                     className="w-full rounded-xl border border-slate-100 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 cursor-not-allowed"
                   />
-                  <p className="mt-1 text-xs text-slate-400">Email cannot be changed.</p>
+                  <p className="mt-1 text-xs text-slate-400">{t('settings.emailCannotChange')}</p>
                 </div>
                 <div>
                   <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    <Globe className="h-3.5 w-3.5" /> Timezone
+                    <Globe className="h-3.5 w-3.5" /> {t('settings.timezone')}
                   </label>
                   <select
                     value={timezone}
@@ -380,11 +383,11 @@ export const SettingsPage = () => {
                       <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
                     ))}
                   </select>
-                  <p className="mt-1 text-xs text-slate-400">Dates and reminders are shown in this timezone.</p>
+                  <p className="mt-1 text-xs text-slate-400">{t('settings.timezoneHint')}</p>
                 </div>
                 <div className="pt-1">
                   <Button type="submit" isLoading={profileSaving} size="sm">
-                    Save Changes
+                    {t('common.saveChanges')}
                   </Button>
                 </div>
               </form>
@@ -735,8 +738,8 @@ export const SettingsPage = () => {
           {/* ── APPEARANCE ── */}
           {activeTab === 'appearance' && (
             <div className="card">
-              <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Theme</h3>
-              <p className="mb-5 text-xs text-slate-400">Choose how TaskFlow looks to you.</p>
+              <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('settings.theme')}</h3>
+              <p className="mb-5 text-xs text-slate-400">{t('settings.themeHint')}</p>
               <div className="grid grid-cols-3 gap-3">
                 {themeOptions.map(({ value, label, icon: Icon, desc }) => (
                   <button
@@ -776,6 +779,23 @@ export const SettingsPage = () => {
                     )}
                   </button>
                 ))}
+              </div>
+
+              {/* Language */}
+              <div className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800">
+                <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <Globe className="h-4 w-4 text-slate-400" /> {t('settings.language')}
+                </h3>
+                <p className="mb-3 text-xs text-slate-400">{t('settings.languageHint')}</p>
+                <select
+                  value={i18n.resolvedLanguage}
+                  onChange={(e) => i18n.changeLanguage(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>{l.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
