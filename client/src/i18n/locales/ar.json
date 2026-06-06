@@ -1,0 +1,57 @@
+{
+  "common": {
+    "save": "حفظ",
+    "saveChanges": "حفظ التغييرات",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "loading": "جارٍ التحميل…",
+    "search": "بحث"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "board": "لوحة كانبان",
+    "myTasks": "مهامي",
+    "calendar": "التقويم",
+    "team": "الفريق",
+    "workload": "عبء العمل",
+    "activity": "النشاط",
+    "chatbots": "روبوتات الذكاء الاصطناعي",
+    "settings": "الإعدادات"
+  },
+  "auth": {
+    "welcomeBack": "مرحبًا بعودتك",
+    "welcomeSubtitle": "سجّل الدخول للمتابعة إلى مساحة عملك.",
+    "emailLabel": "البريد الإلكتروني",
+    "passwordLabel": "كلمة المرور",
+    "rememberMe": "تذكّرني",
+    "forgotPassword": "هل نسيت كلمة المرور؟",
+    "signIn": "تسجيل الدخول",
+    "or": "أو",
+    "noAccount": "ليس لديك حساب؟",
+    "createOneFree": "أنشئ حسابًا مجانًا"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "إدارة حسابك وتفضيلاتك والإشعارات.",
+    "tabs": {
+      "general": "عام",
+      "billing": "الفوترة",
+      "notifications": "الإشعارات",
+      "security": "الأمان",
+      "appearance": "المظهر"
+    },
+    "fullName": "الاسم الكامل",
+    "username": "اسم المستخدم",
+    "emailAddress": "البريد الإلكتروني",
+    "emailCannotChange": "لا يمكن تغيير البريد الإلكتروني.",
+    "timezone": "المنطقة الزمنية",
+    "timezoneHint": "تُعرض التواريخ والتذكيرات حسب هذه المنطقة الزمنية.",
+    "language": "اللغة",
+    "languageHint": "اختر لغة واجهة TaskFlow.",
+    "theme": "السمة",
+    "themeHint": "اختر شكل TaskFlow الذي يناسبك."
+  },
+  "language": {
+    "en": "الإنجليزية"
+  }
+}

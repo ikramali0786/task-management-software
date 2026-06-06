@@ -81,6 +81,10 @@ export const Slideover = ({ isOpen, onClose, title, children, width = 'max-w-xl'
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
+  // In RTL the panel sits on the start (left) edge and slides in from the left.
+  const isRtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const offscreen = isRtl ? '-100%' : '100%';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -93,12 +97,12 @@ export const Slideover = ({ isOpen, onClose, title, children, width = 'max-w-xl'
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ x: '100%' }}
+            initial={{ x: offscreen }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            exit={{ x: offscreen }}
             transition={{ type: 'spring', stiffness: 350, damping: 35 }}
             className={cn(
-              'relative z-10 flex h-full flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900',
+              'relative z-10 flex h-full flex-col border-s border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900',
               'w-full', width
             )}
           >

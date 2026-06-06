@@ -2,6 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import en from './locales/en.json';
+import ar from './locales/ar.json';
 import { setUserLocale } from '@/lib/utils';
 
 /**
@@ -12,12 +13,13 @@ import { setUserLocale } from '@/lib/utils';
 
 export const LANGUAGES: { code: string; label: string; dir: 'ltr' | 'rtl' }[] = [
   { code: 'en', label: 'English', dir: 'ltr' },
-  // e.g. { code: 'es', label: 'Español', dir: 'ltr' },
-  //      { code: 'ar', label: 'العربية', dir: 'rtl' },
+  { code: 'ar', label: 'العربية', dir: 'rtl' },
+  // Additional locales are drop-in: add a JSON file + entries here and in `resources`.
 ];
 
 export const resources = {
   en: { translation: en },
+  ar: { translation: ar },
 } as const;
 
 i18n

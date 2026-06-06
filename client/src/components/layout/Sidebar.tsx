@@ -69,6 +69,9 @@ export const Sidebar = () => {
   };
 
   const isSmall = typeof window !== 'undefined' && window.innerWidth < 1024;
+  // In RTL the drawer is anchored to the right and slides in from the right.
+  const isRtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const offX = isRtl ? 240 : -240;
 
   return (
     <>
@@ -92,12 +95,12 @@ export const Sidebar = () => {
         {sidebarOpen && (
           <motion.aside
             key="sidebar-panel"
-            initial={{ x: isSmall ? -240 : 0, opacity: isSmall ? 0 : 1 }}
+            initial={{ x: isSmall ? offX : 0, opacity: isSmall ? 0 : 1 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -240, opacity: 0 }}
+            exit={{ x: offX, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 36 }}
             className={cn(
-              'fixed left-0 top-0 z-40 flex h-full flex-col border-r border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 lg:relative lg:z-auto',
+              'fixed start-0 top-0 z-40 flex h-full flex-col border-e border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 lg:relative lg:z-auto',
               'transition-[width] duration-200 ease-in-out overflow-hidden',
               sidebarCollapsed ? 'w-14' : 'w-60'
             )}
