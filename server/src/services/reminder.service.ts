@@ -21,13 +21,13 @@ const OPEN_STATUSES = ['todo', 'in_progress', 'review'];
 const clientBase = env.CLIENT_URL.replace(/\/$/, '');
 const taskUrl = () => `${clientBase}/my-tasks`;
 
-const formatDue = (due: Date): string => {
+const formatDue = (due: Date, tz?: string): string => {
   const diffMs = due.getTime() - Date.now();
   if (diffMs <= 0) return 'now';
   const hours = Math.round(diffMs / (60 * 60 * 1000));
   if (hours < 1) return 'in under an hour';
   if (hours < 24) return `in ${hours} hour${hours === 1 ? '' : 's'}`;
-  return `on ${due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  return `on ${due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz || 'UTC' })}`;
 };
 
 type PopulatedTask = {
@@ -36,18 +36,19 @@ type PopulatedTask = {
   dueDate: Date;
   team: { _id: any; name: string } | null;
   createdBy: any;
-  assignees: Array<{ _id: any; name: string; email?: string }>;
+  assignees: Array<{ _id: any; name: string; email?: string; timezone?: string }>;
 };
 
 const notifyAssignees = async (task: PopulatedTask, overdue: boolean) => {
   const teamName = task.team?.name || 'your team';
-  const dueLabel = formatDue(new Date(task.dueDate));
-  const message = overdue
-    ? `"${task.title}" is overdue`
-    : `"${task.title}" is due ${dueLabel}`;
 
   for (const assignee of task.assignees) {
     if (!assignee?._id) continue;
+    // Localise the due label to each recipient's timezone.
+    const dueLabel = formatDue(new Date(task.dueDate), assignee.timezone);
+    const message = overdue
+      ? `"${task.title}" is overdue`
+      : `"${task.title}" is due ${dueLabel}`;
     try {
       await createNotification({
         recipientId: String(assignee._id),
@@ -92,7 +93,7 @@ export const runReminderScan = async (): Promise<void> => {
       dueDate: { $gte: now, $lte: soonCutoff },
     })
       .populate('team', 'name')
-      .populate('assignees', 'name email')
+      .populate('assignees', 'name email timezone')
       .lean()) as unknown as PopulatedTask[];
 
     for (const task of dueSoon) {
@@ -108,7 +109,7 @@ export const runReminderScan = async (): Promise<void> => {
       dueDate: { $lt: now },
     })
       .populate('team', 'name')
-      .populate('assignees', 'name email')
+      .populate('assignees', 'name email timezone')
       .lean()) as unknown as PopulatedTask[];
 
     for (const task of overdue) {

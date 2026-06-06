@@ -3,6 +3,22 @@ import { User } from '../types';
 import { authService } from '../services/authService';
 import { teamService } from '../services/teamService';
 import { initSocket, disconnectSocket, joinTeamRooms } from '../lib/socket';
+import { setUserTimeZone } from '../lib/utils';
+
+// Apply the user's saved timezone for date display. If they never set one
+// (legacy 'UTC' default), auto-detect the browser's and persist it once so the
+// server has an accurate zone for reminders too.
+const applyUserTimeZone = (user: User) => {
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!user.timezone || user.timezone === 'UTC') {
+    setUserTimeZone(browserTz);
+    if (browserTz && browserTz !== 'UTC' && browserTz !== user.timezone) {
+      authService.updateMe({ timezone: browserTz }).catch(() => {});
+    }
+  } else {
+    setUserTimeZone(user.timezone);
+  }
+};
 
 // If the user arrived via a team-invite link before authenticating, finish the
 // join now that they're signed in. Best-effort — never blocks the auth flow.
@@ -48,6 +64,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const teamIds = (user.teams || []).map((t) => (typeof t === 'string' ? t : t._id));
       socket.on('connect', () => joinTeamRooms(teamIds));
 
+      applyUserTimeZone(user);
       set({ user, token: accessToken, isAuthenticated: true, isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -64,6 +81,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const socket = initSocket(accessToken);
       socket.on('connect', () => joinTeamRooms([]));
 
+      applyUserTimeZone(user);
       set({ user, token: accessToken, isAuthenticated: true, isLoading: false });
     } catch (err) {
       set({ isLoading: false });
@@ -90,6 +108,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const teamIds = (user.teams || []).map((t) => (typeof t === 'string' ? t : t._id));
       socket.on('connect', () => joinTeamRooms(teamIds));
       if (socket.connected) joinTeamRooms(teamIds);
+      applyUserTimeZone(user);
       set({ user, isAuthenticated: true });
     } catch (err: any) {
       // Only clear the session when the server explicitly rejects the token (401).

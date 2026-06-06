@@ -1,18 +1,55 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { formatDistanceToNow, format, isToday, isTomorrow, isPast } from 'date-fns';
+import { formatDistanceToNow, isPast } from 'date-fns';
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
+
+// ── Timezone-aware date formatting ──────────────────────────────────────────
+// All dates are stored as absolute UTC instants; how they're *displayed* depends
+// on the signed-in user's chosen timezone. We keep that timezone in a module
+// variable (defaulting to the browser's) so the existing formatDate()/etc. call
+// sites stay unchanged while honouring the user's preference.
+
+let _userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+export const setUserTimeZone = (tz?: string | null): void => {
+  if (!tz) return;
+  try {
+    // Throws for an invalid IANA zone — guard so a bad value can't break rendering.
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    _userTimeZone = tz;
+  } catch {
+    /* keep current */
+  }
+};
+
+export const getUserTimeZone = (): string => _userTimeZone;
+
+/** 'YYYY-MM-DD' for a date as seen in the active timezone (for day comparisons). */
+export const dateKeyInTz = (date: string | Date, tz: string = _userTimeZone): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(date));
 
 export const formatDate = (date: string | Date | null): string => {
   if (!date) return '';
   const d = new Date(date);
-  if (isToday(d)) return 'Today';
-  if (isTomorrow(d)) return 'Tomorrow';
-  return format(d, 'MMM d, yyyy');
+  const key = dateKeyInTz(d);
+  if (key === dateKeyInTz(new Date())) return 'Today';
+  if (key === dateKeyInTz(new Date(Date.now() + 86_400_000))) return 'Tomorrow';
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: _userTimeZone,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(d);
 };
 
 export const formatRelative = (date: string | Date): string => {
+  // Relative durations ("3 hours ago") are timezone-independent.
   return formatDistanceToNow(new Date(date), { addSuffix: true });
 };
 
@@ -71,7 +108,11 @@ export const formatLastSeen = (
   if (days === 1) return { label: 'Active · 1 day ago', isActive: false };
   if (days < 7) return { label: `Active · ${days} days ago`, isActive: false };
   return {
-    label: `Active · ${format(new Date(lastSeenAt), 'MMM d')}`,
+    label: `Active · ${new Intl.DateTimeFormat(undefined, {
+      timeZone: _userTimeZone,
+      month: 'short',
+      day: 'numeric',
+    }).format(new Date(lastSeenAt))}`,
     isActive: false,
   };
 };

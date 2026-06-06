@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
 import { useUIStore } from '@/store/uiStore';
 import { Task, PRIORITY_CONFIG, TASK_STATUSES } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, dateKeyInTz } from '@/lib/utils';
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ export const CalendarPage = () => {
     const map: Record<string, Task[]> = {};
     Object.values(tasks).forEach((task) => {
       if (!task.dueDate) return;
-      const key = task.dueDate.slice(0, 10); // "YYYY-MM-DD"
+      const key = dateKeyInTz(task.dueDate); // day in the user's timezone
       if (!map[key]) map[key] = [];
       map[key].push(task);
     });

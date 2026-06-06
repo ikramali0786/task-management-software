@@ -6,7 +6,7 @@ import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
   Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock, Mail,
-  Download, AlertTriangle, Minus,
+  Download, AlertTriangle, Minus, Globe,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
@@ -20,7 +20,7 @@ import { authService } from '@/services/authService';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
-import { cn } from '@/lib/utils';
+import { cn, getUserTimeZone, setUserTimeZone } from '@/lib/utils';
 import { Theme } from '@/types';
 
 type Tab = 'general' | 'billing' | 'notifications' | 'security' | 'appearance';
@@ -32,6 +32,16 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'security', label: 'Security', icon: Lock },
   { id: 'appearance', label: 'Appearance', icon: Sun },
 ];
+
+// Full IANA zone list where supported, with a sensible fallback for older runtimes.
+const TIMEZONES: string[] =
+  (Intl as any).supportedValuesOf?.('timeZone') ?? [
+    'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Moscow',
+    'Africa/Cairo', 'Africa/Lagos', 'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata',
+    'Asia/Dhaka', 'Asia/Singapore', 'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Sydney',
+    'Pacific/Auckland',
+  ];
 
 const themeOptions: { value: Theme; label: string; icon: React.ElementType; desc: string }[] = [
   { value: 'light', label: 'Light', icon: Sun, desc: 'Clean and bright' },
@@ -228,6 +238,22 @@ export const SettingsPage = () => {
   };
   const [profileSaving, setProfileSaving] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+  const [timezone, setTimezone] = useState(user?.timezone || getUserTimeZone());
+
+  const handleTimezoneChange = async (tz: string) => {
+    const prev = timezone;
+    setTimezone(tz);
+    setUserTimeZone(tz);
+    try {
+      const updated = await authService.updateMe({ timezone: tz });
+      updateUser(updated);
+      addToast({ type: 'success', title: 'Timezone updated' });
+    } catch {
+      setTimezone(prev);
+      setUserTimeZone(prev);
+      addToast({ type: 'error', title: 'Failed to update timezone' });
+    }
+  };
 
   const { register: regProfile, handleSubmit: handleProfile, formState: { errors: peErrors } } = useForm({
     defaultValues: { name: user?.name || '', username: user?.username || '' },
@@ -340,6 +366,21 @@ export const SettingsPage = () => {
                     className="w-full rounded-xl border border-slate-100 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-500 cursor-not-allowed"
                   />
                   <p className="mt-1 text-xs text-slate-400">Email cannot be changed.</p>
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <Globe className="h-3.5 w-3.5" /> Timezone
+                  </label>
+                  <select
+                    value={timezone}
+                    onChange={(e) => handleTimezoneChange(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-400">Dates and reminders are shown in this timezone.</p>
                 </div>
                 <div className="pt-1">
                   <Button type="submit" isLoading={profileSaving} size="sm">
