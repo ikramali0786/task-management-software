@@ -3,17 +3,16 @@ import { env } from './env';
 /**
  * Subscription plans — single source of truth for tiering.
  *
- * A team carries a stored `plan` ('free' | 'pro'). The *effective* plan is
- * resolved at request time and is Pro when ANY of these hold:
- *   • the team's stored plan is 'pro' (a real/Stripe subscription), or
- *   • the team owner is a complimentary-premium account, or
- *   • the requesting user is a complimentary-premium account.
+ * Tiers ascend: free → pro → business. A team carries a stored `plan`; the
+ * *effective* plan is resolved at request time and is the highest of:
+ *   • the team's stored plan (a real/Stripe subscription),
+ *   • Business if the owner or requester is a complimentary-premium account.
  *
- * Complimentary accounts (env PREMIUM_EMAILS, default the founder) always get
- * Pro without any Stripe subscription.
+ * Complimentary accounts (env PREMIUM_EMAILS, default the founder) get the top
+ * tier without any Stripe subscription.
  */
 
-export type Plan = 'free' | 'pro';
+export type Plan = 'free' | 'pro' | 'business';
 
 export interface PlanLimits {
   /** Max teams a user may own. */
@@ -36,11 +35,17 @@ export interface PlanLimits {
     emailReminders: boolean;
     advancedAnalytics: boolean;
     export: boolean;
+    sso: boolean;
+    auditLog: boolean;
   };
 }
 
-const GB = 1024 * 1024 * 1024;
 const MB = 1024 * 1024;
+
+const NO_FEATURES: PlanLimits['features'] = {
+  timeTracking: false, recurringTasks: false, customRoles: false, emailReminders: false,
+  advancedAnalytics: false, export: false, sso: false, auditLog: false,
+};
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   free: {
@@ -50,14 +55,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     maxBots: 1,
     maxFileBytes: 5 * MB,
     activityHistoryDays: 14,
-    features: {
-      timeTracking: false,
-      recurringTasks: false,
-      customRoles: false,
-      emailReminders: false,
-      advancedAnalytics: false,
-      export: false,
-    },
+    features: { ...NO_FEATURES },
   },
   pro: {
     maxTeamsOwned: Infinity,
@@ -67,17 +65,31 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     maxFileBytes: 100 * MB,
     activityHistoryDays: Infinity,
     features: {
+      ...NO_FEATURES,
       timeTracking: true,
       recurringTasks: true,
       customRoles: true,
       emailReminders: true,
-      advancedAnalytics: true,
-      export: true,
+    },
+  },
+  business: {
+    maxTeamsOwned: Infinity,
+    maxMembersPerTeam: Infinity,
+    aiMessagesPerMonth: 10000,
+    maxBots: Infinity,
+    maxFileBytes: 250 * MB,
+    activityHistoryDays: Infinity,
+    features: {
+      timeTracking: true, recurringTasks: true, customRoles: true, emailReminders: true,
+      advancedAnalytics: true, export: true, sso: true, auditLog: true,
     },
   },
 };
 
 export type PlanFeature = keyof PlanLimits['features'];
+
+/** Tier rank for "highest wins" comparisons. */
+export const PLAN_RANK: Record<Plan, number> = { free: 0, pro: 1, business: 2 };
 
 // ── Complimentary premium accounts ───────────────────────────────────────────
 const COMP_PREMIUM_EMAILS = new Set(
@@ -96,15 +108,17 @@ interface ResolveInput {
   requesterEmail?: string | null;
 }
 
+const asPlan = (v?: string | null): Plan =>
+  v === 'pro' || v === 'business' ? v : 'free';
+
 export const resolveEffectivePlan = ({
   storedPlan,
   ownerEmail,
   requesterEmail,
 }: ResolveInput): Plan => {
-  if (storedPlan === 'pro') return 'pro';
-  if (isCompPremiumEmail(ownerEmail)) return 'pro';
-  if (isCompPremiumEmail(requesterEmail)) return 'pro';
-  return 'free';
+  // Complimentary accounts get the top tier.
+  if (isCompPremiumEmail(ownerEmail) || isCompPremiumEmail(requesterEmail)) return 'business';
+  return asPlan(storedPlan);
 };
 
 /** JSON-safe limits (Infinity → null) for sending to the client. */
@@ -119,6 +133,7 @@ const jsonLimits = (l: PlanLimits) => ({
 /** The plan payload attached to team API responses. */
 export const planPayload = (plan: Plan) => ({
   plan,
-  isPro: plan === 'pro',
+  isPro: plan !== 'free', // any paid tier has the Pro feature baseline
+  isBusiness: plan === 'business',
   limits: jsonLimits(PLAN_LIMITS[plan]),
 });

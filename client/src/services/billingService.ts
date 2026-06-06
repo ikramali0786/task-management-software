@@ -1,9 +1,13 @@
 import api from './api';
 
 export const billingService = {
-  /** Start a Stripe Checkout session and redirect the browser to it. */
-  checkout: async (teamId: string, interval: 'monthly' | 'yearly' = 'monthly') => {
-    const res = await api.post(`/billing/${teamId}/checkout`, { interval });
+  /** Start a Stripe Checkout session for a tier and redirect the browser to it. */
+  checkout: async (
+    teamId: string,
+    plan: 'pro' | 'business' = 'pro',
+    interval: 'monthly' | 'yearly' = 'monthly'
+  ) => {
+    const res = await api.post(`/billing/${teamId}/checkout`, { plan, interval });
     const url = res.data?.data?.url as string | undefined;
     if (url) window.location.href = url;
     return url;

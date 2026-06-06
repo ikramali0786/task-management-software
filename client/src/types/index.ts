@@ -51,7 +51,7 @@ export interface TeamMember {
   joinedAt: string;
 }
 
-export type Plan = 'free' | 'pro';
+export type Plan = 'free' | 'pro' | 'business';
 
 export interface PlanLimits {
   maxTeamsOwned: number | null;
@@ -67,6 +67,8 @@ export interface PlanLimits {
     emailReminders: boolean;
     advancedAnalytics: boolean;
     export: boolean;
+    sso: boolean;
+    auditLog: boolean;
   };
 }
 
@@ -90,6 +92,7 @@ export interface Team {
   // ── Subscription (attached by the API) ─────────────────────────────────────
   plan?: Plan;
   isPro?: boolean;
+  isBusiness?: boolean;
   limits?: PlanLimits;
   planStatus?: 'active' | 'past_due' | 'canceled';
   aiUsage?: { month: string; count: number };

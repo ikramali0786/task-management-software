@@ -8,6 +8,7 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { audit } from '../utils/logger';
 import logger from '../utils/logger';
+import { PLAN_RANK, type Plan } from '../config/plans';
 
 // ── Stripe client ────────────────────────────────────────────────────────────
 // Lazily resolved so the app boots without Stripe configured. Every billing
@@ -24,6 +25,23 @@ export const isBillingConfigured = (): boolean =>
   Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_PRO_MONTHLY);
 
 const clientBase = () => env.CLIENT_URL.replace(/\/$/, '');
+
+// Resolve the Stripe price ID for a tier + interval (yearly falls back to monthly).
+const priceFor = (plan: 'pro' | 'business', interval: 'monthly' | 'yearly'): string => {
+  if (plan === 'business') {
+    return (interval === 'yearly' && env.STRIPE_PRICE_BUSINESS_YEARLY) || env.STRIPE_PRICE_BUSINESS_MONTHLY;
+  }
+  return (interval === 'yearly' && env.STRIPE_PRICE_PRO_YEARLY) || env.STRIPE_PRICE_PRO_MONTHLY;
+};
+
+/** Map a Stripe price ID back to the plan tier it represents. */
+const planForPrice = (priceId?: string | null): Plan => {
+  if (!priceId) return 'pro';
+  if (priceId === env.STRIPE_PRICE_BUSINESS_MONTHLY || priceId === env.STRIPE_PRICE_BUSINESS_YEARLY) {
+    return 'business';
+  }
+  return 'pro';
+};
 
 // Only the team owner manages billing.
 const requireOwner = async (teamId: string, userId: string) => {
@@ -45,26 +63,36 @@ export const createCheckoutSession = asyncHandler(async (req: Request, res: Resp
     });
   }
 
-  const schema = z.object({ interval: z.enum(['monthly', 'yearly']).default('monthly') });
+  const schema = z.object({
+    plan: z.enum(['pro', 'business']).default('pro'),
+    interval: z.enum(['monthly', 'yearly']).default('monthly'),
+  });
   const parsed = schema.safeParse(req.body ?? {});
-  if (!parsed.success) throw new ApiError(400, 'Invalid billing interval.');
+  if (!parsed.success) throw new ApiError(400, 'Invalid plan or interval.');
+  const { plan, interval } = parsed.data;
 
   const team = await requireOwner(req.params.teamId, req.user!._id.toString());
 
-  if (team.plan === 'pro' && team.planStatus === 'active') {
-    throw new ApiError(409, 'This team is already on the Pro plan.');
+  // Block buying a tier the team already holds at an equal-or-higher level
+  // (downgrades/cancellations go through the Customer Portal instead).
+  if (team.planStatus === 'active' && PLAN_RANK[team.plan] >= PLAN_RANK[plan]) {
+    throw new ApiError(409, `This team is already on the ${team.plan} plan.`);
   }
 
-  const price =
-    parsed.data.interval === 'yearly' && env.STRIPE_PRICE_PRO_YEARLY
-      ? env.STRIPE_PRICE_PRO_YEARLY
-      : env.STRIPE_PRICE_PRO_MONTHLY;
+  const price = priceFor(plan, interval);
+  if (!price) {
+    throw new ApiError(503, `The ${plan} plan isn't available for purchase yet.`, {
+      code: 'BILLING_NOT_CONFIGURED',
+    });
+  }
 
   const ownerEmail = (team.owner as any)?.email as string | undefined;
+  // Per-seat: one seat per current team member.
+  const seats = Math.max(1, team.members?.length || 1);
 
   const session = await client.checkout.sessions.create({
     mode: 'subscription',
-    line_items: [{ price, quantity: 1 }],
+    line_items: [{ price, quantity: seats }],
     success_url: `${clientBase()}/settings?billing=success`,
     cancel_url: `${clientBase()}/settings?billing=cancelled`,
     client_reference_id: team._id.toString(),
@@ -75,8 +103,8 @@ export const createCheckoutSession = asyncHandler(async (req: Request, res: Resp
       : ownerEmail
       ? { customer_email: ownerEmail }
       : {}),
-    metadata: { teamId: team._id.toString() },
-    subscription_data: { metadata: { teamId: team._id.toString() } },
+    metadata: { teamId: team._id.toString(), plan },
+    subscription_data: { metadata: { teamId: team._id.toString(), plan } },
   });
 
   sendSuccess(res, { url: session.url }, 'Checkout session created.');
@@ -129,7 +157,7 @@ export const handleStripeWebhook = asyncHandler(async (req: Request, res: Respon
   const setTeamPlan = async (
     teamId: string | undefined | null,
     patch: Partial<{
-      plan: 'free' | 'pro';
+      plan: Plan;
       planStatus: 'active' | 'past_due' | 'canceled';
       stripeCustomerId: string | null;
       stripeSubscriptionId: string | null;
@@ -158,8 +186,9 @@ export const handleStripeWebhook = asyncHandler(async (req: Request, res: Respon
       const s = event.data.object as Stripe.Checkout.Session;
       const sub =
         typeof s.subscription === 'string' ? await client.subscriptions.retrieve(s.subscription) : null;
+      const tier = (s.metadata?.plan as Plan) || planForPrice(sub?.items?.data?.[0]?.price?.id);
       await setTeamPlan(s.metadata?.teamId || s.client_reference_id, {
-        plan: 'pro',
+        plan: tier,
         planStatus: 'active',
         stripeCustomerId: typeof s.customer === 'string' ? s.customer : null,
         stripeSubscriptionId: typeof s.subscription === 'string' ? s.subscription : null,
@@ -171,10 +200,11 @@ export const handleStripeWebhook = asyncHandler(async (req: Request, res: Respon
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
       const active = sub.status === 'active' || sub.status === 'trialing';
+      const tier = (sub.metadata?.plan as Plan) || planForPrice(sub.items?.data?.[0]?.price?.id);
       await setTeamPlan(
         sub.metadata?.teamId,
         {
-          plan: active ? 'pro' : 'free',
+          plan: active ? tier : 'free',
           planStatus: sub.status === 'past_due' ? 'past_due' : active ? 'active' : 'canceled',
           stripeSubscriptionId: sub.id,
           stripeCustomerId: typeof sub.customer === 'string' ? sub.customer : null,

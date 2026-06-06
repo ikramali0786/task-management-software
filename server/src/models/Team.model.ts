@@ -56,7 +56,7 @@ export interface ITeam extends Document {
     defaultTaskPriority: 'urgent' | 'high' | 'medium' | 'low';
   };
   // ── Subscription ───────────────────────────────────────────────────────────
-  plan: 'free' | 'pro';
+  plan: 'free' | 'pro' | 'business';
   planStatus: 'active' | 'past_due' | 'canceled';
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
@@ -132,7 +132,7 @@ const TeamSchema = new Schema<ITeam>(
       },
     },
     // ── Subscription ─────────────────────────────────────────────────────────
-    plan: { type: String, enum: ['free', 'pro'], default: 'free' },
+    plan: { type: String, enum: ['free', 'pro', 'business'], default: 'free' },
     planStatus: { type: String, enum: ['active', 'past_due', 'canceled'], default: 'active' },
     stripeCustomerId: { type: String, default: null },
     stripeSubscriptionId: { type: String, default: null },
