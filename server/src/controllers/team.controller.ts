@@ -18,6 +18,7 @@ import {
   assertTeamCapacity,
 } from '../utils/teamPlan';
 import { assertPermission } from '../utils/permissions';
+import { syncTeamSeats } from './billing.controller';
 
 const generateSlug = (name: string): string => {
   return (
@@ -210,6 +211,7 @@ export const joinTeam = asyncHandler(async (req: Request, res: Response) => {
   }
 
   await team.populate('members.user', 'name avatar email');
+  void syncTeamSeats(team._id.toString()); // keep per-seat billing in step
   sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Joined team successfully.');
 });
 
@@ -224,6 +226,8 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
   team.members = team.members.filter((m) => m.user.toString() !== userId) as any;
   await team.save();
   await User.findByIdAndUpdate(userId, { $pull: { teams: team._id } });
+
+  void syncTeamSeats(teamId); // keep per-seat billing in step
 
   const io = getIO();
   if (io) io.to(`team:${teamId}`).emit('member:left', { teamId, userId });
@@ -324,6 +328,7 @@ export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) =
   }
 
   await team.populate('members.user', 'name avatar email');
+  void syncTeamSeats(team._id.toString()); // keep per-seat billing in step
   sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Joined team successfully.');
 });
 
@@ -358,6 +363,8 @@ export const leaveTeam = asyncHandler(async (req: Request, res: Response) => {
   team.members = team.members.filter((m) => m.user.toString() !== userId) as any;
   await team.save();
   await User.findByIdAndUpdate(userId, { $pull: { teams: team._id } });
+
+  void syncTeamSeats(team._id.toString()); // keep per-seat billing in step
 
   sendSuccess(res, null, 'Left team.');
 });

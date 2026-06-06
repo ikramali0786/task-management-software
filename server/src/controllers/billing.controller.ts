@@ -131,6 +131,31 @@ export const createPortalSession = asyncHandler(async (req: Request, res: Respon
   sendSuccess(res, { url: session.url }, 'Portal session created.');
 });
 
+/**
+ * Keep the Stripe subscription's seat quantity in step with the team's member
+ * count. Call fire-and-forget after a member is added or removed. No-op unless
+ * the team has an active paid subscription; failures are swallowed.
+ */
+export const syncTeamSeats = async (teamId: string): Promise<void> => {
+  const client = getStripe();
+  if (!client) return;
+  try {
+    const team = await Team.findById(teamId).select('stripeSubscriptionId members planStatus');
+    if (!team?.stripeSubscriptionId || team.planStatus !== 'active') return;
+    const seats = Math.max(1, team.members?.length || 1);
+    const sub = await client.subscriptions.retrieve(team.stripeSubscriptionId);
+    const item = sub.items?.data?.[0];
+    if (!item || item.quantity === seats) return;
+    await client.subscriptions.update(team.stripeSubscriptionId, {
+      items: [{ id: item.id, quantity: seats }],
+      proration_behavior: 'create_prorations',
+    });
+    audit('billing.plan.update', { teamId, event: 'seats.sync', seats } as any);
+  } catch (err: any) {
+    logger.warn(`[billing] seat sync failed for team ${teamId}: ${err?.message}`);
+  }
+};
+
 /* ── POST /api/billing/webhook ───────────────────────────────────────────────
  * Stripe webhook — the source of truth for plan state. Mounted in app.ts with a
  * raw body parser BEFORE express.json so the signature can be verified. */
