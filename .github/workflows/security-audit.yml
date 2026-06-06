@@ -1,6 +1,9 @@
 name: Security Audit
 
-# Fails the build when a dependency has a known high or critical advisory.
+# Fails the build when a *production* dependency has a known high or critical
+# advisory — that's the code we actually ship and run. Dev/build/test tooling
+# (vite, esbuild, vitest) is audited too, but only for visibility: it never
+# reaches production, so its advisories don't block a deploy.
 # Runs on every push/PR to main, and weekly so newly-disclosed CVEs are caught
 # even when no code changed.
 
@@ -40,5 +43,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit dependencies (fail on high/critical)
-        run: npm audit --audit-level=high
+      - name: Audit production dependencies (fail on high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit all dependencies (informational — never blocks)
+        if: always()
+        run: npm audit || true
