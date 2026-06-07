@@ -16,6 +16,7 @@ import { assertFeature } from '../utils/teamPlan';
 import { emailTaskAssigned } from '../services/emailNotify.service';
 import { deliverIntegrations } from '../services/integrationEvents.service';
 import { serializeTask } from '../utils/serializeTask';
+import { logActivity } from '../services/audit.service';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -168,6 +169,12 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     io.to(`team:${parsed.data.teamId}`).emit('task:created', { task: populated });
   }
   deliverIntegrations(parsed.data.teamId, 'task.created', serializeTask(populated));
+  logActivity({
+    teamId: parsed.data.teamId,
+    actorId: userId,
+    action: 'task.created',
+    target: { type: 'task', id: task._id.toString(), label: `#${identifier} ${task.title}` },
+  });
 
   // Notify assignees
   const createdAssignees = (parsed.data.assignees || []).filter((a) => a !== userId);
@@ -425,6 +432,13 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     const justDone = parsed.data.status === 'done' && prevStatus !== 'done';
     deliverIntegrations(task.team.toString(), 'task.updated', serializeTask(populated));
     if (justDone) deliverIntegrations(task.team.toString(), 'task.completed', serializeTask(populated));
+    logActivity({
+      teamId: task.team.toString(),
+      actorId: userId,
+      action: justDone ? 'task.completed' : 'task.updated',
+      target: { type: 'task', id: task._id.toString(), label: `#${task.identifier} ${task.title}` },
+      meta: { fields: Object.keys(parsed.data) },
+    });
   }
 
   // Notify new assignees
@@ -571,6 +585,12 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
     io.to(`team:${teamId}`).emit('task:deleted', { taskId, teamId });
   }
   deliverIntegrations(teamId, 'task.deleted', snapshot);
+  logActivity({
+    teamId,
+    actorId: userId,
+    action: 'task.deleted',
+    target: { type: 'task', id: taskId, label: `#${task.identifier} ${task.title}` },
+  });
 
   sendSuccess(res, null, 'Task deleted.');
 });

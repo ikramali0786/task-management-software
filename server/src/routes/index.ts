@@ -17,6 +17,7 @@ import v1Routes from './v1.routes';
 import taskTemplateRoutes from './taskTemplate.routes';
 import aiRoutes from './ai.routes';
 import automationRoutes from './automation.routes';
+import auditLogRoutes from './auditLog.routes';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/v1', v1Routes);
 router.use('/templates', taskTemplateRoutes);
 router.use('/ai', aiRoutes);
 router.use('/automations', automationRoutes);
+router.use('/audit', auditLogRoutes);
 
 export default router;

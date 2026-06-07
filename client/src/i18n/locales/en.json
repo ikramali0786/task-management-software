@@ -39,6 +39,7 @@
       "notifications": "Notifications",
       "automations": "Automations",
       "developer": "Developer",
+      "audit": "Audit log",
       "security": "Security",
       "appearance": "Appearance"
     },

@@ -19,6 +19,7 @@ import {
 } from '../utils/teamPlan';
 import { assertPermission } from '../utils/permissions';
 import { syncTeamSeats } from './billing.controller';
+import { logActivity } from '../services/audit.service';
 
 const generateSlug = (name: string): string => {
   return (
@@ -212,6 +213,7 @@ export const joinTeam = asyncHandler(async (req: Request, res: Response) => {
 
   await team.populate('members.user', 'name avatar email');
   void syncTeamSeats(team._id.toString()); // keep per-seat billing in step
+  logActivity({ teamId: team._id.toString(), actorId: req.user!._id.toString(), action: 'member.joined' });
   sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Joined team successfully.');
 });
 
@@ -228,6 +230,7 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
   await User.findByIdAndUpdate(userId, { $pull: { teams: team._id } });
 
   void syncTeamSeats(teamId); // keep per-seat billing in step
+  logActivity({ teamId, actorId: req.user!._id.toString(), action: 'member.removed', target: { type: 'user', id: userId } });
 
   const io = getIO();
   if (io) io.to(`team:${teamId}`).emit('member:left', { teamId, userId });
@@ -253,6 +256,13 @@ export const updateMemberRole = asyncHandler(async (req: Request, res: Response)
   const oldRole = targetMember.role;
   targetMember.role = parsed.data.role;
   await team.save();
+  logActivity({
+    teamId,
+    actorId: req.user!._id.toString(),
+    action: 'role.updated',
+    target: { type: 'user', id: userId },
+    meta: { from: oldRole, to: parsed.data.role },
+  });
 
   // Notify the affected member about the role change
   const io = getIO();
@@ -329,6 +339,7 @@ export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) =
 
   await team.populate('members.user', 'name avatar email');
   void syncTeamSeats(team._id.toString()); // keep per-seat billing in step
+  logActivity({ teamId: team._id.toString(), actorId: req.user!._id.toString(), action: 'member.joined' });
   sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Joined team successfully.');
 });
 
@@ -365,6 +376,7 @@ export const leaveTeam = asyncHandler(async (req: Request, res: Response) => {
   await User.findByIdAndUpdate(userId, { $pull: { teams: team._id } });
 
   void syncTeamSeats(team._id.toString()); // keep per-seat billing in step
+  logActivity({ teamId: team._id.toString(), actorId: userId, action: 'member.left' });
 
   sendSuccess(res, null, 'Left team.');
 });

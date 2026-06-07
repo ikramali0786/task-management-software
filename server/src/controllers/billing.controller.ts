@@ -9,6 +9,7 @@ import { ApiError } from '../utils/ApiError';
 import { audit } from '../utils/logger';
 import logger from '../utils/logger';
 import { PLAN_RANK, type Plan } from '../config/plans';
+import { logActivity } from '../services/audit.service';
 
 // ── Stripe client ────────────────────────────────────────────────────────────
 // Lazily resolved so the app boots without Stripe configured. Every billing
@@ -204,6 +205,13 @@ export const handleStripeWebhook = asyncHandler(async (req: Request, res: Respon
     Object.assign(team, patch);
     await team.save();
     audit('billing.plan.update', { teamId: team._id.toString(), event: event.type, plan: patch.plan });
+    if (patch.plan || patch.planStatus) {
+      logActivity({
+        teamId: team._id.toString(),
+        action: 'billing.updated',
+        meta: { plan: patch.plan, status: patch.planStatus, event: event.type },
+      });
+    }
   };
 
   switch (event.type) {
