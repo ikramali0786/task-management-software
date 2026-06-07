@@ -17,6 +17,7 @@ import { emailTaskAssigned } from '../services/emailNotify.service';
 import { deliverIntegrations } from '../services/integrationEvents.service';
 import { serializeTask } from '../utils/serializeTask';
 import { logActivity } from '../services/audit.service';
+import { semanticSearchTasks } from '../services/embedding.service';
 import PDFDocument from 'pdfkit';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
@@ -372,6 +373,31 @@ export const exportTasks = asyncHandler(async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send('﻿' + csv); // UTF-8 BOM so Excel reads accents correctly
+});
+
+/* POST /tasks/semantic-search { teamId, query, limit? } — meaning-based search. */
+export const semanticSearch = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    teamId: z.string(),
+    query: z.string().min(2).max(500),
+    limit: z.number().int().min(1).max(50).optional(),
+  });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  await verifyTeamMember(parsed.data.teamId, req.user!._id.toString());
+
+  const hits = await semanticSearchTasks(parsed.data.teamId, parsed.data.query, parsed.data.limit ?? 15);
+  const results = hits.map(({ task, score }) => ({
+    _id: task._id.toString(),
+    title: task.title,
+    identifier: task.identifier,
+    status: task.status,
+    priority: task.priority,
+    team: parsed.data.teamId,
+    score: Math.round(score * 100) / 100,
+  }));
+  sendSuccess(res, { results });
 });
 
 // Cross-team quick search (Cmd+K) — searches titles/descriptions across every

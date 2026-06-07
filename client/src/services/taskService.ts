@@ -15,6 +15,13 @@ export const taskService = {
     const res = await api.get('/tasks/search', { params: { q } });
     return res.data.data.tasks as (Task & { teamName?: string })[];
   },
+  // Meaning-based search within a team (embeddings). Returns ranked hits + score.
+  semanticSearch: async (teamId: string, query: string) => {
+    const res = await api.post('/tasks/semantic-search', { teamId, query });
+    return res.data.data.results as Array<{
+      _id: string; title: string; identifier?: number; status: string; priority: string; score: number;
+    }>;
+  },
   // Download all team tasks as a CSV or PDF blob (Business feature).
   exportFile: async (teamId: string, format: 'csv' | 'pdf' = 'csv'): Promise<Blob> => {
     const res = await api.get('/tasks/export', { params: { teamId, format }, responseType: 'blob' });

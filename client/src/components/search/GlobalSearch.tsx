@@ -4,8 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, X, Hash, Terminal, LayoutDashboard, Kanban, User,
   CalendarDays, Users, BarChart2, Activity, Settings, Plus,
-  Moon, Sun, PanelLeftClose, Bot,
+  Moon, Sun, PanelLeftClose, Bot, Sparkles, Loader2,
 } from 'lucide-react';
+
+interface SemanticHit {
+  _id: string;
+  title: string;
+  identifier?: number;
+  status: string;
+  priority: string;
+  score: number;
+}
 import { useTeamStore } from '@/store/teamStore';
 import { useUIStore } from '@/store/uiStore';
 import { taskService } from '@/services/taskService';
@@ -36,7 +45,7 @@ interface Props {
 }
 
 export const GlobalSearch = ({ isOpen, onClose }: Props) => {
-  const { teams, setActiveTeam } = useTeamStore();
+  const { teams, activeTeam, setActiveTeam } = useTeamStore();
   const [serverTasks, setServerTasks] = useState<Task[]>([]);
   const { openTaskDetail, setQuickCreateOpen, toggleSidebarCollapsed, setTheme, theme } = useUIStore();
   const navigate = useNavigate();
@@ -45,9 +54,16 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  // Semantic ("smart") search — triggered with a leading "?", scoped to the active team.
+  const [semanticResults, setSemanticResults] = useState<SemanticHit[]>([]);
+  const [semanticLoading, setSemanticLoading] = useState(false);
+  const [semanticError, setSemanticError] = useState<string | null>(null);
+
   const isCommandMode = query.startsWith('>');
+  const isSemanticMode = query.startsWith('?');
   const commandQuery = isCommandMode ? query.slice(1).trim().toLowerCase() : '';
-  const searchQuery = !isCommandMode ? query.trim().toLowerCase() : '';
+  const semanticQuery = isSemanticMode ? query.slice(1).trim() : '';
+  const searchQuery = !isCommandMode && !isSemanticMode ? query.trim().toLowerCase() : '';
 
   // Build commands list
   const commands = useMemo((): Command[] => [
@@ -124,7 +140,7 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
     return { taskHits: taskList, teamHits: teamList, memberHits: trimmedMembers, flat: flatList };
   }, [searchQuery, serverTasks, teams, isCommandMode]);
 
-  const itemCount = isCommandMode ? filteredCommands.length : flat.length;
+  const itemCount = isCommandMode ? filteredCommands.length : isSemanticMode ? semanticResults.length : flat.length;
 
   // Focus input when opened
   useEffect(() => {
@@ -132,6 +148,7 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
       setQuery('');
       setActiveIdx(0);
       setServerTasks([]);
+      setSemanticResults([]);
       const raf = requestAnimationFrame(() => inputRef.current?.focus());
       return () => cancelAnimationFrame(raf);
     }
@@ -153,6 +170,28 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
     }, 180);
     return () => clearTimeout(handle);
   }, [searchQuery, isCommandMode]);
+
+  // Debounced semantic search (active team only).
+  useEffect(() => {
+    if (!isSemanticMode || !activeTeam || semanticQuery.length < 3) {
+      setSemanticResults([]);
+      setSemanticLoading(false);
+      return;
+    }
+    setSemanticLoading(true);
+    setSemanticError(null);
+    const handle = setTimeout(async () => {
+      try {
+        setSemanticResults(await taskService.semanticSearch(activeTeam._id, semanticQuery));
+      } catch (err: any) {
+        setSemanticResults([]);
+        setSemanticError(err?.response?.data?.message || 'Smart search is unavailable right now.');
+      } finally {
+        setSemanticLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [semanticQuery, isSemanticMode, activeTeam]);
 
   // Reset selection index when results change
   useEffect(() => {
@@ -188,6 +227,9 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
     } else if (e.key === 'Enter') {
       if (isCommandMode) {
         filteredCommands[activeIdx]?.action();
+      } else if (isSemanticMode) {
+        const hit = semanticResults[activeIdx];
+        if (hit) { openTaskDetail(hit._id); onClose(); }
       } else {
         if (flat[activeIdx]) runResult(flat[activeIdx]);
       }
@@ -239,6 +281,8 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
               <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800">
                 {isCommandMode ? (
                   <Terminal className="h-4 w-4 flex-shrink-0 text-brand-500" />
+                ) : isSemanticMode ? (
+                  <Sparkles className="h-4 w-4 flex-shrink-0 text-brand-500" />
                 ) : (
                   <Search className="h-4 w-4 flex-shrink-0 text-slate-400" />
                 )}
@@ -247,7 +291,7 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={isCommandMode ? 'Type a command…' : 'Search tasks, teams, people — or type > for commands…'}
+                  placeholder={isCommandMode ? 'Type a command…' : isSemanticMode ? 'Describe what you’re looking for…' : 'Search tasks, teams, people — or > commands, ? smart search'}
                   className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
                 />
                 {query ? (
@@ -295,6 +339,52 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
                 ) : (
                   <div className="py-10 text-center">
                     <p className="text-sm text-slate-400">No commands found</p>
+                  </div>
+                )
+              ) : isSemanticMode ? (
+                !activeTeam ? (
+                  <div className="py-10 text-center"><p className="text-sm text-slate-400">Select a team to use smart search.</p></div>
+                ) : semanticLoading ? (
+                  <div className="py-10 text-center">
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />
+                    <p className="mt-2 text-xs text-slate-400">Searching by meaning…</p>
+                  </div>
+                ) : semanticError ? (
+                  <div className="py-10 text-center"><p className="px-6 text-sm text-slate-400">{semanticError}</p></div>
+                ) : semanticResults.length > 0 ? (
+                  <ul ref={listRef} className="max-h-80 overflow-y-auto py-1.5">
+                    <SectionHeader label="Smart results" />
+                    {semanticResults.map((hit, i) => {
+                      const status = statusConfig[hit.status];
+                      return (
+                        <li key={`sem-${hit._id}`} data-result>
+                          <button
+                            onMouseEnter={() => setActiveIdx(i)}
+                            onClick={() => { openTaskDetail(hit._id); onClose(); }}
+                            className={rowClass(i === activeIdx)}
+                          >
+                            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: status?.color }} />
+                            <span className="flex-1 truncate text-sm text-slate-800 dark:text-slate-100">{hit.title}</span>
+                            {hit.identifier != null && (
+                              <span className="flex flex-shrink-0 items-center gap-0.5 font-mono text-xs text-slate-400">
+                                <Hash className="h-2.5 w-2.5" />{hit.identifier}
+                              </span>
+                            )}
+                            <span className="hidden flex-shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-600 sm:inline dark:bg-brand-500/10 dark:text-brand-400">
+                              {Math.round(hit.score * 100)}%
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : semanticQuery.length >= 3 ? (
+                  <div className="py-10 text-center"><p className="text-sm text-slate-400">No matching tasks</p></div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <Sparkles className="mx-auto mb-2 h-6 w-6 text-slate-200 dark:text-slate-700" />
+                    <p className="text-sm text-slate-400">Describe what you’re looking for</p>
+                    <p className="mt-1 text-xs text-slate-300 dark:text-slate-600">e.g. “overdue billing bugs”, “onboarding work”</p>
                   </div>
                 )
               ) : flat.length > 0 ? (
@@ -390,11 +480,15 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
                   <Search className="mx-auto mb-2 h-6 w-6 text-slate-200 dark:text-slate-700" />
                   <p className="text-sm text-slate-400">Search tasks, teams &amp; people</p>
                   <p className="mt-1 text-xs text-slate-300 dark:text-slate-600">
-                    or type{' '}
+                    type{' '}
                     <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-mono dark:border-slate-700 dark:bg-slate-800">
                       &gt;
                     </kbd>
-                    {' '}for commands
+                    {' '}for commands ·{' '}
+                    <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-mono dark:border-slate-700 dark:bg-slate-800">
+                      ?
+                    </kbd>
+                    {' '}for smart search
                   </p>
                 </div>
               )}

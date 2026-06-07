@@ -50,6 +50,8 @@ export interface ITask extends Document {
   blockedBy: mongoose.Types.ObjectId[];  // tasks that block this one
   blocks: mongoose.Types.ObjectId[];     // tasks this one blocks
   customFields: Record<string, unknown>; // team custom field values, keyed by field id
+  embedding?: number[];                   // semantic-search vector (select:false)
+  embeddingHash?: string | null;          // hash of the text the vector was built from
   createdAt: Date;
   updatedAt: Date;
 }
@@ -117,6 +119,10 @@ const TaskSchema = new Schema<ITask>(
     blockedBy: [{ type: Schema.Types.ObjectId, ref: 'Task', default: [] }],
     blocks:    [{ type: Schema.Types.ObjectId, ref: 'Task', default: [] }],
     customFields: { type: Schema.Types.Mixed, default: {} },
+    // Semantic search — embedding vector + hash of the text it was built from
+    // (so we know when it's stale). Excluded from normal queries.
+    embedding: { type: [Number], select: false, default: undefined },
+    embeddingHash: { type: String, select: false, default: null },
   },
   { timestamps: true }
 );
