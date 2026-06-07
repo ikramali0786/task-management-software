@@ -12,6 +12,8 @@ import apiKeyRoutes from './apiKey.routes';
 import chatbotRoutes from './chatbot.routes';
 import chatSessionRoutes from './chatSession.routes';
 import billingRoutes from './billing.routes';
+import integrationsRoutes from './integrations.routes';
+import v1Routes from './v1.routes';
 
 const router = Router();
 
@@ -28,5 +30,7 @@ router.use('/api-keys', apiKeyRoutes);
 router.use('/chatbots', chatbotRoutes);
 router.use('/chat-sessions', chatSessionRoutes);
 router.use('/billing', billingRoutes);
+router.use('/integrations', integrationsRoutes);
+router.use('/v1', v1Routes);
 
 export default router;

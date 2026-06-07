@@ -4,7 +4,7 @@ import { Plan, PlanLimits } from '@/types';
  *  billing/comparison UI. The server remains the source of truth for enforcement. */
 const NO_FEATURES: PlanLimits['features'] = {
   timeTracking: false, recurringTasks: false, customRoles: false, emailReminders: false,
-  advancedAnalytics: false, export: false, sso: false, auditLog: false,
+  advancedAnalytics: false, export: false, sso: false, auditLog: false, apiAccess: false,
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -30,6 +30,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       recurringTasks: true,
       customRoles: true,
       emailReminders: true,
+      apiAccess: true,
     },
   },
   business: {
@@ -41,7 +42,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     activityHistoryDays: null,
     features: {
       timeTracking: true, recurringTasks: true, customRoles: true, emailReminders: true,
-      advancedAnalytics: true, export: true, sso: true, auditLog: true,
+      advancedAnalytics: true, export: true, sso: true, auditLog: true, apiAccess: true,
     },
   },
 };
@@ -72,6 +73,7 @@ export const FEATURE_MATRIX: Array<{
   { section: 'Productivity', label: 'Recurring tasks', free: '—', pro: 'Included', business: 'Included' },
   { section: 'Productivity', label: 'Custom roles & permissions', free: '—', pro: 'Included', business: 'Included' },
   { section: 'Productivity', label: 'Email reminders', free: '—', pro: 'Included', business: 'Included' },
+  { section: 'Productivity', label: 'API access & webhooks', free: '—', pro: 'Included', business: 'Included' },
   { section: 'Business', label: 'Advanced analytics', free: '—', pro: '—', business: 'Included' },
   { section: 'Business', label: 'CSV / PDF export', free: '—', pro: '—', business: 'Included' },
   { section: 'Business', label: 'SSO / SAML', free: '—', pro: '—', business: 'Included' },

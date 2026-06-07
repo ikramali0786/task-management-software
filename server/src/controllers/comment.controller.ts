@@ -9,6 +9,7 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
+import { dispatchWebhookEvent } from '../services/webhook.service';
 import { sanitizeText } from '../utils/sanitize';
 import { assertPermission } from '../utils/permissions';
 import { emailTaskAssigned, emailMention } from '../services/emailNotify.service';
@@ -166,6 +167,13 @@ export const createComment = asyncHandler(async (req: Request, res: Response) =>
       taskId: parsed.data.taskId,
     });
   }
+  void dispatchWebhookEvent(team._id.toString(), 'comment.created', {
+    id: (populated as any)._id.toString(),
+    body: (populated as any).body,
+    task: { id: task._id.toString(), identifier: task.identifier, title: task.title },
+    author: { id: userId, name: req.user!.name },
+    createdAt: (populated as any).createdAt,
+  });
 
   sendSuccess(res, { comment: populated }, 'Comment created.', 201);
 });

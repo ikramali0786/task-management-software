@@ -56,6 +56,10 @@ describe('plan limits & payload', () => {
     expect(PLAN_LIMITS.business.features.advancedAnalytics).toBe(true);
     expect(PLAN_LIMITS.pro.features.sso).toBe(false);
     expect(PLAN_LIMITS.business.features.sso).toBe(true);
+    // Developer API is a paid feature (Pro and Business), not Free.
+    expect(PLAN_LIMITS.free.features.apiAccess).toBe(false);
+    expect(PLAN_LIMITS.pro.features.apiAccess).toBe(true);
+    expect(PLAN_LIMITS.business.features.apiAccess).toBe(true);
     expect(PLAN_LIMITS.business.aiMessagesPerMonth).toBeGreaterThan(PLAN_LIMITS.pro.aiMessagesPerMonth);
   });
 

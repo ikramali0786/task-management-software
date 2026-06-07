@@ -13,6 +13,8 @@ import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
 import { assertPermission, assertCanEditTask, assertCanDeleteTask, hasPermission } from '../utils/permissions';
 import { emailTaskAssigned } from '../services/emailNotify.service';
+import { dispatchWebhookEvent } from '../services/webhook.service';
+import { serializeTask } from '../utils/serializeTask';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -164,6 +166,7 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   if (io) {
     io.to(`team:${parsed.data.teamId}`).emit('task:created', { task: populated });
   }
+  void dispatchWebhookEvent(parsed.data.teamId, 'task.created', serializeTask(populated));
 
   // Notify assignees
   const createdAssignees = (parsed.data.assignees || []).filter((a) => a !== userId);
@@ -365,6 +368,11 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
       changes: socketChanges,
     });
   }
+  {
+    const justDone = parsed.data.status === 'done' && prevStatus !== 'done';
+    void dispatchWebhookEvent(task.team.toString(), 'task.updated', serializeTask(populated));
+    if (justDone) void dispatchWebhookEvent(task.team.toString(), 'task.completed', serializeTask(populated));
+  }
 
   // Notify new assignees
   const newAssignees = (parsed.data.assignees || []).filter(
@@ -454,6 +462,11 @@ export const updateTaskStatus = asyncHandler(async (req: Request, res: Response)
       changes: { status: parsed.data.status },
     });
   }
+  {
+    const justDone = parsed.data.status === 'done' && prevStatus !== 'done';
+    void dispatchWebhookEvent(task.team.toString(), 'task.updated', serializeTask(task));
+    if (justDone) void dispatchWebhookEvent(task.team.toString(), 'task.completed', serializeTask(task));
+  }
 
   // Recurring task completed → spawn the next occurrence.
   if (parsed.data.status === 'done' && prevStatus !== 'done') {
@@ -497,12 +510,14 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
 
   const teamId = task.team.toString();
   const taskId = task._id.toString();
+  const snapshot = serializeTask(task);
   await task.deleteOne();
 
   const io = getIO();
   if (io) {
     io.to(`team:${teamId}`).emit('task:deleted', { taskId, teamId });
   }
+  void dispatchWebhookEvent(teamId, 'task.deleted', snapshot);
 
   sendSuccess(res, null, 'Task deleted.');
 });
