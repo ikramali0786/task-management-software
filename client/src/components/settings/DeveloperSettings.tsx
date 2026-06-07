@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Code2, Plus, Copy, Check, Trash2, KeyRound, Webhook as WebhookIcon, Send,
-  Loader2, AlertTriangle, Sparkles, ExternalLink, Power,
+  Loader2, AlertTriangle, Sparkles, ExternalLink, Power, Slack as SlackIcon, Unplug,
 } from 'lucide-react';
 import { usePlan } from '@/hooks/usePlan';
 import { useUIStore } from '@/store/uiStore';
@@ -13,6 +13,7 @@ import {
   WEBHOOK_EVENT_OPTIONS,
   type ApiToken,
   type WebhookEndpoint,
+  type SlackStatus,
 } from '@/services/integrationsService';
 
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/v1`;
@@ -102,6 +103,13 @@ export const DeveloperSettings = () => {
   const [revealedSecret, setRevealedSecret] = useState<{ id: string; secret: string } | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
 
+  // Slack
+  const [slack, setSlack] = useState<SlackStatus>({ connected: false });
+  const [slackUrl, setSlackUrl] = useState('');
+  const [slackEvents, setSlackEvents] = useState<string[]>(WEBHOOK_EVENT_OPTIONS.map((e) => e.value));
+  const [slackBusy, setSlackBusy] = useState(false);
+  const [testingSlack, setTestingSlack] = useState(false);
+
   const hasApi = can('apiAccess');
 
   useEffect(() => {
@@ -111,8 +119,13 @@ export const DeveloperSettings = () => {
     Promise.all([
       integrationsService.listTokens(teamId),
       integrationsService.listWebhooks(teamId),
+      integrationsService.getSlack(teamId),
     ])
-      .then(([t, w]) => { if (active) { setTokens(t); setHooks(w); } })
+      .then(([t, w, s]) => {
+        if (!active) return;
+        setTokens(t); setHooks(w); setSlack(s);
+        if (s.connected && s.events) setSlackEvents(s.events.includes('*') ? WEBHOOK_EVENT_OPTIONS.map((e) => e.value) : s.events);
+      })
       .catch(() => { if (active) addToast({ type: 'error', title: 'Failed to load integrations' }); })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
@@ -229,6 +242,86 @@ export const DeveloperSettings = () => {
       addToast({ type: 'success', title: 'Webhook deleted' });
     } catch {
       addToast({ type: 'error', title: 'Could not delete webhook' });
+    }
+  };
+
+  /* ── Slack actions ─────────────────────────────────────── */
+  const toggleSlackEvent = (value: string) =>
+    setSlackEvents((prev) => (prev.includes(value) ? prev.filter((e) => e !== value) : [...prev, value]));
+
+  const connectSlack = async () => {
+    if (!teamId || !slackUrl.trim() || slackEvents.length === 0) return;
+    setSlackBusy(true);
+    try {
+      const s = await integrationsService.connectSlack(teamId, { webhookUrl: slackUrl.trim(), events: slackEvents });
+      setSlack(s);
+      setSlackUrl('');
+      addToast({ type: 'success', title: 'Slack connected' });
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Could not connect Slack', message: err?.response?.data?.message });
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const toggleSlackEnabled = async () => {
+    if (!teamId) return;
+    try {
+      const s = await integrationsService.updateSlack(teamId, { enabled: !slack.enabled });
+      setSlack(s);
+    } catch {
+      addToast({ type: 'error', title: 'Could not update Slack' });
+    }
+  };
+
+  const saveSlackEvents = async () => {
+    if (!teamId || slackEvents.length === 0) return;
+    setSlackBusy(true);
+    try {
+      const s = await integrationsService.updateSlack(teamId, { events: slackEvents });
+      setSlack(s);
+      addToast({ type: 'success', title: 'Slack events updated' });
+    } catch {
+      addToast({ type: 'error', title: 'Could not update Slack' });
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const testSlackNow = async () => {
+    if (!teamId) return;
+    setTestingSlack(true);
+    try {
+      const result = await integrationsService.testSlack(teamId);
+      addToast({
+        type: result.ok ? 'success' : 'error',
+        title: result.ok ? 'Test sent to Slack' : 'Test failed',
+        message: result.ok ? 'Check your Slack channel.' : result.error || `Status ${result.status}.`,
+      });
+      setSlack(await integrationsService.getSlack(teamId));
+    } catch {
+      addToast({ type: 'error', title: 'Test failed' });
+    } finally {
+      setTestingSlack(false);
+    }
+  };
+
+  const disconnectSlack = async () => {
+    if (!teamId) return;
+    const ok = await showConfirm({
+      title: 'Disconnect Slack?',
+      message: 'TaskFlow will stop posting notifications to your Slack channel.',
+      confirmLabel: 'Disconnect',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await integrationsService.disconnectSlack(teamId);
+      setSlack({ connected: false });
+      setSlackEvents(WEBHOOK_EVENT_OPTIONS.map((e) => e.value));
+      addToast({ type: 'success', title: 'Slack disconnected' });
+    } catch {
+      addToast({ type: 'error', title: 'Could not disconnect Slack' });
     }
   };
 
@@ -459,6 +552,123 @@ export const DeveloperSettings = () => {
         >
           <ExternalLink className="h-3.5 w-3.5" /> Read the API & webhook reference
         </a>
+      </div>
+
+      {/* ── Slack ──────────────────────────────────────────── */}
+      <div className="card">
+        <div className="mb-1 flex items-center gap-2">
+          <SlackIcon className="h-4 w-4 text-brand-500" />
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Slack notifications</h3>
+          {slack.connected && (
+            <span className="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+              Connected
+            </span>
+          )}
+        </div>
+        <p className="mb-4 text-xs text-slate-400">
+          Post task &amp; comment updates to a Slack channel.{' '}
+          <a
+            href="https://api.slack.com/messaging/webhooks"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+          >
+            Create an Incoming Webhook
+          </a>{' '}
+          in Slack, then paste its URL below.
+        </p>
+
+        {!slack.connected ? (
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <Input
+              value={slackUrl}
+              onChange={(e) => setSlackUrl(e.target.value)}
+              placeholder="https://hooks.slack.com/services/T…/B…/…"
+            />
+            <div className="flex flex-wrap gap-2">
+              {WEBHOOK_EVENT_OPTIONS.map((ev) => (
+                <button
+                  key={ev.value}
+                  type="button"
+                  onClick={() => toggleSlackEvent(ev.value)}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                    slackEvents.includes(ev.value)
+                      ? 'border-brand-400 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300'
+                      : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400'
+                  )}
+                >
+                  {ev.label}
+                </button>
+              ))}
+            </div>
+            <Button onClick={connectSlack} disabled={slackBusy || !slackUrl.trim() || slackEvents.length === 0} className="gap-1.5">
+              {slackBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <SlackIcon className="h-4 w-4" />}
+              Connect Slack
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <code className="font-mono text-xs text-slate-600 dark:text-slate-300">{slack.urlHint}</code>
+                {slack.disabledReason && (
+                  <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3 w-3" /> {slack.disabledReason}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={toggleSlackEnabled}
+                className={cn(
+                  'shrink-0 rounded-lg p-2 transition-colors',
+                  slack.enabled
+                    ? 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
+                    : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                )}
+                aria-label={slack.enabled ? 'Disable Slack' : 'Enable Slack'}
+                title={slack.enabled ? 'Enabled' : 'Disabled'}
+              >
+                <Power className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {WEBHOOK_EVENT_OPTIONS.map((ev) => (
+                <button
+                  key={ev.value}
+                  type="button"
+                  onClick={() => toggleSlackEvent(ev.value)}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                    slackEvents.includes(ev.value)
+                      ? 'border-brand-400 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300'
+                      : 'border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400'
+                  )}
+                >
+                  {ev.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={saveSlackEvents} disabled={slackBusy || slackEvents.length === 0} variant="secondary" className="gap-1.5">
+                {slackBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Save events
+              </Button>
+              <Button onClick={testSlackNow} disabled={testingSlack} variant="secondary" className="gap-1.5">
+                {testingSlack ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Send test
+              </Button>
+              <button
+                onClick={disconnectSlack}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+              >
+                <Unplug className="h-3.5 w-3.5" /> Disconnect
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

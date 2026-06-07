@@ -13,7 +13,7 @@ import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
 import { assertPermission, assertCanEditTask, assertCanDeleteTask, hasPermission } from '../utils/permissions';
 import { emailTaskAssigned } from '../services/emailNotify.service';
-import { dispatchWebhookEvent } from '../services/webhook.service';
+import { deliverIntegrations } from '../services/integrationEvents.service';
 import { serializeTask } from '../utils/serializeTask';
 
 const verifyTeamMember = async (teamId: string, userId: string) => {
@@ -166,7 +166,7 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   if (io) {
     io.to(`team:${parsed.data.teamId}`).emit('task:created', { task: populated });
   }
-  void dispatchWebhookEvent(parsed.data.teamId, 'task.created', serializeTask(populated));
+  deliverIntegrations(parsed.data.teamId, 'task.created', serializeTask(populated));
 
   // Notify assignees
   const createdAssignees = (parsed.data.assignees || []).filter((a) => a !== userId);
@@ -370,8 +370,8 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
   }
   {
     const justDone = parsed.data.status === 'done' && prevStatus !== 'done';
-    void dispatchWebhookEvent(task.team.toString(), 'task.updated', serializeTask(populated));
-    if (justDone) void dispatchWebhookEvent(task.team.toString(), 'task.completed', serializeTask(populated));
+    deliverIntegrations(task.team.toString(), 'task.updated', serializeTask(populated));
+    if (justDone) deliverIntegrations(task.team.toString(), 'task.completed', serializeTask(populated));
   }
 
   // Notify new assignees
@@ -464,8 +464,8 @@ export const updateTaskStatus = asyncHandler(async (req: Request, res: Response)
   }
   {
     const justDone = parsed.data.status === 'done' && prevStatus !== 'done';
-    void dispatchWebhookEvent(task.team.toString(), 'task.updated', serializeTask(task));
-    if (justDone) void dispatchWebhookEvent(task.team.toString(), 'task.completed', serializeTask(task));
+    deliverIntegrations(task.team.toString(), 'task.updated', serializeTask(task));
+    if (justDone) deliverIntegrations(task.team.toString(), 'task.completed', serializeTask(task));
   }
 
   // Recurring task completed → spawn the next occurrence.
@@ -517,7 +517,7 @@ export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
   if (io) {
     io.to(`team:${teamId}`).emit('task:deleted', { taskId, teamId });
   }
-  void dispatchWebhookEvent(teamId, 'task.deleted', snapshot);
+  deliverIntegrations(teamId, 'task.deleted', snapshot);
 
   sendSuccess(res, null, 'Task deleted.');
 });

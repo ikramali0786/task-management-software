@@ -180,3 +180,20 @@ function verify(rawBody, signatureHeader, secret) {
 - After **10 consecutive failures** an endpoint is **auto-disabled**; re-enable it
   from the dashboard (which also resets its failure count).
 - Use the **Send test event** button to deliver a `ping` payload on demand.
+
+---
+
+## Slack notifications
+
+Prefer notifications in Slack instead of building your own consumer? Connect a
+Slack channel under **Settings → Developer → Slack notifications**:
+
+1. In Slack, create an [Incoming Webhook](https://api.slack.com/messaging/webhooks)
+   for the channel you want.
+2. Paste the `https://hooks.slack.com/services/…` URL into TaskFlow and choose
+   which events to post.
+
+TaskFlow then posts a formatted Block Kit message to that channel on each
+subscribed event (same event set as webhooks). The same reliability model
+applies — retries with backoff and auto-disable after repeated failures — and a
+**Send test** button posts a sample message on demand.

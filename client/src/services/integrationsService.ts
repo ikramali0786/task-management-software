@@ -24,6 +24,18 @@ export interface WebhookEndpoint {
   createdAt: string;
 }
 
+export interface SlackStatus {
+  connected: boolean;
+  urlHint?: string;
+  events?: string[];
+  enabled?: boolean;
+  lastDeliveryAt?: string | null;
+  lastStatus?: number | null;
+  failureCount?: number;
+  disabledReason?: string | null;
+  createdAt?: string;
+}
+
 export const integrationsService = {
   // ── API tokens ────────────────────────────────────────────────────────────
   listTokens: async (teamId: string): Promise<ApiToken[]> => {
@@ -69,6 +81,35 @@ export const integrationsService = {
     id: string
   ): Promise<{ ok: boolean; status: number; error?: string }> => {
     const res = await api.post(`/integrations/${teamId}/webhooks/${id}/test`);
+    return res.data?.data?.result;
+  },
+
+  // ── Slack ─────────────────────────────────────────────────────────────────
+  getSlack: async (teamId: string): Promise<SlackStatus> => {
+    const res = await api.get(`/integrations/${teamId}/slack`);
+    return res.data?.data?.slack ?? { connected: false };
+  },
+  connectSlack: async (
+    teamId: string,
+    body: { webhookUrl: string; events?: string[] }
+  ): Promise<SlackStatus> => {
+    const res = await api.put(`/integrations/${teamId}/slack`, body);
+    return res.data?.data?.slack;
+  },
+  updateSlack: async (
+    teamId: string,
+    body: { events?: string[]; enabled?: boolean }
+  ): Promise<SlackStatus> => {
+    const res = await api.patch(`/integrations/${teamId}/slack`, body);
+    return res.data?.data?.slack;
+  },
+  disconnectSlack: async (teamId: string): Promise<void> => {
+    await api.delete(`/integrations/${teamId}/slack`);
+  },
+  testSlack: async (
+    teamId: string
+  ): Promise<{ ok: boolean; status: number; error?: string }> => {
+    const res = await api.post(`/integrations/${teamId}/slack/test`);
     return res.data?.data?.result;
   },
 };

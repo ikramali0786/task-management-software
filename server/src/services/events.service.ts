@@ -1,5 +1,5 @@
 import { getIO } from '../config/socket';
-import { dispatchWebhookEvent } from './webhook.service';
+import { deliverIntegrations } from './integrationEvents.service';
 import { serializeTask } from '../utils/serializeTask';
 
 /**
@@ -12,18 +12,18 @@ import { serializeTask } from '../utils/serializeTask';
 export const emitTaskCreated = (teamId: string, task: any) => {
   const io = getIO();
   if (io) io.to(`team:${teamId}`).emit('task:created', { task });
-  void dispatchWebhookEvent(teamId, 'task.created', serializeTask(task));
+  deliverIntegrations(teamId, 'task.created', serializeTask(task));
 };
 
 export const emitTaskUpdated = (teamId: string, task: any, opts: { completed?: boolean } = {}) => {
   const io = getIO();
   if (io) io.to(`team:${teamId}`).emit('task:updated', { task });
-  void dispatchWebhookEvent(teamId, 'task.updated', serializeTask(task));
-  if (opts.completed) void dispatchWebhookEvent(teamId, 'task.completed', serializeTask(task));
+  deliverIntegrations(teamId, 'task.updated', serializeTask(task));
+  if (opts.completed) deliverIntegrations(teamId, 'task.completed', serializeTask(task));
 };
 
 export const emitTaskDeleted = (teamId: string, taskId: string, task?: any) => {
   const io = getIO();
   if (io) io.to(`team:${teamId}`).emit('task:deleted', { taskId, teamId });
-  void dispatchWebhookEvent(teamId, 'task.deleted', task ? serializeTask(task) : { id: taskId, team: teamId });
+  deliverIntegrations(teamId, 'task.deleted', task ? serializeTask(task) : { id: taskId, team: teamId });
 };

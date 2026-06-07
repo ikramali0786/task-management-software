@@ -9,6 +9,11 @@ import {
   updateWebhook,
   deleteWebhook,
   testWebhook,
+  getSlack,
+  connectSlack,
+  updateSlack,
+  disconnectSlack,
+  testSlack,
 } from '../controllers/integrations.controller';
 
 /**
@@ -31,5 +36,12 @@ router.post('/:teamId/webhooks', createWebhook);
 router.patch('/:teamId/webhooks/:id', updateWebhook);
 router.delete('/:teamId/webhooks/:id', deleteWebhook);
 router.post('/:teamId/webhooks/:id/test', testWebhook);
+
+// Slack
+router.get('/:teamId/slack', getSlack);
+router.put('/:teamId/slack', connectSlack);
+router.patch('/:teamId/slack', updateSlack);
+router.delete('/:teamId/slack', disconnectSlack);
+router.post('/:teamId/slack/test', testSlack);
 
 export default router;

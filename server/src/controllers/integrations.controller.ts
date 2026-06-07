@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Team } from '../models/Team.model';
 import { AccessToken } from '../models/AccessToken.model';
 import { Webhook, WEBHOOK_EVENTS } from '../models/Webhook.model';
+import { SlackIntegration } from '../models/SlackIntegration.model';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
@@ -10,6 +11,7 @@ import { assertPermission } from '../utils/permissions';
 import { assertFeature } from '../utils/teamPlan';
 import { generateApiToken } from '../middleware/apiAuth.middleware';
 import { generateWebhookSecret, sendTestDelivery } from '../services/webhook.service';
+import { sendSlackTest } from '../services/slack.service';
 
 /**
  * Self-serve management of the developer platform (API tokens + webhooks) for a
@@ -190,4 +192,110 @@ export const testWebhook = asyncHandler(async (req: Request, res: Response) => {
   if (!hook) throw new ApiError(404, 'Webhook not found.');
   const result = await sendTestDelivery(hook);
   sendSuccess(res, { result }, result.ok ? 'Test delivery succeeded.' : 'Test delivery failed.');
+});
+
+/* ════════════════════════════ SLACK ═════════════════════════════════════ */
+
+// Slack incoming webhook URLs look like https://hooks.slack.com/services/T.../B.../xxxx
+const slackUrlSchema = z
+  .string()
+  .url()
+  .refine((u) => /^https:\/\/hooks\.slack\.com\/services\//.test(u), 'Enter a valid Slack Incoming Webhook URL.');
+
+// The URL is a secret — never echo it back in full.
+const maskUrl = (u: string) => {
+  const tail = u.slice(-6);
+  return `https://hooks.slack.com/services/…${tail}`;
+};
+
+const serializeSlack = (s: any) =>
+  s && {
+    connected: true,
+    urlHint: maskUrl(s.webhookUrl),
+    events: s.events,
+    enabled: s.enabled,
+    lastDeliveryAt: s.lastDeliveryAt,
+    lastStatus: s.lastStatus,
+    failureCount: s.failureCount,
+    disabledReason: s.disabledReason,
+    createdAt: s.createdAt,
+  };
+
+// GET /integrations/:teamId/slack
+export const getSlack = asyncHandler(async (req: Request, res: Response) => {
+  await requireAdminWithApi(req.params.teamId, req);
+  const slack = await SlackIntegration.findOne({ team: req.params.teamId });
+  sendSuccess(res, { slack: slack ? serializeSlack(slack) : { connected: false } });
+});
+
+// PUT /integrations/:teamId/slack  → connect or replace the webhook URL
+export const connectSlack = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    webhookUrl: slackUrlSchema,
+    events: eventsSchema.optional(),
+  });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  await requireAdminWithApi(req.params.teamId, req);
+
+  const slack = await SlackIntegration.findOneAndUpdate(
+    { team: req.params.teamId },
+    {
+      $set: {
+        webhookUrl: parsed.data.webhookUrl,
+        ...(parsed.data.events ? { events: parsed.data.events } : {}),
+        enabled: true,
+        failureCount: 0,
+        disabledReason: null,
+        createdBy: req.user!._id,
+      },
+      $setOnInsert: { team: req.params.teamId },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  sendSuccess(res, { slack: serializeSlack(slack) }, 'Slack connected.');
+});
+
+// PATCH /integrations/:teamId/slack  → update events / enabled
+export const updateSlack = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    events: eventsSchema.optional(),
+    enabled: z.boolean().optional(),
+  });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  await requireAdminWithApi(req.params.teamId, req);
+
+  const slack = await SlackIntegration.findOne({ team: req.params.teamId });
+  if (!slack) throw new ApiError(404, 'Slack is not connected.');
+
+  if (parsed.data.events !== undefined) slack.events = parsed.data.events;
+  if (parsed.data.enabled !== undefined) {
+    slack.enabled = parsed.data.enabled;
+    if (parsed.data.enabled) {
+      slack.failureCount = 0;
+      slack.disabledReason = null;
+    }
+  }
+  await slack.save();
+  sendSuccess(res, { slack: serializeSlack(slack) }, 'Slack updated.');
+});
+
+// DELETE /integrations/:teamId/slack
+export const disconnectSlack = asyncHandler(async (req: Request, res: Response) => {
+  await requireAdminWithApi(req.params.teamId, req);
+  await SlackIntegration.findOneAndDelete({ team: req.params.teamId });
+  sendSuccess(res, null, 'Slack disconnected.');
+});
+
+// POST /integrations/:teamId/slack/test
+export const testSlack = asyncHandler(async (req: Request, res: Response) => {
+  await requireAdminWithApi(req.params.teamId, req);
+  const slack = await SlackIntegration.findOne({ team: req.params.teamId });
+  if (!slack) throw new ApiError(404, 'Slack is not connected.');
+  const result = await sendSlackTest(slack);
+  sendSuccess(res, { result }, result.ok ? 'Test sent to Slack.' : 'Test failed.');
 });
