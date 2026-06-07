@@ -15,6 +15,11 @@ export const taskService = {
     const res = await api.get('/tasks/search', { params: { q } });
     return res.data.data.tasks as (Task & { teamName?: string })[];
   },
+  // Download all team tasks as a CSV blob (Business feature).
+  exportCsv: async (teamId: string): Promise<Blob> => {
+    const res = await api.get('/tasks/export', { params: { teamId }, responseType: 'blob' });
+    return res.data as Blob;
+  },
   createTask: async (data: Partial<Task> & { teamId: string }) => {
     const res = await api.post('/tasks', data);
     return res.data.data.task as Task;

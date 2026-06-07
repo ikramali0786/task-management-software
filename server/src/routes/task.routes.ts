@@ -10,6 +10,7 @@ import {
   getTaskStats,
   getWorkload,
   searchTasks,
+  exportTasks,
   addSubtask,
   updateSubtask,
   deleteSubtask,
@@ -33,6 +34,7 @@ router.use(protect);
 router.get('/stats', getTaskStats);
 router.get('/workload', getWorkload);
 router.get('/search', searchTasks);
+router.get('/export', exportTasks);
 
 // Bulk actions (must be before /:taskId)
 router.post('/bulk/update', bulkUpdateTasks);

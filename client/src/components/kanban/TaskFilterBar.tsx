@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Search, X, SlidersHorizontal, ChevronDown,
-  CheckSquare, RefreshCw, LayoutGrid, List, Save,
+  CheckSquare, RefreshCw, LayoutGrid, List, Save, Download, Loader2,
 } from 'lucide-react';
 import { TaskPriority, User, PRIORITY_CONFIG } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
+import { usePlan } from '@/hooks/usePlan';
+import { useUIStore } from '@/store/uiStore';
+import { taskService } from '@/services/taskService';
 
 export interface TaskFilters {
   search: string;
@@ -58,6 +61,30 @@ export const TaskFilterBar = ({
 }: Props) => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // CSV export (Business feature — falls through to the upgrade modal otherwise).
+  const { can } = usePlan();
+  const { addToast, openUpgrade } = useUIStore();
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (!can('export')) { openUpgrade('export'); return; }
+    setExporting(true);
+    try {
+      const blob = await taskService.exportCsv(teamId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `taskflow-${teamName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      addToast({ type: 'error', title: 'Export failed', message: 'Please try again.' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Saved views state
   const storageKey = `tf_views_${teamId}`;
@@ -406,6 +433,16 @@ export const TaskFilterBar = ({
               Select
             </>
           )}
+        </button>
+
+        {/* ── Export CSV ─────────────────────────────────────────────── */}
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          title="Export tasks to CSV"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-600"
+        >
+          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
         </button>
 
         {/* ── Refresh ────────────────────────────────────────────────── */}

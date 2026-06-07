@@ -12,6 +12,7 @@ import { createNotification } from '../services/notification.service';
 import { getIO } from '../config/socket';
 import { sanitizeText } from '../utils/sanitize';
 import { assertPermission, assertCanEditTask, assertCanDeleteTask, hasPermission } from '../utils/permissions';
+import { assertFeature } from '../utils/teamPlan';
 import { emailTaskAssigned } from '../services/emailNotify.service';
 import { deliverIntegrations } from '../services/integrationEvents.service';
 import { serializeTask } from '../utils/serializeTask';
@@ -240,6 +241,58 @@ export const getTasks = asyncHandler(async (req: Request, res: Response) => {
   }));
 
   sendSuccess(res, { tasks: tasksWithCounts, total, page: parseInt(page), limit: parseInt(limit) });
+});
+
+// ── CSV export ───────────────────────────────────────────────────────────────
+// Escape a single CSV cell: wrap in quotes and double any embedded quotes.
+const csvCell = (v: unknown): string => {
+  const s = v == null ? '' : String(v);
+  return `"${s.replace(/"/g, '""')}"`;
+};
+
+const fmtDate = (d: any): string => (d ? new Date(d).toISOString().slice(0, 10) : '');
+
+/* GET /tasks/export?teamId=… — download all team tasks as CSV (Business feature). */
+export const exportTasks = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+
+  const userId = req.user!._id.toString();
+  const team = await verifyTeamMember(teamId, userId);
+  await assertFeature(team, 'export', req.user!.email);
+
+  const tasks = await Task.find({ team: teamId, isArchived: false })
+    .sort({ identifier: 1 })
+    .populate('assignees', 'name email')
+    .populate('createdBy', 'name email');
+
+  const header = [
+    'ID', 'Title', 'Status', 'Priority', 'Assignees', 'Due Date',
+    'Estimated (min)', 'Labels', 'Created By', 'Created At', 'Completed At', 'Description',
+  ];
+
+  const rows = tasks.map((t: any) => [
+    t.identifier ?? '',
+    t.title ?? '',
+    t.status ?? '',
+    t.priority ?? '',
+    (t.assignees || []).map((a: any) => a?.name).filter(Boolean).join(', '),
+    fmtDate(t.dueDate),
+    t.estimatedMinutes ?? '',
+    (t.labels || []).map((l: any) => l?.name).filter(Boolean).join(', '),
+    t.createdBy?.name ?? '',
+    fmtDate(t.createdAt),
+    fmtDate(t.completedAt),
+    (t.description ?? '').replace(/\s+/g, ' ').trim(),
+  ]);
+
+  const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+  const safeName = (team.name || 'team').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  const filename = `taskflow-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send('﻿' + csv); // UTF-8 BOM so Excel reads accents correctly
 });
 
 // Cross-team quick search (Cmd+K) — searches titles/descriptions across every

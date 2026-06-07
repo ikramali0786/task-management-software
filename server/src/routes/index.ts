@@ -14,6 +14,8 @@ import chatSessionRoutes from './chatSession.routes';
 import billingRoutes from './billing.routes';
 import integrationsRoutes from './integrations.routes';
 import v1Routes from './v1.routes';
+import taskTemplateRoutes from './taskTemplate.routes';
+import aiRoutes from './ai.routes';
 
 const router = Router();
 
@@ -32,5 +34,7 @@ router.use('/chat-sessions', chatSessionRoutes);
 router.use('/billing', billingRoutes);
 router.use('/integrations', integrationsRoutes);
 router.use('/v1', v1Routes);
+router.use('/templates', taskTemplateRoutes);
+router.use('/ai', aiRoutes);
 
 export default router;
