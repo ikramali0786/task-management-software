@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Search, X, SlidersHorizontal, ChevronDown,
-  CheckSquare, RefreshCw, LayoutGrid, List, Save, Download, Loader2,
+  CheckSquare, RefreshCw, LayoutGrid, List, Save, Download, Loader2, FileText,
 } from 'lucide-react';
 import { TaskPriority, User, PRIORITY_CONFIG } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
@@ -66,15 +66,18 @@ export const TaskFilterBar = ({
   const { can } = usePlan();
   const { addToast, openUpgrade } = useUIStore();
   const [exporting, setExporting] = useState(false);
-  const handleExport = async () => {
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    setExportOpen(false);
     if (!can('export')) { openUpgrade('export'); return; }
     setExporting(true);
     try {
-      const blob = await taskService.exportCsv(teamId);
+      const blob = await taskService.exportFile(teamId, format);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `taskflow-${teamName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `taskflow-${teamName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -435,15 +438,30 @@ export const TaskFilterBar = ({
           )}
         </button>
 
-        {/* ── Export CSV ─────────────────────────────────────────────── */}
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          title="Export tasks to CSV"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-600"
-        >
-          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-        </button>
+        {/* ── Export (CSV / PDF) ─────────────────────────────────────── */}
+        <div className="relative flex-shrink-0" ref={exportRef}>
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            disabled={exporting}
+            title="Export tasks"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-600"
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+          </button>
+          {exportOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+              <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                <button onClick={() => handleExport('csv')} className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </button>
+                <button onClick={() => handleExport('pdf')} className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700">
+                  <FileText className="h-3.5 w-3.5" /> Export PDF
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* ── Refresh ────────────────────────────────────────────────── */}
         <button
