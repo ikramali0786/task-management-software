@@ -70,6 +70,7 @@ export interface PlanLimits {
     sso: boolean;
     auditLog: boolean;
     apiAccess: boolean;
+    automations: boolean;
   };
 }
 

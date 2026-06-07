@@ -60,6 +60,10 @@ describe('plan limits & payload', () => {
     expect(PLAN_LIMITS.free.features.apiAccess).toBe(false);
     expect(PLAN_LIMITS.pro.features.apiAccess).toBe(true);
     expect(PLAN_LIMITS.business.features.apiAccess).toBe(true);
+    // Automations: Pro and Business.
+    expect(PLAN_LIMITS.free.features.automations).toBe(false);
+    expect(PLAN_LIMITS.pro.features.automations).toBe(true);
+    expect(PLAN_LIMITS.business.features.automations).toBe(true);
     expect(PLAN_LIMITS.business.aiMessagesPerMonth).toBeGreaterThan(PLAN_LIMITS.pro.aiMessagesPerMonth);
   });
 

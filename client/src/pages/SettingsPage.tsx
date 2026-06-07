@@ -10,6 +10,7 @@ import {
   Download, AlertTriangle, Minus, Globe, Code2,
 } from 'lucide-react';
 import { DeveloperSettings } from '@/components/settings/DeveloperSettings';
+import { AutomationSettings } from '@/components/settings/AutomationSettings';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -26,12 +27,13 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn, getUserTimeZone, setUserTimeZone } from '@/lib/utils';
 import { Theme } from '@/types';
 
-type Tab = 'general' | 'billing' | 'notifications' | 'security' | 'appearance' | 'developer';
+type Tab = 'general' | 'billing' | 'notifications' | 'automations' | 'security' | 'appearance' | 'developer';
 
 const TABS: { id: Tab; i18nKey: string; icon: React.ElementType }[] = [
   { id: 'general', i18nKey: 'settings.tabs.general', icon: User },
   { id: 'billing', i18nKey: 'settings.tabs.billing', icon: Crown },
   { id: 'notifications', i18nKey: 'settings.tabs.notifications', icon: Bell },
+  { id: 'automations', i18nKey: 'settings.tabs.automations', icon: Zap },
   { id: 'developer', i18nKey: 'settings.tabs.developer', icon: Code2 },
   { id: 'security', i18nKey: 'settings.tabs.security', icon: Lock },
   { id: 'appearance', i18nKey: 'settings.tabs.appearance', icon: Sun },
@@ -745,6 +747,9 @@ export const SettingsPage = () => {
             </div>
             </div>
           )}
+
+          {/* ── AUTOMATIONS ── */}
+          {activeTab === 'automations' && <AutomationSettings />}
 
           {/* ── DEVELOPER ── */}
           {activeTab === 'developer' && <DeveloperSettings />}

@@ -39,6 +39,8 @@ export interface PlanLimits {
     auditLog: boolean;
     /** Developer platform: REST API tokens + outbound webhooks. */
     apiAccess: boolean;
+    /** If-this-then-that automation rules on task events. */
+    automations: boolean;
   };
 }
 
@@ -47,6 +49,7 @@ const MB = 1024 * 1024;
 const NO_FEATURES: PlanLimits['features'] = {
   timeTracking: false, recurringTasks: false, customRoles: false, emailReminders: false,
   advancedAnalytics: false, export: false, sso: false, auditLog: false, apiAccess: false,
+  automations: false,
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -73,6 +76,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       customRoles: true,
       emailReminders: true,
       apiAccess: true,
+      automations: true,
     },
   },
   business: {
@@ -85,6 +89,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     features: {
       timeTracking: true, recurringTasks: true, customRoles: true, emailReminders: true,
       advancedAnalytics: true, export: true, sso: true, auditLog: true, apiAccess: true,
+      automations: true,
     },
   },
 };
