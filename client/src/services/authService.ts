@@ -11,7 +11,33 @@ export const authService = {
   },
   login: async (data: LoginData) => {
     const res = await api.post('/auth/login', data);
+    // Either a full session, or a 2FA challenge.
+    return res.data.data as {
+      accessToken?: string;
+      user?: User;
+      twoFactorRequired?: boolean;
+      challengeToken?: string;
+    };
+  },
+  verify2faLogin: async (challengeToken: string, token: string) => {
+    const res = await api.post('/auth/2fa/login', { challengeToken, token });
     return res.data.data as { accessToken: string; user: User };
+  },
+  // ── 2FA management (authenticated) ──────────────────────────────────────────
+  setup2fa: async () => {
+    const res = await api.post('/auth/2fa/setup');
+    return res.data.data as { secret: string; otpauth: string; qrDataUrl: string };
+  },
+  enable2fa: async (token: string) => {
+    const res = await api.post('/auth/2fa/enable', { token });
+    return res.data.data as { recoveryCodes: string[] };
+  },
+  disable2fa: async (token: string) => {
+    await api.post('/auth/2fa/disable', { token });
+  },
+  regenerateRecoveryCodes: async (token: string) => {
+    const res = await api.post('/auth/2fa/recovery-codes', { token });
+    return res.data.data as { recoveryCodes: string[] };
   },
   logout: async () => {
     await api.post('/auth/logout');

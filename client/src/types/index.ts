@@ -14,6 +14,7 @@ export interface User {
   emailNotifications?: boolean;
   teams: Team[];
   emailVerified?: boolean;
+  twoFactorEnabled?: boolean;
   lastSeenAt?: string;
   createdAt?: string;
 }

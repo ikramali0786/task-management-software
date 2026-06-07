@@ -26,6 +26,11 @@ export interface IUser extends Document {
   passwordResetExpires: Date | null;
   emailVerificationTokenHash: string | null;
   emailVerificationExpires: Date | null;
+  // Two-factor auth (TOTP). Secret is AES-GCM encrypted; recovery codes are sha256 hashes.
+  twoFactorEnabled: boolean;
+  twoFactorSecret: string | null;          // JSON of { encryptedKey, iv, authTag }
+  twoFactorPendingSecret: string | null;   // same shape, during enrollment (pre-verify)
+  twoFactorRecoveryCodes: string[];        // sha256 hashes of unused codes
   comparePassword(candidate: string): Promise<boolean>;
 }
 
@@ -52,6 +57,11 @@ const UserSchema = new Schema<IUser>(
     passwordResetExpires:        { type: Date,   select: false, default: null },
     emailVerificationTokenHash:  { type: String, select: false, default: null },
     emailVerificationExpires:    { type: Date,   select: false, default: null },
+    // Two-factor auth
+    twoFactorEnabled:        { type: Boolean, default: false },
+    twoFactorSecret:         { type: String, select: false, default: null },
+    twoFactorPendingSecret:  { type: String, select: false, default: null },
+    twoFactorRecoveryCodes:  { type: [String], select: false, default: [] },
   },
   { timestamps: true }
 );

@@ -15,6 +15,13 @@ import {
   exportMyData,
   deleteAccount,
 } from '../controllers/auth.controller';
+import {
+  setup2fa,
+  enable2fa,
+  disable2fa,
+  regenerateRecoveryCodes,
+  verify2faLogin,
+} from '../controllers/twoFactor.controller';
 import { protect } from '../middleware/auth.middleware';
 
 const router = Router();
@@ -38,6 +45,7 @@ const emailLimiter = rateLimit({
 
 router.post('/register', authLimiter, register);
 router.post('/login', authLimiter, login);
+router.post('/2fa/login', authLimiter, verify2faLogin);
 router.post('/logout', logout);
 router.post('/refresh', refreshToken);
 router.post('/forgot-password', emailLimiter, forgotPassword);
@@ -49,5 +57,11 @@ router.patch('/me', protect, updateMe);
 router.patch('/me/password', protect, changePassword);
 router.get('/me/export', protect, exportMyData);
 router.delete('/me', protect, deleteAccount);
+
+// Two-factor auth (authenticated management)
+router.post('/2fa/setup', protect, setup2fa);
+router.post('/2fa/enable', protect, enable2fa);
+router.post('/2fa/disable', protect, disable2fa);
+router.post('/2fa/recovery-codes', protect, regenerateRecoveryCodes);
 
 export default router;

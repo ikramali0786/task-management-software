@@ -8,7 +8,7 @@ import { Comment } from '../models/Comment.model';
 import { Notification } from '../models/Notification.model';
 import { Chatbot } from '../models/Chatbot.model';
 import { Discussion } from '../models/Discussion.model';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../services/auth.service';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken, generate2faChallengeToken } from '../services/auth.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
@@ -182,20 +182,36 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(401, 'Incorrect password. Please try again.');
   }
 
-  // Successful login — reset lockout counters
+  // Password OK — reset lockout counters.
+  user.loginAttempts = 0;
+  user.lockUntil = null;
+
+  // If 2FA is enabled, require the second factor before issuing a session.
+  if (user.twoFactorEnabled) {
+    await user.save({ validateBeforeSave: false });
+    const challengeToken = generate2faChallengeToken(user._id.toString());
+    return sendSuccess(res, { twoFactorRequired: true, challengeToken }, 'Enter your authentication code.');
+  }
+
+  await issueSession(req, res, user);
+});
+
+/**
+ * Issue a full session for an authenticated user: rotate the refresh token,
+ * set the cookie, and return the access token + user payload. Shared by password
+ * login and 2FA completion.
+ */
+export const issueSession = async (req: Request, res: Response, user: any) => {
   user.loginAttempts = 0;
   user.lockUntil = null;
   user.lastSeenAt = new Date();
 
-  const accessToken  = generateAccessToken(user._id.toString());
+  const accessToken = generateAccessToken(user._id.toString());
   const refreshToken = generateRefreshToken(user._id.toString());
-
-  // Store hash of refresh token for rotation validation
   user.refreshTokenHash = hashToken(refreshToken);
   await user.save({ validateBeforeSave: false });
 
-  audit('auth.login.success', { ip: getIP(req), email, userId: user._id.toString() });
-
+  audit('auth.login.success', { ip: getIP(req), email: user.email, userId: user._id.toString() });
   res.cookie('refreshToken', refreshToken, refreshCookieOptions());
 
   sendSuccess(res, {
@@ -209,9 +225,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       theme: user.theme,
       timezone: user.timezone,
       emailVerified: user.emailVerified,
+      twoFactorEnabled: user.twoFactorEnabled,
     },
   });
-});
+};
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
   const token = req.cookies?.refreshToken;

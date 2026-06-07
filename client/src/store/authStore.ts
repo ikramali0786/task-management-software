@@ -40,12 +40,25 @@ interface AuthStore {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ twoFactorRequired: boolean; challengeToken?: string }>;
+  verifyTwoFactor: (challengeToken: string, token: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
 }
+
+// Shared session bootstrap once an access token + user are obtained (via
+// password login or 2FA completion).
+const finishAuth = async (set: (partial: Partial<AuthStore>) => void, accessToken: string, user: User) => {
+  localStorage.setItem('accessToken', accessToken);
+  await consumePendingInvite();
+  const socket = initSocket(accessToken);
+  const teamIds = (user.teams || []).map((t) => (typeof t === 'string' ? t : t._id));
+  socket.on('connect', () => joinTeamRooms(teamIds));
+  applyUserTimeZone(user);
+  set({ user, token: accessToken, isAuthenticated: true });
+};
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
@@ -56,16 +69,27 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   login: async (email, password, rememberMe = false) => {
     set({ isLoading: true });
     try {
-      const { accessToken, user } = await authService.login({ email, password, rememberMe });
-      localStorage.setItem('accessToken', accessToken);
-      await consumePendingInvite();
+      const data = await authService.login({ email, password, rememberMe });
+      if (data.twoFactorRequired && data.challengeToken) {
+        // Don't authenticate yet — caller must complete the second factor.
+        set({ isLoading: false });
+        return { twoFactorRequired: true, challengeToken: data.challengeToken };
+      }
+      await finishAuth(set, data.accessToken!, data.user!);
+      set({ isLoading: false });
+      return { twoFactorRequired: false };
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
 
-      const socket = initSocket(accessToken);
-      const teamIds = (user.teams || []).map((t) => (typeof t === 'string' ? t : t._id));
-      socket.on('connect', () => joinTeamRooms(teamIds));
-
-      applyUserTimeZone(user);
-      set({ user, token: accessToken, isAuthenticated: true, isLoading: false });
+  verifyTwoFactor: async (challengeToken, token) => {
+    set({ isLoading: true });
+    try {
+      const { accessToken, user } = await authService.verify2faLogin(challengeToken, token);
+      await finishAuth(set, accessToken, user);
+      set({ isLoading: false });
     } catch (err) {
       set({ isLoading: false });
       throw err;

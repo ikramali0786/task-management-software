@@ -13,6 +13,7 @@ import { DeveloperSettings } from '@/components/settings/DeveloperSettings';
 import { AutomationSettings } from '@/components/settings/AutomationSettings';
 import { AuditLogSettings } from '@/components/settings/AuditLogSettings';
 import { CustomFieldSettings } from '@/components/settings/CustomFieldSettings';
+import { TwoFactorSettings } from '@/components/settings/TwoFactorSettings';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -677,6 +678,7 @@ export const SettingsPage = () => {
           {/* ── SECURITY ── */}
           {activeTab === 'security' && (
             <div className="space-y-6">
+            <TwoFactorSettings />
             <div className="card">
               <div className="mb-5 flex items-center gap-3">
                 <div className="rounded-xl bg-slate-100 p-2 dark:bg-slate-800">

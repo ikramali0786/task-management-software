@@ -48,7 +48,10 @@ export type AuditEvent =
   | 'file.upload.blocked'
   | 'billing.plan.update'
   | 'auth.account.deleted'
-  | 'auth.account.export';
+  | 'auth.account.export'
+  | 'auth.2fa.enabled'
+  | 'auth.2fa.disabled'
+  | 'auth.2fa.login';
 
 export interface AuditPayload {
   ip?:      string;

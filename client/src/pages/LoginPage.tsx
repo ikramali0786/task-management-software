@@ -21,13 +21,30 @@ interface ApiError { message: string; field: ErrorField; }
 
 export const LoginPage = () => {
   const { t } = useTranslation();
-  const { login, isLoading } = useAuthStore();
+  const { login, verifyTwoFactor, isLoading } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || '/';
 
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // 2FA challenge step
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [twoFaError, setTwoFaError] = useState<string | null>(null);
+
+  const verifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!challengeToken || !code.trim()) return;
+    setTwoFaError(null);
+    try {
+      await verifyTwoFactor(challengeToken, code.trim());
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setTwoFaError(err.response?.data?.message || 'That code is incorrect or expired.');
+    }
+  };
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: { rememberMe: false },
@@ -44,7 +61,11 @@ export const LoginPage = () => {
   const onSubmit = async (data: FormData) => {
     setApiError(null);
     try {
-      await login(data.email, data.password, data.rememberMe);
+      const result = await login(data.email, data.password, data.rememberMe);
+      if (result.twoFactorRequired && result.challengeToken) {
+        setChallengeToken(result.challengeToken);
+        return;
+      }
       navigate(from, { replace: true });
     } catch (err: any) {
       const message = err.response?.data?.message || 'Something went wrong. Please try again.';
@@ -58,6 +79,36 @@ export const LoginPage = () => {
     apiError?.field === 'email' ? UserX
     : apiError?.field === 'password' ? KeyRound
     : AlertCircle;
+
+  // ── 2FA challenge step ──────────────────────────────────────────────────────
+  if (challengeToken) {
+    return (
+      <AuthLayout heading="Two-factor authentication" subheading="Enter the 6-digit code from your authenticator app, or a recovery code.">
+        <form onSubmit={verifyCode} className="space-y-5">
+          <Input
+            label="Authentication code"
+            inputMode="numeric"
+            autoFocus
+            placeholder="123456"
+            leftIcon={<ShieldAlert className="h-4 w-4" />}
+            value={code}
+            onChange={(e) => { setTwoFaError(null); setCode(e.target.value); }}
+            error={twoFaError || undefined}
+          />
+          <Button type="submit" className="w-full" isLoading={isLoading}>
+            Verify &amp; sign in
+          </Button>
+          <button
+            type="button"
+            onClick={() => { setChallengeToken(null); setCode(''); setTwoFaError(null); }}
+            className="w-full text-center text-sm text-slate-500 transition-colors hover:text-slate-700 dark:hover:text-slate-300"
+          >
+            ← Back to sign in
+          </button>
+        </form>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout heading={t('auth.welcomeBack')} subheading={t('auth.welcomeSubtitle')}>
