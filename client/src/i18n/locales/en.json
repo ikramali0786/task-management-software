@@ -38,6 +38,7 @@
       "billing": "Billing",
       "notifications": "Notifications",
       "automations": "Automations",
+      "fields": "Custom fields",
       "developer": "Developer",
       "audit": "Audit log",
       "security": "Security",

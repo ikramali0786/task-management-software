@@ -21,6 +21,7 @@ import {
   logTime,
   deleteTimeEntry,
   updateEstimate,
+  updateCustomFields,
   addDependency,
   removeDependency,
 } from '../controllers/task.controller';
@@ -62,6 +63,7 @@ router.delete('/:taskId/subtasks/:subtaskId', deleteSubtask);
 router.post('/:taskId/time', logTime);
 router.delete('/:taskId/time/:entryId', deleteTimeEntry);
 router.patch('/:taskId/estimate', updateEstimate);
+router.patch('/:taskId/custom-fields', updateCustomFields);
 
 // Task dependencies
 router.post('/:taskId/dependencies', addDependency);

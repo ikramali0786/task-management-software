@@ -5,7 +5,7 @@ import { Plan, PlanLimits } from '@/types';
 const NO_FEATURES: PlanLimits['features'] = {
   timeTracking: false, recurringTasks: false, customRoles: false, emailReminders: false,
   advancedAnalytics: false, export: false, sso: false, auditLog: false, apiAccess: false,
-  automations: false,
+  automations: false, customFields: false,
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -33,6 +33,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       emailReminders: true,
       apiAccess: true,
       automations: true,
+      customFields: true,
     },
   },
   business: {
@@ -45,7 +46,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     features: {
       timeTracking: true, recurringTasks: true, customRoles: true, emailReminders: true,
       advancedAnalytics: true, export: true, sso: true, auditLog: true, apiAccess: true,
-      automations: true,
+      automations: true, customFields: true,
     },
   },
 };
@@ -78,6 +79,7 @@ export const FEATURE_MATRIX: Array<{
   { section: 'Productivity', label: 'Email reminders', free: '—', pro: 'Included', business: 'Included' },
   { section: 'Productivity', label: 'API access & webhooks', free: '—', pro: 'Included', business: 'Included' },
   { section: 'Productivity', label: 'Automation rules', free: '—', pro: 'Included', business: 'Included' },
+  { section: 'Productivity', label: 'Custom fields', free: '—', pro: 'Included', business: 'Included' },
   { section: 'Business', label: 'Advanced analytics', free: '—', pro: '—', business: 'Included' },
   { section: 'Business', label: 'CSV / PDF export', free: '—', pro: '—', business: 'Included' },
   { section: 'Business', label: 'SSO / SAML', free: '—', pro: '—', business: 'Included' },

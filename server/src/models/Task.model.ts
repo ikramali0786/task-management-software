@@ -49,6 +49,7 @@ export interface ITask extends Document {
   estimatedMinutes: number | null;
   blockedBy: mongoose.Types.ObjectId[];  // tasks that block this one
   blocks: mongoose.Types.ObjectId[];     // tasks this one blocks
+  customFields: Record<string, unknown>; // team custom field values, keyed by field id
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,6 +116,7 @@ const TaskSchema = new Schema<ITask>(
     estimatedMinutes: { type: Number, default: null },
     blockedBy: [{ type: Schema.Types.ObjectId, ref: 'Task', default: [] }],
     blocks:    [{ type: Schema.Types.ObjectId, ref: 'Task', default: [] }],
+    customFields: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );

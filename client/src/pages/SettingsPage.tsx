@@ -7,11 +7,12 @@ import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
   Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock, Mail,
-  Download, AlertTriangle, Minus, Globe, Code2, ScrollText,
+  Download, AlertTriangle, Minus, Globe, Code2, ScrollText, ListPlus,
 } from 'lucide-react';
 import { DeveloperSettings } from '@/components/settings/DeveloperSettings';
 import { AutomationSettings } from '@/components/settings/AutomationSettings';
 import { AuditLogSettings } from '@/components/settings/AuditLogSettings';
+import { CustomFieldSettings } from '@/components/settings/CustomFieldSettings';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -28,13 +29,14 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn, getUserTimeZone, setUserTimeZone } from '@/lib/utils';
 import { Theme } from '@/types';
 
-type Tab = 'general' | 'billing' | 'notifications' | 'automations' | 'audit' | 'security' | 'appearance' | 'developer';
+type Tab = 'general' | 'billing' | 'notifications' | 'automations' | 'fields' | 'audit' | 'security' | 'appearance' | 'developer';
 
 const TABS: { id: Tab; i18nKey: string; icon: React.ElementType }[] = [
   { id: 'general', i18nKey: 'settings.tabs.general', icon: User },
   { id: 'billing', i18nKey: 'settings.tabs.billing', icon: Crown },
   { id: 'notifications', i18nKey: 'settings.tabs.notifications', icon: Bell },
   { id: 'automations', i18nKey: 'settings.tabs.automations', icon: Zap },
+  { id: 'fields', i18nKey: 'settings.tabs.fields', icon: ListPlus },
   { id: 'developer', i18nKey: 'settings.tabs.developer', icon: Code2 },
   { id: 'audit', i18nKey: 'settings.tabs.audit', icon: ScrollText },
   { id: 'security', i18nKey: 'settings.tabs.security', icon: Lock },
@@ -752,6 +754,9 @@ export const SettingsPage = () => {
 
           {/* ── AUTOMATIONS ── */}
           {activeTab === 'automations' && <AutomationSettings />}
+
+          {/* ── CUSTOM FIELDS ── */}
+          {activeTab === 'fields' && <CustomFieldSettings />}
 
           {/* ── DEVELOPER ── */}
           {activeTab === 'developer' && <DeveloperSettings />}

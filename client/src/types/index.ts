@@ -71,6 +71,7 @@ export interface PlanLimits {
     auditLog: boolean;
     apiAccess: boolean;
     automations: boolean;
+    customFields: boolean;
   };
 }
 
@@ -168,6 +169,7 @@ export interface Task {
   attachmentCount?: number;
   blockedBy?: DependencyTask[];
   blocks?: DependencyTask[];
+  customFields?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

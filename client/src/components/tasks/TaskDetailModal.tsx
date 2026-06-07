@@ -20,6 +20,7 @@ import { CommentSection } from '@/components/tasks/CommentSection';
 import { AttachmentPanel } from '@/components/tasks/AttachmentPanel';
 import { EmojiReactionBar } from '@/components/ui/EmojiReactionBar';
 import { SubtaskList } from '@/components/tasks/SubtaskList';
+import { CustomFieldsSection } from '@/components/tasks/CustomFieldsSection';
 import { TimeTracker } from '@/components/tasks/TimeTracker';
 
 interface TaskDetailModalProps {
@@ -472,6 +473,13 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   }}
                 />
               </div>
+
+              {/* Custom fields */}
+              <CustomFieldsSection
+                taskId={taskId}
+                teamId={typeof fullTask.team === 'string' ? fullTask.team : fullTask.team._id}
+                values={(fullTask.customFields as Record<string, unknown>) || {}}
+              />
 
               {/* Dependencies */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">

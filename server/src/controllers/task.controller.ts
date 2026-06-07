@@ -1106,6 +1106,34 @@ export const updateEstimate = asyncHandler(async (req: Request, res: Response) =
   sendSuccess(res, { estimatedMinutes: (task as any).estimatedMinutes });
 });
 
+/* PATCH /tasks/:taskId/custom-fields  { values: { [fieldId]: value } } — merge. */
+export const updateCustomFields = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ values: z.record(z.string(), z.any()) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'values object is required.');
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  const uid = req.user!._id.toString();
+  const team = await verifyTeamMember(task.team.toString(), uid);
+  assertCanEditTask(team, uid, task);
+
+  const merged = { ...(task.customFields || {}), ...parsed.data.values };
+  // Drop empty values so the bag stays tidy.
+  for (const k of Object.keys(merged)) {
+    if (merged[k] === '' || merged[k] === null || merged[k] === undefined) delete merged[k];
+  }
+  task.customFields = merged;
+  task.markModified('customFields');
+  await task.save();
+
+  const io = getIO();
+  if (io) io.to(`team:${task.team}`).emit('task:updated', { taskId: task._id, changes: { customFields: merged } });
+
+  sendSuccess(res, { customFields: merged });
+});
+
 /* ── Task dependencies ───────────────────────────────────────────────────── */
 
 const DEP_POPULATE = [

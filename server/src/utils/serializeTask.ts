@@ -47,6 +47,7 @@ export const serializeTask = (task: any) => {
         }
       : null,
     isArchived: Boolean(t.isArchived),
+    customFields: t.customFields || {},
     createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : null,
     updatedAt: t.updatedAt ? new Date(t.updatedAt).toISOString() : null,
   };

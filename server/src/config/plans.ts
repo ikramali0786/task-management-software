@@ -41,6 +41,8 @@ export interface PlanLimits {
     apiAccess: boolean;
     /** If-this-then-that automation rules on task events. */
     automations: boolean;
+    /** Team-defined custom fields on tasks. */
+    customFields: boolean;
   };
 }
 
@@ -49,7 +51,7 @@ const MB = 1024 * 1024;
 const NO_FEATURES: PlanLimits['features'] = {
   timeTracking: false, recurringTasks: false, customRoles: false, emailReminders: false,
   advancedAnalytics: false, export: false, sso: false, auditLog: false, apiAccess: false,
-  automations: false,
+  automations: false, customFields: false,
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -77,6 +79,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
       emailReminders: true,
       apiAccess: true,
       automations: true,
+      customFields: true,
     },
   },
   business: {
@@ -89,7 +92,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     features: {
       timeTracking: true, recurringTasks: true, customRoles: true, emailReminders: true,
       advancedAnalytics: true, export: true, sso: true, auditLog: true, apiAccess: true,
-      automations: true,
+      automations: true, customFields: true,
     },
   },
 };

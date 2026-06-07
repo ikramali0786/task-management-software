@@ -18,6 +18,7 @@ import taskTemplateRoutes from './taskTemplate.routes';
 import aiRoutes from './ai.routes';
 import automationRoutes from './automation.routes';
 import auditLogRoutes from './auditLog.routes';
+import customFieldRoutes from './customField.routes';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/templates', taskTemplateRoutes);
 router.use('/ai', aiRoutes);
 router.use('/automations', automationRoutes);
 router.use('/audit', auditLogRoutes);
+router.use('/custom-fields', customFieldRoutes);
 
 export default router;
