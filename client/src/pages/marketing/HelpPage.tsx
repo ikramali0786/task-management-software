@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search, ArrowRight, LifeBuoy } from 'lucide-react';
 import { HELP_ARTICLES, HELP_CATEGORIES } from '@/lib/helpContent';
 import { Eyebrow } from '@/components/marketing/Eyebrow';
+import { Reveal } from '@/components/marketing/motion';
 
 export const HelpPage = () => {
   const [q, setQ] = useState('');
@@ -60,14 +61,14 @@ export const HelpPage = () => {
               const items = HELP_ARTICLES.filter((a) => a.category === cat);
               if (items.length === 0) return null;
               return (
-                <div key={cat}>
+                <Reveal key={cat}>
                   <h2 className="mb-4 font-display text-xl font-bold tracking-tight">{cat}</h2>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {items.map((a) => (
                       <ArticleCard key={a.slug} slug={a.slug} title={a.title} excerpt={a.excerpt} />
                     ))}
                   </div>
-                </div>
+                </Reveal>
               );
             })}
           </div>

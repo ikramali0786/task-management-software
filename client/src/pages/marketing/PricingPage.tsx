@@ -3,6 +3,7 @@ import { Check, Minus, Sparkles, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { FEATURE_MATRIX, PLAN_PRICES } from '@/lib/plans';
 import { Eyebrow } from '@/components/marketing/Eyebrow';
+import { Reveal, StaggerGroup, StaggerItem } from '@/components/marketing/motion';
 
 const TIERS = [
   {
@@ -65,10 +66,11 @@ export const PricingPage = () => {
       </section>
 
       {/* Tier cards */}
-      <section className="mx-auto grid max-w-6xl gap-5 px-5 pb-14 lg:grid-cols-3">
+      <StaggerGroup className="mx-auto grid max-w-6xl gap-5 px-5 pb-14 lg:grid-cols-3">
         {TIERS.map((t) => (
-          <div
+          <StaggerItem
             key={t.key}
+            hover
             className={`relative flex flex-col rounded-2xl border p-6 ${
               t.featured
                 ? 'border-brand-300 bg-white shadow-ember dark:border-brand-500/40 dark:bg-slate-900'
@@ -104,14 +106,14 @@ export const PricingPage = () => {
             >
               {loggedIn ? 'Go to billing' : t.cta} <ArrowRight className="h-4 w-4" />
             </Link>
-          </div>
+          </StaggerItem>
         ))}
-      </section>
+      </StaggerGroup>
 
       {/* Comparison table */}
       <section className="mx-auto max-w-5xl px-5 pb-20">
         <h2 className="mb-6 text-center font-display text-2xl font-bold tracking-tight">Compare every feature</h2>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+        <Reveal className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -132,7 +134,7 @@ export const PricingPage = () => {
               ))}
             </tbody>
           </table>
-        </div>
+        </Reveal>
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
           Questions about plans? <Link to="/contact" className="font-semibold text-brand-600 hover:underline dark:text-brand-400">Talk to us →</Link>
         </p>

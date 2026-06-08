@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Mail, Send, Loader2, CheckCircle2, MessageSquare, BookOpen } from 'lucide-react';
 import { supportService } from '@/services/supportService';
 import { Eyebrow } from '@/components/marketing/Eyebrow';
+import { Reveal } from '@/components/marketing/motion';
 
 export const ContactPage = () => {
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '', company: '' });
@@ -35,7 +36,7 @@ export const ContactPage = () => {
 
   return (
     <section className="mx-auto max-w-5xl px-5 py-16 md:py-20">
-      <div className="grid gap-10 md:grid-cols-2">
+      <Reveal className="grid gap-10 md:grid-cols-2">
         {/* Left: intro + quick links */}
         <div>
           <Eyebrow>Support</Eyebrow>
@@ -118,7 +119,7 @@ export const ContactPage = () => {
             </form>
           )}
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 };

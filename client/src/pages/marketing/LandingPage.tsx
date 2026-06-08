@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { PLAN_PRICES } from '@/lib/plans';
 import { Eyebrow } from '@/components/marketing/Eyebrow';
+import { Reveal, StaggerGroup, StaggerItem } from '@/components/marketing/motion';
 
 /* A stylized faux Kanban board — the hero's memorable element. */
 const BoardMock = () => (
@@ -149,16 +150,16 @@ export const LandingPage = () => {
 
       {/* ── Feature rows ─────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-        <div className="mb-16 max-w-2xl">
+        <Reveal className="mb-16 max-w-2xl">
           <Eyebrow>Everything in one place</Eyebrow>
           <h2 className="mt-4 font-display text-4xl font-bold tracking-tight md:text-5xl">
             One workspace, from first task to enterprise.
           </h2>
-        </div>
+        </Reveal>
 
         <div className="space-y-px">
           {FEATURE_ROWS.map((row, i) => (
-            <div
+            <Reveal
               key={row.n}
               className={`grid items-center gap-8 border-t border-slate-200 py-12 dark:border-slate-800 md:grid-cols-12 ${i % 2 === 1 ? 'md:[&>*:first-child]:order-2' : ''}`}
             >
@@ -183,31 +184,31 @@ export const LandingPage = () => {
                   <row.icon className="relative h-16 w-16 text-brand-500/80" strokeWidth={1.25} />
                 </div>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* ── Stats band ───────────────────────────────────────────────────── */}
       <section className="border-y border-slate-200 bg-slate-900 text-white dark:border-slate-800">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-5 py-16 md:grid-cols-4">
+        <StaggerGroup className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-5 py-16 md:grid-cols-4">
           {[
             ['Real-time', 'Instant sync for everyone'],
             ['Per-seat', 'Pricing that scales fairly'],
             ['AI-native', 'Quick-add, summaries, search'],
             ['Secure', '2FA, roles & audit log'],
           ].map(([stat, label]) => (
-            <div key={stat}>
+            <StaggerItem key={stat}>
               <p className="font-display text-3xl font-extrabold tracking-tight gradient-text">{stat}</p>
               <p className="mt-1.5 text-sm text-slate-300">{label}</p>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerGroup>
       </section>
 
       {/* ── Pricing teaser ───────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-        <div className="grid items-center gap-10 md:grid-cols-2">
+        <Reveal className="grid items-center gap-10 md:grid-cols-2">
           <div>
             <Eyebrow>Simple pricing</Eyebrow>
             <h2 className="mt-4 font-display text-4xl font-bold tracking-tight md:text-5xl">
@@ -236,12 +237,12 @@ export const LandingPage = () => {
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── Closing CTA ──────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 pb-24">
-        <div className="gradient-brand mk-grain relative overflow-hidden rounded-[2rem] px-8 py-16 text-center md:py-20">
+        <Reveal className="gradient-brand mk-grain relative overflow-hidden rounded-[2rem] px-8 py-16 text-center md:py-20">
           <div className="pointer-events-none absolute -right-12 -top-12 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-56 w-56 rounded-full bg-black/10 blur-2xl" />
           <h2 className="relative font-display text-4xl font-extrabold tracking-tight text-white md:text-5xl">
@@ -251,7 +252,7 @@ export const LandingPage = () => {
           <Link to="/register" className="relative mt-8 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-bold text-slate-900 transition-transform hover:-translate-y-0.5">
             Start for free <ArrowRight className="h-4 w-4" />
           </Link>
-        </div>
+        </Reveal>
       </section>
     </div>
   );
