@@ -122,6 +122,30 @@ Under **Settings → Developer** (Pro plans) you can:
 See the full reference at \`/API.md\`.`,
   },
   {
+    slug: 'zapier-make-no-code',
+    title: 'Connect Zapier, Make & no-code tools',
+    category: 'Integrations',
+    excerpt: 'Automate TaskFlow with no-code platforms using webhooks and the API.',
+    body: `## Zapier, Make & no-code tools
+
+TaskFlow's webhooks and REST API work with any no-code automation platform.
+
+### Trigger automations FROM TaskFlow (webhooks)
+1. In your tool, create a flow that starts with a **Webhook / "Catch Hook"** trigger and copy its URL.
+2. In TaskFlow → **Settings → Developer → Webhooks**, add that URL and choose events
+   (\`task.created\`, \`task.completed\`, etc.).
+3. Use **Send test** to capture a sample payload, then map fields in your tool.
+
+We sign every delivery with \`X-TaskFlow-Signature\` (HMAC-SHA256) so you can verify it.
+
+### Take actions IN TaskFlow (API)
+Create an **API token** in **Settings → Developer**, then add an action step that calls
+the REST API — for example \`POST /api/v1/tasks\` with an \`Authorization: Bearer <token>\`
+header to create tasks from form submissions, emails, or CRM events.
+
+See the full reference at \`/API.md\`.`,
+  },
+  {
     slug: 'two-factor-auth',
     title: 'Two-factor authentication',
     category: 'Security',
