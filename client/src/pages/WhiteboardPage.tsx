@@ -5,6 +5,7 @@ import {
   ListTodo, Eraser, Loader2, Check, Presentation, Eye, Undo2, Redo2, Trash2,
   Copy, ArrowUpToLine, ArrowDownToLine, Lock, Unlock, Bold, Italic, Underline,
   List, AlignLeft, AlignCenter, AlignRight, Plus, Search, X,
+  ZoomIn, ZoomOut, Maximize2, Grid3x3, Map as MapIcon, LocateFixed,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -38,6 +39,9 @@ const NOTE_FILL = '#fde68a';
 const SHAPE_TYPES: ShapeType[] = ['note', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame'];
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+const MIN_ZOOM = 0.1, MAX_ZOOM = 5;
+type GridMode = 'dots' | 'lines' | 'off';
 const hexA = (hex: string, a: number) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
   const n = parseInt(m[1], 16);
@@ -128,6 +132,10 @@ export const WhiteboardPage = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const [grid, setGrid] = useState<GridMode>(() => (localStorage.getItem('wb-grid') as GridMode) || 'dots');
+  const [showMinimap, setShowMinimap] = useState(() => localStorage.getItem('wb-minimap') !== '0');
+  const [spaceHeld, setSpaceHeld] = useState(false);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
@@ -138,8 +146,11 @@ export const WhiteboardPage = () => {
   const [loading, setLoading] = useState(true);
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const offsetRef = useRef(offset); offsetRef.current = offset;
+  const scaleRef = useRef(scale); scaleRef.current = scale;
+  const spaceRef = useRef(false);
   const elsRef = useRef(elements); elsRef.current = elements;
   const selRef = useRef(selectedIds); selRef.current = selectedIds;
   const toolRef = useRef(tool); toolRef.current = tool;
@@ -207,8 +218,28 @@ export const WhiteboardPage = () => {
   useEffect(() => () => { if (dirtyRef.current && activeTeam && canEdit) whiteboardService.save(activeTeam._id, elsRef.current).catch(() => {}); }, [activeTeam?._id, canEdit]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const pt = (e: React.PointerEvent | PointerEvent) => { const r = svgRef.current!.getBoundingClientRect(); return { x: e.clientX - r.left - offsetRef.current.x, y: e.clientY - r.top - offsetRef.current.y }; };
-  const centerPt = () => { const r = svgRef.current?.getBoundingClientRect(); return { x: (r?.width ?? 800) / 2 - offsetRef.current.x, y: (r?.height ?? 600) / 2 - offsetRef.current.y }; };
+  const pt = (e: React.PointerEvent | PointerEvent) => { const r = svgRef.current!.getBoundingClientRect(); const z = scaleRef.current; return { x: (e.clientX - r.left - offsetRef.current.x) / z, y: (e.clientY - r.top - offsetRef.current.y) / z }; };
+  const centerPt = () => { const r = svgRef.current?.getBoundingClientRect(); const z = scaleRef.current; return { x: ((r?.width ?? 800) / 2 - offsetRef.current.x) / z, y: ((r?.height ?? 600) / 2 - offsetRef.current.y) / z }; };
+  // Zoom toward a screen anchor point, keeping the canvas point under it fixed.
+  const zoomTo = (next: number, ax: number, ay: number) => {
+    const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
+    const ns = clamp(next, MIN_ZOOM, MAX_ZOOM); const z = scaleRef.current; const o = offsetRef.current;
+    const cx = (ax - o.x) / z, cy = (ay - o.y) / z;
+    setOffset({ x: ax - cx * ns, y: ay - cy * ns }); setScale(ns);
+  };
+  const zoomBy = (factor: number) => { const r = svgRef.current?.getBoundingClientRect(); zoomTo(scaleRef.current * factor, (r?.width ?? 800) / 2, (r?.height ?? 600) / 2); };
+  const resetView = () => { setScale(1); setOffset({ x: 0, y: 0 }); };
+  const zoomToFit = () => {
+    const r = svgRef.current?.getBoundingClientRect(); const els = elsRef.current;
+    if (!r || !els.length) { resetView(); return; }
+    const m = byId(); let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const el of els) { const b = elBBox(el, m); if (!b.w && !b.h && el.type === 'connector') continue; minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
+    if (!isFinite(minX)) { resetView(); return; }
+    const pad = 80; const bw = maxX - minX + pad * 2, bh = maxY - minY + pad * 2;
+    const s = clamp(Math.min(r.width / bw, r.height / bh), MIN_ZOOM, 2);
+    setScale(s); setOffset({ x: r.width / 2 - (minX + (maxX - minX) / 2) * s, y: r.height / 2 - (minY + (maxY - minY) / 2) * s });
+  };
+  const cycleGrid = () => setGrid((g) => { const next: GridMode = g === 'dots' ? 'lines' : g === 'lines' ? 'off' : 'dots'; localStorage.setItem('wb-grid', next); return next; });
   const patch = (id: string, p: any) => setElements((els) => els.map((el) => (el.id === id ? ({ ...el, ...p } as El) : el)));
   const translateEl = (el: El, dx: number, dy: number): El => {
     if (el.type === 'path') return { ...el, points: el.points.map((q) => [q[0] + dx, q[1] + dy]) };
@@ -240,10 +271,10 @@ export const WhiteboardPage = () => {
   const onBgPointerDown = (e: React.PointerEvent) => {
     if (editingId) return;
     setCtxMenu(null);
+    if (spaceRef.current || tool === 'pan') { (e.target as Element).setPointerCapture?.(e.pointerId); opRef.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, ox: offset.x, oy: offset.y }; return; }
     if (tool === 'connector') { setConnectFrom(null); return; }
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const p = pt(e);
-    if (tool === 'pan') { opRef.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, ox: offset.x, oy: offset.y }; return; }
     if (!canEdit) { setSelectedIds([]); return; }
     if (tool === 'select') { if (!e.shiftKey) setSelectedIds([]); opRef.current = { kind: 'marquee', sx: p.x, sy: p.y, shift: e.shiftKey }; setMarquee({ x: p.x, y: p.y, w: 0, h: 0 }); return; }
     if (tool === 'eraser') return;
@@ -295,6 +326,7 @@ export const WhiteboardPage = () => {
   };
 
   const onElPointerDown = (e: React.PointerEvent, el: El) => {
+    if (spaceRef.current) return; // let the event bubble to the canvas for panning
     if (!canEdit || editingId) return;
     if (tool === 'eraser') { e.stopPropagation(); pushHistory(); emitOp({ kind: 'delete', id: el.id }); setElements((els) => els.filter((x) => x.id !== el.id && !(x.type === 'connector' && (x.from === el.id || x.to === el.id)))); return; }
     if (tool === 'connector') {
@@ -395,9 +427,35 @@ export const WhiteboardPage = () => {
 
   useEffect(() => { if (!ctxMenu) return; const close = () => setCtxMenu(null); window.addEventListener('click', close); return () => window.removeEventListener('click', close); }, [ctxMenu]);
 
+  // ── Wheel zoom / scroll-pan (native, non-passive so we can preventDefault) ──
+  useEffect(() => {
+    const node = wrapRef.current; if (!node) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
+      if (e.ctrlKey || e.metaKey) { zoomTo(scaleRef.current * Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top); }
+      else { setOffset((o) => ({ x: o.x - e.deltaX, y: o.y - e.deltaY })); }
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Hold-space to pan (works in view-only too) ─────────────────────────────
+  useEffect(() => {
+    const isTyping = () => { const a = document.activeElement; return !!editingId || (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || (a as HTMLElement).isContentEditable)); };
+    const down = (e: KeyboardEvent) => { if (e.code === 'Space' && !isTyping()) { e.preventDefault(); if (!spaceRef.current) { spaceRef.current = true; setSpaceHeld(true); } } };
+    const up = (e: KeyboardEvent) => { if (e.code === 'Space') { spaceRef.current = false; setSpaceHeld(false); } };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+  }, [editingId]);
+
+  useEffect(() => { localStorage.setItem('wb-minimap', showMinimap ? '1' : '0'); }, [showMinimap]);
+
   if (!activeTeam) return <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center text-sm text-slate-500">Select a team to open the whiteboard.</div>;
 
-  const cursor = tool === 'pan' ? 'grab' : tool === 'eraser' ? 'cell' : tool === 'connector' ? 'crosshair' : 'default';
+  const cursor = spaceHeld ? 'grab' : tool === 'pan' ? 'grab' : tool === 'eraser' ? 'cell' : tool === 'connector' ? 'crosshair' : 'default';
+  const hz = 1 / scale; // keep handles/hit-targets a constant screen size across zoom
   const HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
   const map = new Map(elements.map((e) => [e.id, e]));
   const selEls = elements.filter((e) => selectedIds.includes(e.id));
@@ -447,8 +505,8 @@ export const WhiteboardPage = () => {
           </foreignObject>
         ) : null)}
         {el.locked && <foreignObject x={b.x + b.w - 16} y={b.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
-        {selected && <rect x={b.x - 3} y={b.y - 3} width={b.w + 6} height={b.h + 6} rx={10} fill="none" stroke="#e8502e" strokeWidth={1.5} strokeDasharray="4 3" pointerEvents="none" />}
-        {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? b.x : b.x + b.w; const hy = c.includes('n') ? b.y : b.y + b.h; return <rect key={c} x={hx - 5} y={hy - 5} width={10} height={10} rx={2} fill="#fff" stroke="#e8502e" strokeWidth={1.5} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
+        {selected && <rect x={b.x - 3 * hz} y={b.y - 3 * hz} width={b.w + 6 * hz} height={b.h + 6 * hz} rx={10 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
+        {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? b.x : b.x + b.w; const hy = c.includes('n') ? b.y : b.y + b.h; return <rect key={c} x={hx - 5 * hz} y={hy - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
       </g>
     );
   };
@@ -483,12 +541,15 @@ export const WhiteboardPage = () => {
       </div>
 
       {/* Canvas */}
-      <div className="relative flex-1 overflow-hidden">
+      <div ref={wrapRef} className="relative flex-1 overflow-hidden">
         {loading && <div className="absolute inset-0 z-10 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>}
         <svg ref={svgRef} className="h-full w-full touch-none" style={{ cursor }} onPointerDown={onBgPointerDown} onPointerMove={onPointerMove} onPointerUp={endOp} onPointerLeave={endOp}>
-          <defs><pattern id="wb-grid" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform={`translate(${offset.x % 24} ${offset.y % 24})`}><circle cx="1" cy="1" r="1" className="fill-slate-200 dark:fill-slate-800" /></pattern></defs>
-          <rect width="100%" height="100%" fill="url(#wb-grid)" />
-          <g transform={`translate(${offset.x} ${offset.y})`}>
+          <defs>
+            <pattern id="wb-dots" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform={`translate(${offset.x} ${offset.y}) scale(${scale})`}><circle cx="1" cy="1" r="1" className="fill-slate-200 dark:fill-slate-800" /></pattern>
+            <pattern id="wb-lines" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform={`translate(${offset.x} ${offset.y}) scale(${scale})`}><path d="M24 0H0V24" fill="none" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth={1} vectorEffect="non-scaling-stroke" /></pattern>
+          </defs>
+          {grid !== 'off' && <rect width="100%" height="100%" fill={`url(#wb-${grid})`} />}
+          <g transform={`translate(${offset.x} ${offset.y}) scale(${scale})`}>
             {elements.map((el) => {
               const selected = selectedIds.includes(el.id);
               const moveCursor = tool === 'select' && canEdit && !el.locked ? 'move' : tool === 'eraser' && canEdit ? 'cell' : tool === 'connector' && canEdit ? 'crosshair' : cursor;
@@ -496,7 +557,7 @@ export const WhiteboardPage = () => {
                 const ends = connEnds(el, map); if (!ends) return null;
                 const ang = Math.atan2(ends.e.y - ends.s.y, ends.e.x - ends.s.x);
                 return (<g key={el.id} opacity={el.opacity ?? 1}>
-                  <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke="transparent" strokeWidth={14} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
+                  <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke="transparent" strokeWidth={14 * hz} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
                   <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke={el.stroke} strokeWidth={sw(el.strokeWidth)} strokeDasharray={dashOf(el)} pointerEvents="none" />
                   {el.arrow !== false && <polygon points={arrowHead(ends.e, ang)} fill={el.stroke} pointerEvents="none" />}
                   {selected && <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke="#e8502e" strokeWidth={sw(el.strokeWidth) + 4} strokeOpacity={0.25} pointerEvents="none" />}
@@ -505,11 +566,11 @@ export const WhiteboardPage = () => {
               if (el.type === 'line' || el.type === 'arrow') {
                 const ang = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
                 return (<g key={el.id} opacity={el.opacity ?? 1}>
-                  <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={14} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
+                  <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={14 * hz} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
                   <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={el.stroke} strokeWidth={sw(el.strokeWidth)} strokeDasharray={dashOf(el)} strokeLinecap="round" pointerEvents="none" />
                   {el.type === 'arrow' && <polygon points={arrowHead({ x: el.x2, y: el.y2 }, ang)} fill={el.stroke} pointerEvents="none" />}
                   {el.locked && <foreignObject x={(el.x1 + el.x2) / 2 - 7} y={(el.y1 + el.y2) / 2 - 7} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
-                  {selected && canEdit && tool === 'select' && !el.locked && ([1, 2] as const).map((end) => { const ex = end === 1 ? el.x1 : el.x2, ey = end === 1 ? el.y1 : el.y2; return <rect key={end} x={ex - 5} y={ey - 5} width={10} height={10} rx={2} fill="#fff" stroke="#e8502e" strokeWidth={1.5} onPointerDown={(e) => onLineHandleDown(e, el, end)} style={{ cursor: 'crosshair' }} />; })}
+                  {selected && canEdit && tool === 'select' && !el.locked && ([1, 2] as const).map((end) => { const ex = end === 1 ? el.x1 : el.x2, ey = end === 1 ? el.y1 : el.y2; return <rect key={end} x={ex - 5 * hz} y={ey - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onLineHandleDown(e, el, end)} style={{ cursor: 'crosshair' }} />; })}
                 </g>);
               }
               if (el.type === 'path') {
@@ -530,8 +591,8 @@ export const WhiteboardPage = () => {
                 return (<g key={el.id} opacity={el.opacity ?? 1}>
                   <image href={el.url} x={el.x} y={el.y} width={el.w} height={el.h} preserveAspectRatio="xMidYMid slice" onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
                   {el.locked && <foreignObject x={el.x + el.w - 16} y={el.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-white drop-shadow" /></foreignObject>}
-                  {selected && <rect x={el.x - 3} y={el.y - 3} width={el.w + 6} height={el.h + 6} rx={6} fill="none" stroke="#e8502e" strokeWidth={1.5} strokeDasharray="4 3" pointerEvents="none" />}
-                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5} y={hy - 5} width={10} height={10} rx={2} fill="#fff" stroke="#e8502e" strokeWidth={1.5} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
+                  {selected && <rect x={el.x - 3 * hz} y={el.y - 3 * hz} width={el.w + 6 * hz} height={el.h + 6 * hz} rx={6 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
+                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5 * hz} y={hy - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
                 </g>);
               }
               if (el.type === 'task') {
@@ -549,8 +610,8 @@ export const WhiteboardPage = () => {
                     </div>
                   </foreignObject>
                   {el.locked && <foreignObject x={el.x + el.w - 16} y={el.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
-                  {selected && <rect x={el.x - 3} y={el.y - 3} width={el.w + 6} height={el.h + 6} rx={14} fill="none" stroke="#e8502e" strokeWidth={1.5} strokeDasharray="4 3" pointerEvents="none" />}
-                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5} y={hy - 5} width={10} height={10} rx={2} fill="#fff" stroke="#e8502e" strokeWidth={1.5} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
+                  {selected && <rect x={el.x - 3 * hz} y={el.y - 3 * hz} width={el.w + 6 * hz} height={el.h + 6 * hz} rx={14 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
+                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5 * hz} y={hy - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
                 </g>);
               }
               return renderShape(el as Shape, selected, moveCursor);
@@ -634,6 +695,45 @@ export const WhiteboardPage = () => {
             </div>
           </div>
         )}
+        {/* Minimap */}
+        {showMinimap && !loading && elements.length > 0 && (() => {
+          const r = svgRef.current?.getBoundingClientRect(); const vw = r?.width ?? 0, vh = r?.height ?? 0;
+          const viewX = -offset.x / scale, viewY = -offset.y / scale, viewW = vw / scale, viewH = vh / scale;
+          let minX = viewX, minY = viewY, maxX = viewX + viewW, maxY = viewY + viewH;
+          for (const el of elements) { const b = elBBox(el, map); if (el.type === 'connector' && !b.w && !b.h) continue; minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
+          const pad = 40; minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+          const wW = Math.max(maxX - minX, 1), wH = Math.max(maxY - minY, 1);
+          const MW = 168, MH = 120; const ms = Math.min(MW / wW, MH / wH);
+          const cw = wW * ms, ch = wH * ms, ox = (MW - cw) / 2, oy = (MH - ch) / 2;
+          const toM = (x: number, y: number) => ({ x: ox + (x - minX) * ms, y: oy + (y - minY) * ms });
+          const recenter = (e: React.PointerEvent) => {
+            const br = (e.currentTarget as SVGElement).getBoundingClientRect();
+            const wx = minX + (e.clientX - br.left - ox) / ms, wy = minY + (e.clientY - br.top - oy) / ms;
+            setOffset({ x: vw / 2 - wx * scale, y: vh / 2 - wy * scale });
+          };
+          const vp = toM(viewX, viewY);
+          return (
+            <div className="absolute bottom-16 right-4 overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+              <svg width={MW} height={MH} className="touch-none" style={{ cursor: 'pointer' }} onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); recenter(e); }} onPointerMove={(e) => { if (e.buttons) recenter(e); }}>
+                <rect width={MW} height={MH} className="fill-slate-50 dark:fill-slate-800/50" />
+                {elements.map((el) => { if (el.type === 'connector') return null; const b = elBBox(el, map); const a = toM(b.x, b.y); const c = el.type === 'note' ? '#f59e0b' : el.type === 'task' ? '#0ea5e9' : el.type === 'image' ? '#22c55e' : '#94a3b8'; return <rect key={el.id} x={a.x} y={a.y} width={Math.max(2, b.w * ms)} height={Math.max(2, b.h * ms)} rx={1} fill={c} fillOpacity={0.55} />; })}
+                <rect x={vp.x} y={vp.y} width={viewW * ms} height={viewH * ms} fill="#e8502e15" stroke="#e8502e" strokeWidth={1.5} rx={2} pointerEvents="none" />
+              </svg>
+            </div>
+          );
+        })()}
+
+        {/* Zoom & view controls */}
+        <div className="absolute bottom-4 right-4 flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+          <button onClick={() => zoomBy(1 / 1.2)} title="Zoom out" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><ZoomOut className="h-4 w-4" /></button>
+          <button onClick={resetView} title="Reset to 100%" className="w-12 rounded-lg px-1 py-1 text-center text-xs font-medium tabular-nums text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">{Math.round(scale * 100)}%</button>
+          <button onClick={() => zoomBy(1.2)} title="Zoom in" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><ZoomIn className="h-4 w-4" /></button>
+          <div className="mx-0.5 h-5 w-px bg-slate-200 dark:bg-slate-700" />
+          <button onClick={zoomToFit} title="Zoom to fit" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><Maximize2 className="h-4 w-4" /></button>
+          <button onClick={resetView} title="Center / reset view" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><LocateFixed className="h-4 w-4" /></button>
+          <button onClick={cycleGrid} title={`Grid: ${grid}`} className={cn('rounded-lg p-1.5', grid !== 'off' ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><Grid3x3 className="h-4 w-4" /></button>
+          <button onClick={() => setShowMinimap((v) => !v)} title="Toggle minimap" className={cn('rounded-lg p-1.5', showMinimap ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><MapIcon className="h-4 w-4" /></button>
+        </div>
       </div>
 
       {/* Context menu */}
