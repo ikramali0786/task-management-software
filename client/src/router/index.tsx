@@ -35,6 +35,10 @@ const HelpPage        = lazy(() => import('@/pages/marketing/HelpPage').then(m =
 const HelpArticlePage = lazy(() => import('@/pages/marketing/HelpArticlePage').then(m => ({ default: m.HelpArticlePage })));
 const ContactPage     = lazy(() => import('@/pages/marketing/ContactPage').then(m => ({ default: m.ContactPage })));
 
+// ── Public share pages (no auth, no layout) ──────────────────────────────────
+const IntakeFormPage  = lazy(() => import('@/pages/public/IntakeFormPage').then(m => ({ default: m.IntakeFormPage })));
+const PublicBoardPage = lazy(() => import('@/pages/public/PublicBoardPage').then(m => ({ default: m.PublicBoardPage })));
+
 // ── Router definition ─────────────────────────────────────────────────────────
 
 export const router = createBrowserRouter([
@@ -47,6 +51,8 @@ export const router = createBrowserRouter([
   { path: '/verify-email', element: <VerifyEmailPage /> },
   { path: '/join', element: <JoinTeamPage /> },
   { path: '/privacy', element: <PrivacyPage /> },
+  { path: '/f/:token', element: <IntakeFormPage /> },
+  { path: '/b/:token', element: <PublicBoardPage /> },
 
   // Public marketing site
   {

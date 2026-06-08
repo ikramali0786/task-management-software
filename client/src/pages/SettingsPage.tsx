@@ -7,13 +7,14 @@ import {
   User, Lock, Sun, Moon, Monitor, Bell, BellOff,
   Volume2, VolumeX, CheckCircle2, AlertCircle, Users, Zap,
   Settings as SettingsIcon, Crown, Check, Sparkles, MessageSquare, CalendarClock, Mail,
-  Download, AlertTriangle, Minus, Globe, Code2, ScrollText, ListPlus,
+  Download, AlertTriangle, Minus, Globe, Code2, ScrollText, ListPlus, Share2,
 } from 'lucide-react';
 import { DeveloperSettings } from '@/components/settings/DeveloperSettings';
 import { AutomationSettings } from '@/components/settings/AutomationSettings';
 import { AuditLogSettings } from '@/components/settings/AuditLogSettings';
 import { CustomFieldSettings } from '@/components/settings/CustomFieldSettings';
 import { TwoFactorSettings } from '@/components/settings/TwoFactorSettings';
+import { SharingSettings } from '@/components/settings/SharingSettings';
 import { PageHeader } from '@/components/layout/PageContainer';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -30,7 +31,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn, getUserTimeZone, setUserTimeZone } from '@/lib/utils';
 import { Theme } from '@/types';
 
-type Tab = 'general' | 'billing' | 'notifications' | 'automations' | 'fields' | 'audit' | 'security' | 'appearance' | 'developer';
+type Tab = 'general' | 'billing' | 'notifications' | 'automations' | 'fields' | 'sharing' | 'audit' | 'security' | 'appearance' | 'developer';
 
 const TABS: { id: Tab; i18nKey: string; icon: React.ElementType }[] = [
   { id: 'general', i18nKey: 'settings.tabs.general', icon: User },
@@ -38,6 +39,7 @@ const TABS: { id: Tab; i18nKey: string; icon: React.ElementType }[] = [
   { id: 'notifications', i18nKey: 'settings.tabs.notifications', icon: Bell },
   { id: 'automations', i18nKey: 'settings.tabs.automations', icon: Zap },
   { id: 'fields', i18nKey: 'settings.tabs.fields', icon: ListPlus },
+  { id: 'sharing', i18nKey: 'settings.tabs.sharing', icon: Share2 },
   { id: 'developer', i18nKey: 'settings.tabs.developer', icon: Code2 },
   { id: 'audit', i18nKey: 'settings.tabs.audit', icon: ScrollText },
   { id: 'security', i18nKey: 'settings.tabs.security', icon: Lock },
@@ -50,7 +52,7 @@ const TAB_META = Object.fromEntries(TABS.map((t) => [t.id, t])) as Record<Tab, (
 // Grouped sections for the settings sidebar nav.
 const TAB_GROUPS: { heading: string; tabs: Tab[] }[] = [
   { heading: 'Account', tabs: ['general', 'notifications', 'security', 'appearance'] },
-  { heading: 'Workspace', tabs: ['billing', 'automations', 'fields', 'audit'] },
+  { heading: 'Workspace', tabs: ['billing', 'automations', 'fields', 'sharing', 'audit'] },
   { heading: 'Developer', tabs: ['developer'] },
 ];
 
@@ -801,6 +803,9 @@ export const SettingsPage = () => {
 
           {/* ── CUSTOM FIELDS ── */}
           {activeTab === 'fields' && <CustomFieldSettings />}
+
+          {/* ── SHARING ── */}
+          {activeTab === 'sharing' && <SharingSettings />}
 
           {/* ── DEVELOPER ── */}
           {activeTab === 'developer' && <DeveloperSettings />}

@@ -20,6 +20,8 @@ import automationRoutes from './automation.routes';
 import auditLogRoutes from './auditLog.routes';
 import customFieldRoutes from './customField.routes';
 import supportRoutes from './support.routes';
+import sharingRoutes from './sharing.routes';
+import publicRoutes from './public.routes';
 
 const router = Router();
 
@@ -44,5 +46,7 @@ router.use('/automations', automationRoutes);
 router.use('/audit', auditLogRoutes);
 router.use('/custom-fields', customFieldRoutes);
 router.use('/support', supportRoutes);
+router.use('/sharing', sharingRoutes);
+router.use('/public', publicRoutes);
 
 export default router;
