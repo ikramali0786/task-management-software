@@ -17,14 +17,15 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useUIStore } from '@/store/uiStore';
 
 const pageTitles: Record<string, string> = {
-  '/': 'Dashboard',
-  '/my-tasks': 'My Tasks',
-  '/board': 'Kanban Board',
-  '/team': 'Team',
-  '/workload': 'Workload',
-  '/activity': 'Activity',
-  '/chatbots': 'AI Chatbots',
-  '/settings': 'Settings',
+  '/app': 'Dashboard',
+  '/app/my-tasks': 'My Tasks',
+  '/app/board': 'Kanban Board',
+  '/app/team': 'Team',
+  '/app/workload': 'Workload',
+  '/app/activity': 'Activity',
+  '/app/chatbots': 'AI Chatbots',
+  '/app/calendar': 'Calendar',
+  '/app/settings': 'Settings',
 };
 
 /** Minimal spinner shown while a lazy-loaded page chunk is fetching */

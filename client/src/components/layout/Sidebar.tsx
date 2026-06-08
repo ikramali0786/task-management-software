@@ -12,6 +12,7 @@ import { useTeamStore } from '@/store/teamStore';
 import { useUIStore } from '@/store/uiStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { CreateTeamModal } from '@/components/team/CreateTeamModal';
+import { ProfilePanel } from '@/components/profile/ProfilePanel';
 
 const navItems = [
   { to: '/app', icon: LayoutDashboard, i18nKey: 'nav.dashboard', end: true, shortcut: 'D' },
@@ -34,6 +35,7 @@ export const Sidebar = () => {
   const location = useLocation();
   const [showTeamMenu, setShowTeamMenu] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Auto-close sidebar on small screens when navigating
   useEffect(() => {
@@ -238,22 +240,28 @@ export const Sidebar = () => {
               {sidebarCollapsed ? (
                 <div className="flex justify-center">
                   <button
-                    onClick={handleLogout}
-                    title="Logout"
-                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+                    onClick={() => setProfileOpen(true)}
+                    title="Account & settings"
+                    className="rounded-full ring-2 ring-transparent transition-all hover:ring-brand-400 focus:outline-none focus:ring-brand-500"
                   >
-                    <LogOut className="h-4 w-4" />
+                    <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-                  <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {user?.name}
-                    </p>
-                    <p className="truncate text-xs text-slate-400">{user?.email}</p>
-                  </div>
+                <div className="flex items-center gap-1.5 rounded-xl">
+                  <button
+                    onClick={() => setProfileOpen(true)}
+                    title="Account & settings"
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {user?.name}
+                      </p>
+                      <p className="truncate text-xs text-slate-400">{user?.email}</p>
+                    </div>
+                  </button>
                   <button
                     onClick={handleLogout}
                     className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
@@ -269,6 +277,7 @@ export const Sidebar = () => {
       </AnimatePresence>
 
       <CreateTeamModal isOpen={showCreateTeam} onClose={() => setShowCreateTeam(false)} />
+      <ProfilePanel isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </>
   );
 };
