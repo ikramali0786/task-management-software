@@ -22,6 +22,14 @@ export const taskService = {
       _id: string; title: string; identifier?: number; status: string; priority: string; score: number;
     }>;
   },
+  // Suggested due dates for open, unscheduled tasks (smart scheduling).
+  getSchedulingSuggestions: async (teamId: string) => {
+    const res = await api.get('/tasks/scheduling-suggestions', { params: { teamId } });
+    return res.data.data.suggestions as Array<{
+      taskId: string; identifier?: number; title: string; status: string; priority: string;
+      assignees: { name: string; avatar: string | null }[]; suggestedDate: string;
+    }>;
+  },
   // Advanced analytics aggregates (Business feature).
   getAnalytics: async (teamId: string, days = 30) => {
     const res = await api.get('/tasks/analytics', { params: { teamId, days } });

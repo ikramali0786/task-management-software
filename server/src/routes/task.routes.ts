@@ -13,6 +13,7 @@ import {
   semanticSearch,
   exportTasks,
   getAnalytics,
+  getSchedulingSuggestions,
   addSubtask,
   updateSubtask,
   deleteSubtask,
@@ -40,6 +41,7 @@ router.get('/search', searchTasks);
 router.post('/semantic-search', semanticSearch);
 router.get('/export', exportTasks);
 router.get('/analytics', getAnalytics);
+router.get('/scheduling-suggestions', getSchedulingSuggestions);
 
 // Bulk actions (must be before /:taskId)
 router.post('/bulk/update', bulkUpdateTasks);

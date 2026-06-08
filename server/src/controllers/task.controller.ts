@@ -375,6 +375,43 @@ export const exportTasks = asyncHandler(async (req: Request, res: Response) => {
   res.send('﻿' + csv); // UTF-8 BOM so Excel reads accents correctly
 });
 
+/* GET /tasks/scheduling-suggestions?teamId=… — suggest due dates for open,
+ * unscheduled tasks based on priority. */
+export const getSchedulingSuggestions = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+  await verifyTeamMember(teamId, req.user!._id.toString());
+
+  const OFFSET_DAYS: Record<string, number> = { urgent: 2, high: 5, medium: 10, low: 21 };
+  const RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+
+  const tasks = await Task.find({
+    team: teamId,
+    isArchived: false,
+    status: { $ne: 'done' },
+    dueDate: null,
+  })
+    .select('identifier title status priority assignees')
+    .populate('assignees', 'name avatar')
+    .limit(40)
+    .lean();
+
+  const now = Date.now();
+  const suggestions = tasks
+    .map((t: any) => ({
+      taskId: t._id.toString(),
+      identifier: t.identifier,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      assignees: (t.assignees || []).map((a: any) => ({ name: a.name, avatar: a.avatar || null })),
+      suggestedDate: new Date(now + (OFFSET_DAYS[t.priority] ?? 10) * 86_400_000).toISOString(),
+    }))
+    .sort((a, b) => (RANK[a.priority] ?? 9) - (RANK[b.priority] ?? 9));
+
+  sendSuccess(res, { suggestions });
+});
+
 /* GET /tasks/analytics?teamId=…&days=30 — advanced analytics (Business feature). */
 export const getAnalytics = asyncHandler(async (req: Request, res: Response) => {
   const { teamId } = req.query as Record<string, string>;
