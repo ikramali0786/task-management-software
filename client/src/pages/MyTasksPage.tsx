@@ -37,18 +37,28 @@ const SkeletonRow = () => (
 
 /* ─── Empty state ────────────────────────────────────────────────────────── */
 const EmptyState = ({ icon: Icon, message, sub }: { icon: React.ElementType; message: string; sub?: string }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-center">
-    <div className="mb-4 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800">
+  <motion.div
+    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+    className="flex flex-col items-center justify-center py-16 text-center"
+  >
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ delay: 0.08, type: 'spring', stiffness: 260, damping: 18 }}
+      className="mb-4 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800"
+    >
       <Icon className="h-7 w-7 text-slate-400" />
-    </div>
+    </motion.div>
     <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">{message}</p>
     {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
-  </div>
+  </motion.div>
 );
 
 /* ─── Task row ───────────────────────────────────────────────────────────── */
-interface TaskRowProps { task: Task; onClick: () => void; }
-const TaskRow = ({ task, onClick }: TaskRowProps) => {
+interface TaskRowProps { task: Task; onClick: () => void; index?: number; }
+const TaskRow = ({ task, onClick, index = 0 }: TaskRowProps) => {
   const overdue = isOverdueTask(task);
   const statusInfo = TASK_STATUSES.find((s) => s.id === task.status);
   const completedSubtasks = task.subtasks?.filter((s) => s.completed).length ?? 0;
@@ -57,9 +67,10 @@ const TaskRow = ({ task, onClick }: TaskRowProps) => {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: -6 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -6 }}
+      transition={{ delay: Math.min(index * 0.035, 0.4), duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       onClick={onClick}
       className="group flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
     >
@@ -148,8 +159,8 @@ const StatusGroup = ({ status, tasks, onTaskClick }: StatusGroupProps) => {
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            {tasks.map((task) => (
-              <TaskRow key={task._id} task={task} onClick={() => onTaskClick(task._id)} />
+            {tasks.map((task, i) => (
+              <TaskRow key={task._id} task={task} index={i} onClick={() => onTaskClick(task._id)} />
             ))}
           </motion.div>
         )}
@@ -349,8 +360,8 @@ export const MyTasksPage = () => {
           </div>
         ) : (
           <div>
-            {tabTasks.map((task) => (
-              <TaskRow key={task._id} task={task} onClick={() => openTaskDetail(task._id)} />
+            {tabTasks.map((task, i) => (
+              <TaskRow key={task._id} task={task} index={i} onClick={() => openTaskDetail(task._id)} />
             ))}
           </div>
         )}

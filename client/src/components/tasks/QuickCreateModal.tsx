@@ -184,10 +184,10 @@ export const QuickCreateModal = ({ isOpen, onClose }: Props) => {
           {/* Modal */}
           <div className="fixed inset-x-0 top-28 z-50 mx-auto max-w-lg px-4 pointer-events-none">
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: -8 }}
+              initial={{ opacity: 0, scale: 0.95, y: -12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -8 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 26 }}
               className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 pointer-events-auto"
             >
               {/* Header */}
