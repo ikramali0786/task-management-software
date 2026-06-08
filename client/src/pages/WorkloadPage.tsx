@@ -17,6 +17,7 @@ import { taskService } from '@/services/taskService';
 import { WorkloadEntry, ProjectProgress, TASK_STATUSES } from '@/types';
 import { PageContainer, PageHeader } from '@/components/layout/PageContainer';
 import { AiSummaryCard } from '@/components/ai/AiSummaryCard';
+import { AnalyticsPanel } from '@/components/analytics/AnalyticsPanel';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
@@ -521,6 +522,13 @@ export const WorkloadPage = () => {
             })}
           </motion.div>
         </>
+      )}
+
+      {/* ── Advanced analytics (Business) ───────────────────────────── */}
+      {activeTeam && (
+        <div className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
+          <AnalyticsPanel teamId={activeTeam._id} />
+        </div>
       )}
     </PageContainer>
   );

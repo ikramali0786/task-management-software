@@ -22,6 +22,19 @@ export const taskService = {
       _id: string; title: string; identifier?: number; status: string; priority: string; score: number;
     }>;
   },
+  // Advanced analytics aggregates (Business feature).
+  getAnalytics: async (teamId: string, days = 30) => {
+    const res = await api.get('/tasks/analytics', { params: { teamId, days } });
+    return res.data.data.analytics as {
+      days: number;
+      series: { date: string; created: number; completed: number }[];
+      throughput: number;
+      completionRate: number;
+      avgCycleDays: number | null;
+      byPriority: Record<string, number>;
+      topContributors: { id: string; name: string; avatar: string | null; completed: number }[];
+    };
+  },
   // Download all team tasks as a CSV or PDF blob (Business feature).
   exportFile: async (teamId: string, format: 'csv' | 'pdf' = 'csv'): Promise<Blob> => {
     const res = await api.get('/tasks/export', { params: { teamId, format }, responseType: 'blob' });

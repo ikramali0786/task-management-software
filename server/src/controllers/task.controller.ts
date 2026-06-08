@@ -375,6 +375,75 @@ export const exportTasks = asyncHandler(async (req: Request, res: Response) => {
   res.send('﻿' + csv); // UTF-8 BOM so Excel reads accents correctly
 });
 
+/* GET /tasks/analytics?teamId=…&days=30 — advanced analytics (Business feature). */
+export const getAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+
+  const team = await verifyTeamMember(teamId, req.user!._id.toString());
+  await assertFeature(team, 'advancedAnalytics', req.user!.email);
+
+  const mongoose = require('mongoose');
+  const teamObjId = new mongoose.Types.ObjectId(teamId);
+  const days = Math.min(180, Math.max(7, parseInt((req.query.days as string) || '30', 10) || 30));
+  const since = new Date(Date.now() - days * 86_400_000);
+  since.setHours(0, 0, 0, 0);
+
+  const [createdAgg, completedAgg, byPriorityAgg, contributorsAgg, cycleAgg] = await Promise.all([
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false, createdAt: { $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+    ]),
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$completedAt' } }, count: { $sum: 1 } } },
+    ]),
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false } },
+      { $group: { _id: '$priority', count: { $sum: 1 } } },
+    ]),
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
+      { $unwind: '$assignees' },
+      { $group: { _id: '$assignees', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 6 },
+    ]),
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
+      { $project: { cycle: { $subtract: ['$completedAt', '$createdAt'] } } },
+      { $group: { _id: null, avg: { $avg: '$cycle' } } },
+    ]),
+  ]);
+
+  const createdMap: Record<string, number> = Object.fromEntries(createdAgg.map((d: any) => [d._id, d.count]));
+  const completedMap: Record<string, number> = Object.fromEntries(completedAgg.map((d: any) => [d._id, d.count]));
+  const series: Array<{ date: string; created: number; completed: number }> = [];
+  for (let i = 0; i < days; i++) {
+    const key = new Date(since.getTime() + i * 86_400_000).toISOString().slice(0, 10);
+    series.push({ date: key, created: createdMap[key] || 0, completed: completedMap[key] || 0 });
+  }
+
+  const throughput = completedAgg.reduce((a: number, d: any) => a + d.count, 0);
+  const createdTotal = createdAgg.reduce((a: number, d: any) => a + d.count, 0);
+  const completionRate = createdTotal > 0 ? Math.round((throughput / createdTotal) * 100) : 0;
+  const avgCycleDays = cycleAgg[0]?.avg ? Math.round((cycleAgg[0].avg / 86_400_000) * 10) / 10 : null;
+
+  const contributorIds = contributorsAgg.map((c: any) => c._id);
+  const users = await User.find({ _id: { $in: contributorIds } }).select('name avatar').lean();
+  const uMap: Record<string, any> = Object.fromEntries(users.map((u: any) => [u._id.toString(), u]));
+  const topContributors = contributorsAgg.map((c: any) => ({
+    id: c._id.toString(),
+    name: uMap[c._id.toString()]?.name || 'Unknown',
+    avatar: uMap[c._id.toString()]?.avatar || null,
+    completed: c.count,
+  }));
+
+  const byPriority = byPriorityAgg.reduce((acc: Record<string, number>, i: any) => { acc[i._id] = i.count; return acc; }, {});
+
+  sendSuccess(res, { analytics: { days, series, throughput, completionRate, avgCycleDays, byPriority, topContributors } });
+});
+
 /* POST /tasks/semantic-search { teamId, query, limit? } — meaning-based search. */
 export const semanticSearch = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
