@@ -5,7 +5,7 @@ import { Team } from '../models/Team.model';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
-import { getIO } from '../config/socket';
+import { hasPermission } from '../utils/permissions';
 
 const verifyMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -34,7 +34,12 @@ export const saveWhiteboard = asyncHandler(async (req: Request, res: Response) =
   const parsed = schema.safeParse(req.body ?? {});
   if (!parsed.success) throw new ApiError(400, 'Invalid board payload.');
 
-  await verifyMember(teamId, req.user!._id.toString());
+  const userId = req.user!._id.toString();
+  const team = await verifyMember(teamId, userId);
+  // Read-only members (viewers / guests) can view but not persist changes.
+  if (!hasPermission(team, userId, 'commentOnTasks')) {
+    throw new ApiError(403, 'You have read-only access to this whiteboard.', { code: 'PERMISSION_DENIED' });
+  }
 
   const board = await Whiteboard.findOneAndUpdate(
     { team: teamId },
@@ -42,15 +47,7 @@ export const saveWhiteboard = asyncHandler(async (req: Request, res: Response) =
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
-  // Tell other viewers to reload (simple last-writer-wins, excludes the sender).
-  const io = getIO();
-  if (io) {
-    io.to(`team:${teamId}`).emit('whiteboard:updated', {
-      teamId,
-      updatedBy: req.user!._id.toString(),
-      updatedAt: board.updatedAt,
-    });
-  }
-
+  // Live propagation happens via socket `whiteboard:op` events (element-level);
+  // this endpoint only persists the merged result for fresh loads.
   sendSuccess(res, { updatedAt: board.updatedAt }, 'Saved.');
 });

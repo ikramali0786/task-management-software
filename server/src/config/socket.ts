@@ -49,6 +49,13 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
       }
     });
 
+    // Relay live whiteboard operations to the rest of the team (element-level
+    // last-writer-wins, so concurrent edits to different elements don't clobber).
+    socket.on('whiteboard:op', (data: { teamId: string; op: unknown }) => {
+      if (!data?.teamId) return;
+      socket.to(`team:${data.teamId}`).emit('whiteboard:op', data.op);
+    });
+
     // Handle task move from Kanban DnD
     socket.on(
       'task:move',
