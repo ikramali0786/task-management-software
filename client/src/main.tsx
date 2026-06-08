@@ -4,6 +4,13 @@ import App from './App';
 import './i18n';
 import './styles/globals.css';
 
+// Register the service worker (production only) to make TaskFlow installable.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {/* Global Suspense fallback for lazy-loaded route chunks */}
