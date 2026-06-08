@@ -56,6 +56,22 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
       socket.to(`team:${data.teamId}`).emit('whiteboard:op', data.op);
     });
 
+    // ── Live collaboration: cursors, selection awareness, presence ──────────
+    // Server stamps identity so clients can't spoof other users' names.
+    const wbUid = (user._id as any).toString();
+    socket.on('whiteboard:cursor', (data: { teamId: string; x: number; y: number }) => {
+      if (!data?.teamId) return;
+      socket.to(`team:${data.teamId}`).emit('whiteboard:cursor', { userId: wbUid, name: user.name, x: data.x, y: data.y });
+    });
+    socket.on('whiteboard:selection', (data: { teamId: string; ids: string[] }) => {
+      if (!data?.teamId) return;
+      socket.to(`team:${data.teamId}`).emit('whiteboard:selection', { userId: wbUid, name: user.name, ids: Array.isArray(data.ids) ? data.ids : [] });
+    });
+    socket.on('whiteboard:leave', (data: { teamId: string }) => {
+      if (!data?.teamId) return;
+      socket.to(`team:${data.teamId}`).emit('whiteboard:leave', { userId: wbUid });
+    });
+
     // Handle task move from Kanban DnD
     socket.on(
       'task:move',

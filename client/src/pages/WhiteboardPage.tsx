@@ -42,6 +42,9 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const MIN_ZOOM = 0.1, MAX_ZOOM = 5;
 type GridMode = 'dots' | 'lines' | 'off';
+type Peer = { name: string; x: number; y: number; ids: string[]; lastSeen: number };
+const peerColor = (id: string) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360; return `hsl(${h} 65% 45%)`; };
+const PEER_TTL = 12000;
 const hexA = (hex: string, a: number) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
   const n = parseInt(m[1], 16);
@@ -136,6 +139,7 @@ export const WhiteboardPage = () => {
   const [grid, setGrid] = useState<GridMode>(() => (localStorage.getItem('wb-grid') as GridMode) || 'dots');
   const [showMinimap, setShowMinimap] = useState(() => localStorage.getItem('wb-minimap') !== '0');
   const [spaceHeld, setSpaceHeld] = useState(false);
+  const [peers, setPeers] = useState<Record<string, Peer>>({});
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
@@ -162,10 +166,14 @@ export const WhiteboardPage = () => {
   const undoRef = useRef<El[][]>([]);
   const redoRef = useRef<El[][]>([]);
   const clipRef = useRef<El[]>([]);
+  const cursorTickRef = useRef(0);
+  const liveTickRef = useRef(0);
 
   // ── Live ops ───────────────────────────────────────────────────────────────
   const emitOp = (op: any) => { if (activeTeam) getSocket()?.emit('whiteboard:op', { teamId: activeTeam._id, op }); };
   const emitUpsert = (id: string) => { const el = elsRef.current.find((e) => e.id === id); if (el) emitOp({ kind: 'upsert', el }); };
+  // Throttled broadcast of in-progress edits so teammates see drawing/moving live.
+  const liveEmit = (ids: string[]) => { const now = Date.now(); if (now - liveTickRef.current < 55) return; liveTickRef.current = now; for (const id of ids) emitUpsert(id); };
   const broadcastDiff = (prev: El[], next: El[]) => {
     const pm = new Map(prev.map((e) => [e.id, JSON.stringify(e)]));
     const nm = new Map(next.map((e) => [e.id, e]));
@@ -290,22 +298,24 @@ export const WhiteboardPage = () => {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    // Broadcast our cursor (throttled) regardless of whether an op is active.
+    if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = pt(e); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, x: c.x, y: c.y }); } }
     const op = opRef.current; if (!op) return;
     if (op.kind === 'pan') { setOffset({ x: op.ox + (e.clientX - op.sx), y: op.oy + (e.clientY - op.sy) }); return; }
     const p = pt(e);
     if (op.kind === 'marquee') setMarquee({ x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) });
-    else if (op.kind === 'draw') setElements((els) => els.map((el) => el.id === op.id && el.type === 'path' ? { ...el, points: [...el.points, [p.x, p.y]] } : el));
-    else if (op.kind === 'lineDraw') patch(op.id, { x2: p.x, y2: p.y });
-    else if (op.kind === 'lineHandle') patch(op.id, op.end === 1 ? { x1: p.x, y1: p.y } : { x2: p.x, y2: p.y });
-    else if (op.kind === 'resize') patch(op.id, { x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) });
-    else if (op.kind === 'move') { const dx = p.x - op.sx, dy = p.y - op.sy; setElements((els) => els.map((el) => op.orig[el.id] ? translateEl(op.orig[el.id], dx, dy) : el)); }
+    else if (op.kind === 'draw') { setElements((els) => els.map((el) => el.id === op.id && el.type === 'path' ? { ...el, points: [...el.points, [p.x, p.y]] } : el)); liveEmit([op.id]); }
+    else if (op.kind === 'lineDraw') { patch(op.id, { x2: p.x, y2: p.y }); liveEmit([op.id]); }
+    else if (op.kind === 'lineHandle') { patch(op.id, op.end === 1 ? { x1: p.x, y1: p.y } : { x2: p.x, y2: p.y }); liveEmit([op.id]); }
+    else if (op.kind === 'resize') { patch(op.id, { x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) }); liveEmit([op.id]); }
+    else if (op.kind === 'move') { const dx = p.x - op.sx, dy = p.y - op.sy; setElements((els) => els.map((el) => op.orig[el.id] ? translateEl(op.orig[el.id], dx, dy) : el)); liveEmit(Object.keys(op.orig)); }
     else if (op.kind === 'handle') {
       const minS = 12; let { x, y, w, h } = op;
       if (op.corner.includes('e')) w = Math.max(minS, p.x - op.x);
       if (op.corner.includes('s')) h = Math.max(minS, p.y - op.y);
       if (op.corner.includes('w')) { const nx = Math.min(p.x, op.x + op.w - minS); w = op.x + op.w - nx; x = nx; }
       if (op.corner.includes('n')) { const ny = Math.min(p.y, op.y + op.h - minS); h = op.y + op.h - ny; y = ny; }
-      patch(op.id, { x, y, w, h });
+      patch(op.id, { x, y, w, h }); liveEmit([op.id]);
     }
   };
 
@@ -452,6 +462,22 @@ export const WhiteboardPage = () => {
 
   useEffect(() => { localStorage.setItem('wb-minimap', showMinimap ? '1' : '0'); }, [showMinimap]);
 
+  // ── Live collaboration: receive cursors / selection / presence ─────────────
+  useEffect(() => {
+    const socket = getSocket(); if (!socket || !activeTeam) return;
+    const onCursor = (d: { userId: string; name: string; x: number; y: number }) => setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: d.x, y: d.y, ids: p[d.userId]?.ids ?? [], lastSeen: Date.now() } }));
+    const onSelection = (d: { userId: string; name: string; ids: string[] }) => setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: p[d.userId]?.x ?? 0, y: p[d.userId]?.y ?? 0, ids: d.ids, lastSeen: Date.now() } }));
+    const onLeave = (d: { userId: string }) => setPeers((p) => { const n = { ...p }; delete n[d.userId]; return n; });
+    socket.on('whiteboard:cursor', onCursor);
+    socket.on('whiteboard:selection', onSelection);
+    socket.on('whiteboard:leave', onLeave);
+    const sweep = setInterval(() => setPeers((p) => { const now = Date.now(); let changed = false; const n: Record<string, Peer> = {}; for (const k in p) { if (now - p[k].lastSeen < PEER_TTL) n[k] = p[k]; else changed = true; } return changed ? n : p; }), 4000);
+    return () => { socket.off('whiteboard:cursor', onCursor); socket.off('whiteboard:selection', onSelection); socket.off('whiteboard:leave', onLeave); clearInterval(sweep); socket.emit('whiteboard:leave', { teamId: activeTeam._id }); setPeers({}); };
+  }, [activeTeam?._id]);
+
+  // Broadcast our selection so teammates see what we have highlighted.
+  useEffect(() => { if (activeTeam) getSocket()?.emit('whiteboard:selection', { teamId: activeTeam._id, ids: selectedIds }); }, [selectedIds, activeTeam?._id]);
+
   if (!activeTeam) return <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center text-sm text-slate-500">Select a team to open the whiteboard.</div>;
 
   const cursor = spaceHeld ? 'grab' : tool === 'pan' ? 'grab' : tool === 'eraser' ? 'cell' : tool === 'connector' ? 'crosshair' : 'default';
@@ -533,6 +559,14 @@ export const WhiteboardPage = () => {
           </>
         )}
         <div className="ml-auto flex items-center gap-3 text-xs text-slate-400">
+          {Object.keys(peers).length > 0 && (
+            <div className="flex items-center -space-x-1.5" title={`${Object.keys(peers).length} here now`}>
+              {Object.entries(peers).slice(0, 5).map(([k, pr]) => (
+                <span key={k} title={pr.name} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white dark:border-slate-900" style={{ background: peerColor(k) }}>{(pr.name || '?').slice(0, 1).toUpperCase()}</span>
+              ))}
+              {Object.keys(peers).length > 5 && <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-400 text-[10px] font-semibold text-white dark:border-slate-900">+{Object.keys(peers).length - 5}</span>}
+            </div>
+          )}
           {connectFrom && <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">Pick target…</span>}
           {selectedIds.length > 1 && <span className="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">{selectedIds.length} selected</span>}
           {!canEdit && <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-500 dark:bg-slate-800"><Eye className="h-3.5 w-3.5" /> View only</span>}
@@ -618,6 +652,22 @@ export const WhiteboardPage = () => {
             })}
             {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} fill="#e8502e10" stroke="#e8502e" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />}
             {connectFrom && (() => { const f = map.get(connectFrom); if (!f) return null; const b = elBBox(f, map); return <rect x={b.x - 4} y={b.y - 4} width={b.w + 8} height={b.h + 8} rx={8} fill="none" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="5 4" pointerEvents="none" />; })()}
+            {/* Teammate selection highlights + live cursors */}
+            {Object.entries(peers).map(([k, pr]) => {
+              const col = peerColor(k);
+              return (<g key={k} pointerEvents="none">
+                {pr.ids.map((id) => { const el = map.get(id); if (!el) return null; const b = elBBox(el, map); return <rect key={id} x={b.x - 2 * hz} y={b.y - 2 * hz} width={b.w + 4 * hz} height={b.h + 4 * hz} rx={6 * hz} fill="none" stroke={col} strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} />; })}
+                {(pr.x !== 0 || pr.y !== 0) && (
+                  <g transform={`translate(${pr.x} ${pr.y}) scale(${hz})`}>
+                    <path d="M0 0 L0 17 L4.6 12.6 L7.7 18.6 L10.2 17.4 L7.1 11.5 L13.4 11.5 Z" fill={col} stroke="#fff" strokeWidth={1} />
+                    <g transform="translate(13 11)">
+                      <rect rx={4} ry={4} height={17} width={(pr.name || '?').length * 6.4 + 12} fill={col} />
+                      <text x={6} y={12.5} fill="#fff" fontSize={11} fontWeight={600}>{pr.name}</text>
+                    </g>
+                  </g>
+                )}
+              </g>);
+            })}
           </g>
         </svg>
 
