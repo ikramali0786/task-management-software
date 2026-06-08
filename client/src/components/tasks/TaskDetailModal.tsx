@@ -46,6 +46,9 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [localDueDate, setLocalDueDate] = useState<string>(
     task?.dueDate ? task.dueDate.slice(0, 10) : ''
   );
+  const [localStartDate, setLocalStartDate] = useState<string>(
+    task?.startDate ? task.startDate.slice(0, 10) : ''
+  );
   const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks || []);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(task?.timeEntries || []);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task?.estimatedMinutes ?? null);
@@ -97,6 +100,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       setTitle(task.title);
       setDescription(task.description);
       setLocalDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '');
+      setLocalStartDate(task.startDate ? task.startDate.slice(0, 10) : '');
       setSubtasks(task.subtasks || []);
       setTimeEntries(task.timeEntries || []);
       setEstimatedMinutes(task.estimatedMinutes ?? null);
@@ -114,6 +118,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       if (changes.title !== undefined) setTitle(changes.title);
       if (changes.description !== undefined) setDescription(changes.description);
       if (changes.dueDate !== undefined) setLocalDueDate(changes.dueDate ? changes.dueDate.slice(0, 10) : '');
+      if ((changes as any).startDate !== undefined) setLocalStartDate((changes as any).startDate ? (changes as any).startDate.slice(0, 10) : '');
       if (changes.subtasks !== undefined) setSubtasks(changes.subtasks);
       setLiveUpdated(true);
       setTimeout(() => setLiveUpdated(false), 2000);
@@ -144,7 +149,7 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSave = async (changes: Partial<Task>) => {
     setSaving(true);
-    const SAFE_FIELDS: (keyof Task)[] = ['title', 'description', 'status', 'priority', 'dueDate', 'labels', 'completedAt', 'recurrence'];
+    const SAFE_FIELDS: (keyof Task)[] = ['title', 'description', 'status', 'priority', 'startDate', 'dueDate', 'labels', 'completedAt', 'recurrence'];
     const optimistic: Partial<Task> = {};
     for (const key of SAFE_FIELDS) {
       if (key in changes) (optimistic as any)[key] = (changes as any)[key];
@@ -699,6 +704,25 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Start Date */}
+              <div>
+                <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <Calendar className="h-3.5 w-3.5" /> Start Date
+                </label>
+                <input
+                  type="date"
+                  value={localStartDate}
+                  onChange={(e) => setLocalStartDate(e.target.value)}
+                  onBlur={(e) => {
+                    const newDate = e.target.value || null;
+                    const currentDate = (fullTask as any).startDate ? (fullTask as any).startDate.slice(0, 10) : null;
+                    if (newDate !== currentDate) handleSave({ startDate: newDate } as any);
+                  }}
+                  className="input-field w-full"
+                />
+                <p className="mt-1.5 text-[11px] text-slate-400">Sets the task's span on the Timeline.</p>
               </div>
 
               {/* Due Date */}

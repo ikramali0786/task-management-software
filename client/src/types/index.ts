@@ -158,6 +158,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   labels: TaskLabel[];
+  startDate?: string | null;
   dueDate: string | null;
   completedAt: string | null;
   recurrence?: Recurrence;

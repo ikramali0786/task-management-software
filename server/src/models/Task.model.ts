@@ -37,6 +37,7 @@ export interface ITask extends Document {
   status: TaskStatus;
   priority: TaskPriority;
   labels: Array<{ name: string; color: string }>;
+  startDate: Date | null;
   dueDate: Date | null;
   completedAt: Date | null;
   reminderSentAt: Date | null;   // when a "due soon" reminder was last sent
@@ -98,6 +99,7 @@ const TaskSchema = new Schema<ITask>(
         color: { type: String, default: '#e8502e' },
       },
     ],
+    startDate: { type: Date, default: null },
     dueDate: { type: Date, default: null },
     completedAt: { type: Date, default: null },
     reminderSentAt: { type: Date, default: null },

@@ -117,6 +117,7 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
     priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
     labels: z.array(z.object({ name: z.string(), color: z.string() })).optional(),
+    startDate: z.string().optional().nullable(),
     dueDate: z.string().optional().nullable(),
     recurrence: recurrenceSchema,
   });
@@ -149,6 +150,7 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     status,
     priority: parsed.data.priority || 'medium',
     labels: parsed.data.labels || [],
+    startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
     dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
     recurrence: parsed.data.recurrence
       ? {
@@ -559,6 +561,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
     priority: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
     labels: z.array(z.object({ name: z.string(), color: z.string() })).optional(),
+    startDate: z.string().optional().nullable(),
     dueDate: z.string().optional().nullable(),
     position: z.number().optional(),
     recurrence: recurrenceSchema,
@@ -600,6 +603,10 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
       task.overdueSentAt = null;
     }
     task.dueDate = nextDue;
+  }
+
+  if (parsed.data.startDate !== undefined) {
+    task.startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : null;
   }
 
   Object.assign(task, {

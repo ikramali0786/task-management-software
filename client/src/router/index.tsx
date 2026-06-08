@@ -21,6 +21,7 @@ const ChatbotsPage = lazy(() => import('@/pages/ChatbotsPage').then(m => ({ defa
 const CalendarPage = lazy(() => import('@/pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const MyTasksPage  = lazy(() => import('@/pages/MyTasksPage').then(m => ({ default: m.MyTasksPage })));
 const GoalsPage    = lazy(() => import('@/pages/GoalsPage').then(m => ({ default: m.GoalsPage })));
+const TimelinePage = lazy(() => import('@/pages/TimelinePage').then(m => ({ default: m.TimelinePage })));
 const StatusPage   = lazy(() => import('@/pages/StatusPage').then(m => ({ default: m.StatusPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage  = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
@@ -83,6 +84,7 @@ export const router = createBrowserRouter([
       { path: 'board',    element: <KanbanPage /> },
       { path: 'team',     element: <TeamPage /> },
       { path: 'workload', element: <WorkloadPage /> },
+      { path: 'timeline', element: <TimelinePage /> },
       { path: 'goals',    element: <GoalsPage /> },
       { path: 'activity', element: <ActivityPage /> },
       { path: 'chatbots', element: <ChatbotsPage /> },

@@ -31,6 +31,7 @@ export const serializeTask = (task: any) => {
     labels: (t.labels || []).map((l: any) => ({ name: l.name, color: l.color })),
     assignees: (t.assignees || []).map(person),
     createdBy: person(t.createdBy),
+    startDate: t.startDate ? new Date(t.startDate).toISOString() : null,
     dueDate: t.dueDate ? new Date(t.dueDate).toISOString() : null,
     completedAt: t.completedAt ? new Date(t.completedAt).toISOString() : null,
     estimatedMinutes: t.estimatedMinutes ?? null,
