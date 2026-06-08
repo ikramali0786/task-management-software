@@ -22,6 +22,11 @@ export const taskService = {
       _id: string; title: string; identifier?: number; status: string; priority: string; score: number;
     }>;
   },
+  // Replace a task's external links (GitHub/Jira/…); server detects provider + label.
+  setLinks: async (taskId: string, links: { url: string; label?: string }[]) => {
+    const res = await api.patch(`/tasks/${taskId}/links`, { links });
+    return res.data.data.links as { url: string; label: string; provider: string }[];
+  },
   // Suggested due dates for open, unscheduled tasks (smart scheduling).
   getSchedulingSuggestions: async (teamId: string) => {
     const res = await api.get('/tasks/scheduling-suggestions', { params: { teamId } });

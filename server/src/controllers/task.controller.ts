@@ -1273,6 +1273,54 @@ export const updateCustomFields = asyncHandler(async (req: Request, res: Respons
   sendSuccess(res, { customFields: merged });
 });
 
+/** Detect the provider + a friendly label for an external link. */
+const detectLink = (rawUrl: string, label?: string): { url: string; label: string; provider: string } | null => {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { return null; }
+  if (!/^https?:$/.test(url.protocol)) return null;
+  const host = url.host.toLowerCase();
+  let provider = 'link';
+  let derived = host.replace(/^www\./, '');
+
+  if (host === 'github.com' || host.endsWith('.github.com')) {
+    provider = 'github';
+    const m = url.pathname.match(/^\/([^/]+)\/([^/]+)\/(?:issues|pull)\/(\d+)/);
+    if (m) derived = `${m[1]}/${m[2]}#${m[3]}`;
+  } else if (host === 'gitlab.com' || host.endsWith('.gitlab.com')) {
+    provider = 'gitlab';
+    const m = url.pathname.match(/\/-\/(?:issues|merge_requests)\/(\d+)/);
+    if (m) derived = `#${m[1]}`;
+  } else if (host.endsWith('atlassian.net') || /\/browse\//.test(url.pathname)) {
+    provider = 'jira';
+    const m = url.pathname.match(/\/browse\/([A-Za-z][A-Za-z0-9]+-\d+)/);
+    if (m) derived = m[1].toUpperCase();
+  }
+  return { url: rawUrl, label: sanitizeText((label && label.trim()) || derived).slice(0, 120), provider };
+};
+
+/* PATCH /tasks/:taskId/links  { links: [{ url, label? }] } — replace the link set. */
+export const updateTaskLinks = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    links: z.array(z.object({ url: z.string().url(), label: z.string().max(120).optional() })).max(20),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'A valid links array is required.');
+
+  const task = await Task.findById(req.params.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+  const uid = req.user!._id.toString();
+  const team = await verifyTeamMember(task.team.toString(), uid);
+  assertCanEditTask(team, uid, task);
+
+  const links = parsed.data.links.map((l) => detectLink(l.url, l.label)).filter(Boolean) as any[];
+  task.links = links;
+  await task.save();
+
+  const io = getIO();
+  if (io) io.to(`team:${task.team}`).emit('task:updated', { taskId: task._id, changes: { links } });
+  sendSuccess(res, { links });
+});
+
 /* ── Task dependencies ───────────────────────────────────────────────────── */
 
 const DEP_POPULATE = [

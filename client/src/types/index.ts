@@ -172,6 +172,7 @@ export interface Task {
   blockedBy?: DependencyTask[];
   blocks?: DependencyTask[];
   customFields?: Record<string, unknown>;
+  links?: { url: string; label: string; provider: string }[];
   createdAt: string;
   updatedAt: string;
 }

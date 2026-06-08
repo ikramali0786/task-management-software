@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Calendar, Flag, Users, Trash2, CheckCircle2, Wifi,
   Paperclip, MessageSquare, AlertTriangle, Clock, Info, ShieldAlert, Repeat,
+  Github, Link2, Plus,
 } from 'lucide-react';
 import { Task, TaskStatus, TaskPriority, Subtask, TimeEntry, TASK_STATUSES, PRIORITY_CONFIG, User, RecurrenceFrequency } from '@/types';
 import { taskService } from '@/services/taskService';
@@ -57,6 +58,28 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [activeTab, setActiveTab] = useState<'comments' | 'attachments'>('comments');
   const [editingDesc, setEditingDesc] = useState(false);
   const storeSyncMountedRef = useRef(false);
+
+  // ── Linked items (GitHub/Jira/…) ──────────────────────────────────────────
+  const [linkUrl, setLinkUrl] = useState('');
+  const saveLinks = async (links: { url: string; label?: string }[]) => {
+    try {
+      const updated = await taskService.setLinks(taskId, links);
+      setFullTask((prev) => (prev ? { ...prev, links: updated } : prev));
+    } catch {
+      addToast({ type: 'error', title: 'Could not update links' });
+    }
+  };
+  const addLink = () => {
+    const u = linkUrl.trim();
+    if (!u) return;
+    try { new URL(u); } catch { addToast({ type: 'error', title: 'Enter a valid URL' }); return; }
+    const next = [...(fullTask?.links || []).map((l) => ({ url: l.url, label: l.label })), { url: u }];
+    setLinkUrl('');
+    saveLinks(next);
+  };
+  const removeLink = (url: string) => {
+    saveLinks((fullTask?.links || []).filter((l) => l.url !== url).map((l) => ({ url: l.url, label: l.label })));
+  };
 
   // ── Dependency state ──────────────────────────────────────────────────────
   const [depSearch, setDepSearch] = useState('');
@@ -589,6 +612,40 @@ export const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                       })}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Linked items (GitHub / Jira / GitLab / any URL) */}
+              <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-700/60 dark:bg-slate-800/40">
+                <div className="mb-3 flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-slate-400" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Linked items</span>
+                </div>
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {(fullTask.links || []).length === 0 ? (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">No linked issues or PRs</p>
+                  ) : (
+                    (fullTask.links || []).map((l) => {
+                      const Icon = l.provider === 'github' ? Github : Link2;
+                      return (
+                        <span key={l.url} className="flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:ring-slate-600">
+                          <Icon className="h-3 w-3 flex-shrink-0" />
+                          <a href={l.url} target="_blank" rel="noreferrer" className="max-w-[160px] truncate hover:text-brand-600 dark:hover:text-brand-400">{l.label}</a>
+                          <button onClick={() => removeLink(l.url)} className="ml-0.5 rounded-full p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600" title="Remove link"><X className="h-2.5 w-2.5" /></button>
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLink(); } }}
+                    placeholder="Paste a GitHub / Jira / GitLab link…"
+                    className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  />
+                  <button onClick={addLink} className="rounded-lg border border-slate-200 px-2 text-slate-500 transition-colors hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:text-slate-300" title="Add link"><Plus className="h-4 w-4" /></button>
                 </div>
               </div>
             </div>
