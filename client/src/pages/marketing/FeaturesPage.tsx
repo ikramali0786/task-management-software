@@ -4,6 +4,7 @@ import {
   Zap, Webhook, Slack, KeyRound, ShieldCheck, ScrollText, ListPlus, BarChart2,
   Download, Bell, Users, Globe,
 } from 'lucide-react';
+import { Eyebrow } from '@/components/marketing/Eyebrow';
 
 const GROUPS = [
   {
@@ -54,13 +55,17 @@ const GROUPS = [
 
 export const FeaturesPage = () => (
   <>
-    <section className="mx-auto max-w-6xl px-5 pb-10 pt-16 text-center md:pt-24">
-      <h1 className="mx-auto max-w-2xl font-display text-4xl font-extrabold tracking-tight md:text-5xl">
-        Everything you need to <span className="gradient-text">ship work</span>
-      </h1>
-      <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600 dark:text-slate-300">
-        TaskFlow brings planning, collaboration, AI, and enterprise controls into one fast workspace.
-      </p>
+    <section className="mk-grain relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-brand-500/[0.06] to-transparent" />
+      <div className="relative z-10 mx-auto max-w-6xl px-5 pb-10 pt-16 md:pt-24">
+        <Eyebrow>The product</Eyebrow>
+        <h1 className="mt-4 max-w-3xl font-display text-5xl font-extrabold leading-[1.02] tracking-tight md:text-6xl">
+          Everything you need to <span className="mk-underline">ship work</span>
+        </h1>
+        <p className="mt-5 max-w-xl text-lg text-slate-600 dark:text-slate-300">
+          Planning, collaboration, AI, and enterprise controls — in one fast, real-time workspace.
+        </p>
+      </div>
     </section>
 
     <section className="mx-auto max-w-6xl space-y-14 px-5 pb-16">

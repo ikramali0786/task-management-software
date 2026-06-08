@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Send, Loader2, CheckCircle2, MessageSquare, BookOpen } from 'lucide-react';
 import { supportService } from '@/services/supportService';
+import { Eyebrow } from '@/components/marketing/Eyebrow';
 
 export const ContactPage = () => {
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '', company: '' });
@@ -37,7 +38,8 @@ export const ContactPage = () => {
       <div className="grid gap-10 md:grid-cols-2">
         {/* Left: intro + quick links */}
         <div>
-          <h1 className="font-display text-4xl font-extrabold tracking-tight">Get in touch</h1>
+          <Eyebrow>Support</Eyebrow>
+          <h1 className="mt-4 font-display text-4xl font-extrabold tracking-tight md:text-5xl">Get in touch</h1>
           <p className="mt-3 text-slate-600 dark:text-slate-300">
             Questions about plans, a bug to report, or feedback? Send us a message and we’ll get back to you.
           </p>

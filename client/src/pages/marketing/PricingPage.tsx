@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Check, Minus, Sparkles, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { FEATURE_MATRIX, PLAN_PRICES } from '@/lib/plans';
+import { Eyebrow } from '@/components/marketing/Eyebrow';
 
 const TIERS = [
   {
@@ -50,13 +51,17 @@ export const PricingPage = () => {
 
   return (
     <>
-      <section className="mx-auto max-w-6xl px-5 pb-8 pt-16 text-center md:pt-24">
-        <h1 className="font-display text-4xl font-extrabold tracking-tight md:text-5xl">
-          Pricing that scales <span className="gradient-text">with your team</span>
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600 dark:text-slate-300">
-          Per-seat, billed monthly. Cancel anytime. Start free and upgrade when you’re ready.
-        </p>
+      <section className="mk-grain relative">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-brand-500/[0.06] to-transparent" />
+        <div className="relative z-10 mx-auto max-w-6xl px-5 pb-8 pt-16 text-center md:pt-24">
+          <div className="flex justify-center"><Eyebrow>Pricing</Eyebrow></div>
+          <h1 className="mt-4 font-display text-5xl font-extrabold tracking-tight md:text-6xl">
+            Scales <span className="mk-underline">with your team</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-lg text-slate-600 dark:text-slate-300">
+            Per-seat, billed monthly. Cancel anytime. Start free and upgrade when you’re ready.
+          </p>
+        </div>
       </section>
 
       {/* Tier cards */}

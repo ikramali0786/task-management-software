@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, ArrowRight, LifeBuoy } from 'lucide-react';
 import { HELP_ARTICLES, HELP_CATEGORIES } from '@/lib/helpContent';
+import { Eyebrow } from '@/components/marketing/Eyebrow';
 
 export const HelpPage = () => {
   const [q, setQ] = useState('');
@@ -19,13 +20,14 @@ export const HelpPage = () => {
 
   return (
     <>
-      <section className="relative overflow-hidden border-b border-slate-200 dark:border-slate-800">
+      <section className="mk-grain relative overflow-hidden border-b border-slate-200 dark:border-slate-800">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl" />
-        <div className="mx-auto max-w-3xl px-5 pb-12 pt-16 text-center md:pt-20">
+        <div className="relative z-10 mx-auto max-w-3xl px-5 pb-12 pt-16 text-center md:pt-20">
           <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl gradient-brand">
             <LifeBuoy className="h-6 w-6 text-white" />
           </div>
-          <h1 className="font-display text-4xl font-extrabold tracking-tight">How can we help?</h1>
+          <div className="flex justify-center"><Eyebrow>Help center</Eyebrow></div>
+          <h1 className="mt-3 font-display text-4xl font-extrabold tracking-tight md:text-5xl">How can we help?</h1>
           <p className="mt-3 text-slate-600 dark:text-slate-300">Search our guides, or browse by topic below.</p>
           <div className="relative mx-auto mt-6 max-w-xl">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
