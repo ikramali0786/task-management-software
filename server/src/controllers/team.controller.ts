@@ -182,7 +182,7 @@ export const joinTeam = asyncHandler(async (req: Request, res: Response) => {
   // Plan gate: Free teams are capped on member count.
   await assertMemberCapacity(team, req.user!.email);
 
-  team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date() });
+  team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date(), isGuest: false });
 
   const invite = team.inviteCodes.find((c) => c.code === parsed.data.code)!;
   invite.usedBy = new (require('mongoose').Types.ObjectId)(userId);
@@ -284,6 +284,32 @@ export const updateMemberRole = asyncHandler(async (req: Request, res: Response)
   sendSuccess(res, null, 'Role updated.');
 });
 
+/* PATCH /teams/:teamId/members/:userId/guest  { isGuest } — mark/unmark a guest. */
+export const setMemberGuest = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ isGuest: z.boolean() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) throw new ApiError(400, 'isGuest (boolean) is required.');
+
+  const { teamId, userId } = req.params;
+  const team = await Team.findById(teamId);
+  if (!team) throw new ApiError(404, 'Team not found.');
+  assertPermission(team, req.user!._id.toString(), 'manageMembers', "You don't have permission to manage members.");
+  if (team.owner.toString() === userId) throw new ApiError(400, 'The owner cannot be a guest.');
+
+  const member = team.members.find((m) => m.user.toString() === userId);
+  if (!member) throw new ApiError(404, 'Member not found.');
+  member.isGuest = parsed.data.isGuest;
+  await team.save();
+
+  void syncTeamSeats(teamId); // guests don't count as paid seats
+  logActivity({ teamId, actorId: req.user!._id.toString(), action: parsed.data.isGuest ? 'member.guest_on' : 'member.guest_off', target: { type: 'user', id: userId } });
+
+  const io = getIO();
+  if (io) io.to(`team:${teamId}`).emit('member:guestChanged', { teamId, userId, isGuest: parsed.data.isGuest });
+
+  sendSuccess(res, { isGuest: parsed.data.isGuest }, parsed.data.isGuest ? 'Member set as guest.' : 'Guest converted to member.');
+});
+
 // Join a team using only an invite code (no teamId needed — used during signup)
 export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({ code: z.string().min(1) });
@@ -311,7 +337,7 @@ export const joinTeamByCode = asyncHandler(async (req: Request, res: Response) =
   // Plan gate: Free teams are capped on member count.
   await assertMemberCapacity(team, req.user!.email);
 
-  team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date() });
+  team.members.push({ user: new (require('mongoose').Types.ObjectId)(userId), role: 'member', joinedAt: new Date(), isGuest: false });
 
   const invite = team.inviteCodes.find((c) => c.code === parsed.data.code)!;
   invite.usedBy = new (require('mongoose').Types.ObjectId)(userId);

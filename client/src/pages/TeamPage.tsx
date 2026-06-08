@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Copy, Check, UserPlus, Crown, Shield, Trash2, Lock, Unlock, Hash,
   Info, Edit2, Save, X, Eye, Zap, Users, LayoutGrid, MessageCircle,
-  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle, Tag, Mail, Send,
+  Settings, ChevronDown, Calendar, KeyRound, Bot, AlertTriangle, Tag, Mail, Send, UserCog,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -286,6 +286,16 @@ export const TeamPage = () => {
       addToast({ type: 'success', title: `Role updated to ${ROLE_META[newRole]?.label || newRole}` });
     } catch {
       addToast({ type: 'error', title: 'Failed to update role' });
+    }
+  };
+
+  const handleToggleGuest = async (userId: string, isGuest: boolean) => {
+    try {
+      await teamService.setGuest(activeTeam._id, userId, isGuest);
+      await fetchTeams();
+      addToast({ type: 'success', title: isGuest ? 'Marked as guest' : 'Converted to member' });
+    } catch {
+      addToast({ type: 'error', title: 'Failed to update guest status' });
     }
   };
 
@@ -643,12 +653,22 @@ export const TeamPage = () => {
                           </p>
                         </div>
 
+                        {m.isGuest && (
+                          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-400" title="Read-only · not a paid seat">Guest</span>
+                        )}
                         <Badge variant={roleBadgeVariant(displayRole)}>
                           {ROLE_META[displayRole]?.label || displayRole}
                         </Badge>
 
                         {isAdmin && !isSelf && !memberIsOwner && (
                           <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleToggleGuest(m.user._id, !m.isGuest)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 transition-colors"
+                              title={m.isGuest ? 'Convert to full member' : 'Make guest (read-only, free seat)'}
+                            >
+                              <UserCog className="h-3.5 w-3.5" />
+                            </button>
                             <div className="relative">
                               <button
                                 onClick={() => setOpenRoleMenu(openRoleMenu === m.user._id ? null : m.user._id)}

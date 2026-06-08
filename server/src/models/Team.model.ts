@@ -26,6 +26,7 @@ export interface IMember {
   user: mongoose.Types.ObjectId;
   role: string; // built-in TeamRole or custom role name
   joinedAt: Date;
+  isGuest: boolean; // read-only collaborator; not counted as a paid seat
 }
 
 export interface ILabel {
@@ -95,6 +96,7 @@ const MemberSchema = new Schema<IMember>(
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     role: { type: String, default: 'member' },
     joinedAt: { type: Date, default: Date.now },
+    isGuest: { type: Boolean, default: false },
   },
   { _id: false }
 );

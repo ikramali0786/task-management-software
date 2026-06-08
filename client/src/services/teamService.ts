@@ -36,6 +36,9 @@ export const teamService = {
   updateMemberRole: async (teamId: string, userId: string, role: string) => {
     await api.patch(`/teams/${teamId}/members/${userId}`, { role });
   },
+  setGuest: async (teamId: string, userId: string, isGuest: boolean) => {
+    await api.patch(`/teams/${teamId}/members/${userId}/guest`, { isGuest });
+  },
   leaveTeam: async (teamId: string) => {
     await api.delete(`/teams/${teamId}/leave`);
   },

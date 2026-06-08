@@ -50,6 +50,7 @@ export interface TeamMember {
   user: User;
   role: string;
   joinedAt: string;
+  isGuest?: boolean;
 }
 
 export type Plan = 'free' | 'pro' | 'business';

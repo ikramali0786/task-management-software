@@ -11,6 +11,7 @@ import {
   toggleTeamLock,
   removeMember,
   updateMemberRole,
+  setMemberGuest,
   leaveTeam,
   getTeamRoles,
   createCustomRole,
@@ -38,6 +39,7 @@ router.post('/:teamId/join', joinTeam);
 router.patch('/:teamId/lock', toggleTeamLock); // toggle lock
 router.delete('/:teamId/leave', leaveTeam);
 router.patch('/:teamId/members/:userId', updateMemberRole);
+router.patch('/:teamId/members/:userId/guest', setMemberGuest);
 router.delete('/:teamId/members/:userId', removeMember);
 
 // Custom Roles

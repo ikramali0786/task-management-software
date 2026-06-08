@@ -88,8 +88,8 @@ export const createCheckoutSession = asyncHandler(async (req: Request, res: Resp
   }
 
   const ownerEmail = (team.owner as any)?.email as string | undefined;
-  // Per-seat: one seat per current team member.
-  const seats = Math.max(1, team.members?.length || 1);
+  // Per-seat: one seat per current team member. Guests are read-only and free.
+  const seats = Math.max(1, (team.members?.filter((m: any) => !m.isGuest).length) || 1);
 
   const session = await client.checkout.sessions.create({
     mode: 'subscription',
@@ -143,7 +143,7 @@ export const syncTeamSeats = async (teamId: string): Promise<void> => {
   try {
     const team = await Team.findById(teamId).select('stripeSubscriptionId members planStatus');
     if (!team?.stripeSubscriptionId || team.planStatus !== 'active') return;
-    const seats = Math.max(1, team.members?.length || 1);
+    const seats = Math.max(1, (team.members?.filter((m: any) => !m.isGuest).length) || 1);
     const sub = await client.subscriptions.retrieve(team.stripeSubscriptionId);
     const item = sub.items?.data?.[0];
     if (!item || item.quantity === seats) return;

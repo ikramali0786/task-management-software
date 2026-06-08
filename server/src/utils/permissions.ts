@@ -56,6 +56,8 @@ export const resolvePermissions = (team: any, userId: string): RolePermissions |
   if (team.owner?.toString() === userId) return BUILT_IN_PERMISSIONS.owner;
   const member = team.members?.find((m: any) => m.user.toString() === userId);
   if (!member) return null;
+  // Guests are always read-only, regardless of their nominal role.
+  if (member.isGuest) return BUILT_IN_PERMISSIONS.viewer;
   const builtIn = BUILT_IN_PERMISSIONS[member.role];
   if (builtIn) return builtIn;
   const custom = team.customRoles?.find((r: any) => r.name === member.role);
