@@ -20,4 +20,9 @@ export const aiService = {
     const res = await api.post('/ai/summary', { teamId, ...(days ? { days } : {}) });
     return (res.data?.data?.summary as string) || '';
   },
+  /** Break a task into a suggested subtask checklist. */
+  generateSubtasks: async (taskId: string, count?: number): Promise<string[]> => {
+    const res = await api.post('/ai/generate-subtasks', { taskId, ...(count ? { count } : {}) });
+    return (res.data?.data?.subtasks as string[]) || [];
+  },
 };

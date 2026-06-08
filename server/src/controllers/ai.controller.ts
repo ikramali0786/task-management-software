@@ -154,3 +154,51 @@ export const summary = asyncHandler(async (req: Request, res: Response) => {
 
   sendSuccess(res, { summary: text || '_No summary generated._' }, 'Summary ready.');
 });
+
+/* ── POST /ai/generate-subtasks  { taskId, count? } ─────────────────────────
+ * Break a task into a short, actionable subtask checklist. */
+export const generateSubtasks = asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({ taskId: z.string(), count: z.number().int().min(1).max(12).optional() });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, parsed.error.errors[0].message);
+
+  const task = await Task.findById(parsed.data.taskId);
+  if (!task) throw new ApiError(404, 'Task not found.');
+  const team = await verifyMember(task.team.toString(), req.user!._id.toString());
+  const openai = await aiClientFor(team, req.user!.email);
+
+  const count = parsed.data.count ?? 6;
+  const system =
+    'You break a task down into a short, actionable subtask checklist. ' +
+    'Return ONLY a JSON object: { "subtasks": string[] }. ' +
+    'Each item is a concise, imperative step (no numbering, no trailing punctuation). ' +
+    `Aim for about ${count} items — fewer if the task is simple.`;
+
+  let raw = '';
+  try {
+    const completion = await openai.chat.completions.create(
+      {
+        model: AI_MODEL,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `Task: ${task.title}\n${task.description ? `Details: ${task.description}` : ''}` },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: 500,
+      },
+      { timeout: 30_000 }
+    );
+    raw = completion.choices[0]?.message?.content || '';
+  } catch (err: any) {
+    throw new ApiError(502, `AI error: ${err?.message || 'request failed'}`);
+  }
+
+  let json: any = {};
+  try { json = JSON.parse(raw); } catch { throw new ApiError(502, 'AI returned an unreadable response.'); }
+
+  const out = z.object({ subtasks: z.array(z.string().min(1).max(200)).min(1).max(12) }).safeParse(json);
+  if (!out.success) throw new ApiError(502, 'AI could not break that task down. Try rephrasing the task.');
+
+  sendSuccess(res, { subtasks: out.data.subtasks.slice(0, count) }, 'Subtasks generated.');
+});

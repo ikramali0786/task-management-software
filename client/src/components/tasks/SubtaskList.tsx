@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Check, Trash2, Pencil, X, ListChecks, GripVertical } from 'lucide-react';
+import { Plus, Check, Trash2, Pencil, X, ListChecks, GripVertical, Sparkles, Loader2 } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -18,6 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Subtask } from '@/types';
 import { taskService } from '@/services/taskService';
+import { aiService } from '@/services/aiService';
+import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
 
 interface SubtaskListProps {
@@ -226,7 +228,36 @@ export const SubtaskList = ({ taskId, subtasks, onChange }: SubtaskListProps) =>
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [addBusy, setAddBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const addInputRef = useRef<HTMLInputElement>(null);
+  const { addToast } = useUIStore();
+
+  const handleGenerate = async () => {
+    if (aiBusy) return;
+    setAiBusy(true);
+    try {
+      const titles = await aiService.generateSubtasks(taskId);
+      let latest = subtasks;
+      for (const title of titles) {
+        latest = await taskService.addSubtask(taskId, title);
+      }
+      onChange(latest);
+      if (titles.length) addToast({ type: 'success', title: `Added ${titles.length} subtask${titles.length === 1 ? '' : 's'}` });
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      if (code !== 'PLAN_LIMIT') {
+        addToast({
+          type: 'error',
+          title: "Couldn't generate subtasks",
+          message: code === 'NO_AI_KEY'
+            ? 'Add an OpenAI key in Team Settings → AI & API.'
+            : err?.response?.data?.message || 'Please try again.',
+        });
+      }
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const total = subtasks.length;
   const done = subtasks.filter((s) => s.completed).length;
@@ -309,13 +340,24 @@ export const SubtaskList = ({ taskId, subtasks, onChange }: SubtaskListProps) =>
             </span>
           )}
         </label>
-        <button
-          onClick={openAddRow}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleGenerate}
+            disabled={aiBusy}
+            title="Suggest subtasks with AI"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-brand-500 transition-colors hover:bg-brand-50 disabled:opacity-60 dark:hover:bg-brand-500/10"
+          >
+            {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            AI suggest
+          </button>
+          <button
+            onClick={openAddRow}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </button>
+        </div>
       </div>
 
       {/* Progress bar */}
