@@ -22,6 +22,7 @@ import customFieldRoutes from './customField.routes';
 import supportRoutes from './support.routes';
 import sharingRoutes from './sharing.routes';
 import publicRoutes from './public.routes';
+import goalRoutes from './goal.routes';
 
 const router = Router();
 
@@ -48,5 +49,6 @@ router.use('/custom-fields', customFieldRoutes);
 router.use('/support', supportRoutes);
 router.use('/sharing', sharingRoutes);
 router.use('/public', publicRoutes);
+router.use('/goals', goalRoutes);
 
 export default router;

@@ -22,6 +22,7 @@ const pageTitles: Record<string, string> = {
   '/app/board': 'Kanban Board',
   '/app/team': 'Team',
   '/app/workload': 'Workload',
+  '/app/goals': 'Goals & OKRs',
   '/app/activity': 'Activity',
   '/app/chatbots': 'AI Chatbots',
   '/app/calendar': 'Calendar',
