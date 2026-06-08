@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { TaskDetailModal } from '@/components/tasks/TaskDetailModal';
 import { PageHeader } from '@/components/layout/PageContainer';
+import { EmptyState as UIEmptyState } from '@/components/ui/EmptyState';
 import { PriorityBadge } from '@/components/ui/Badge';
 import { AvatarGroup } from '@/components/ui/Avatar';
 import { cn, formatDate, isOverdue } from '@/lib/utils';
@@ -35,25 +36,9 @@ const SkeletonRow = () => (
   </div>
 );
 
-/* ─── Empty state ────────────────────────────────────────────────────────── */
-const EmptyState = ({ icon: Icon, message, sub }: { icon: React.ElementType; message: string; sub?: string }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10, scale: 0.98 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-    className="flex flex-col items-center justify-center py-16 text-center"
-  >
-    <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ delay: 0.08, type: 'spring', stiffness: 260, damping: 18 }}
-      className="mb-4 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800"
-    >
-      <Icon className="h-7 w-7 text-slate-400" />
-    </motion.div>
-    <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">{message}</p>
-    {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
-  </motion.div>
+/* ─── Empty state (thin adapter over the shared component) ───────────────────── */
+const EmptyState = ({ icon, message, sub }: { icon: React.ElementType; message: string; sub?: string }) => (
+  <UIEmptyState icon={icon} title={message} description={sub} />
 );
 
 /* ─── Task row ───────────────────────────────────────────────────────────── */

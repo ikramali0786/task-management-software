@@ -9,6 +9,7 @@ import { PageContainer, PageHeader } from '@/components/layout/PageContainer';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { cn, formatDate } from '@/lib/utils';
 import {
   goalService, GOAL_STATUS_META,
@@ -288,14 +289,12 @@ export const GoalsPage = () => {
       {loading ? (
         <div className="py-16 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /></div>
       ) : goals.length === 0 ? (
-        <div className="card flex flex-col items-center gap-4 py-16 text-center">
-          <div className="rounded-2xl bg-slate-100 p-5 dark:bg-slate-800"><Target className="h-7 w-7 text-slate-400" /></div>
-          <div>
-            <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">No goals yet</p>
-            <p className="mt-1 text-xs text-slate-400">Set an objective and track it with measurable key results.</p>
-          </div>
-          <Button onClick={() => setModal({ open: true, goal: null })} className="gap-2"><Plus className="h-4 w-4" /> Create your first goal</Button>
-        </div>
+        <EmptyState
+          icon={Target}
+          title="No goals yet"
+          description="Set an objective and track it with measurable key results."
+          action={<Button onClick={() => setModal({ open: true, goal: null })} className="gap-2"><Plus className="h-4 w-4" /> Create your first goal</Button>}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {goals.map((g) => (
