@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
-  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare,
+  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -23,6 +23,7 @@ const navItems = [
   { to: '/app/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
   { to: '/app/workload', icon: BarChart2, i18nKey: 'nav.workload', shortcut: 'W' },
   { to: '/app/timeline', icon: GanttChartSquare, i18nKey: 'nav.timeline' },
+  { to: '/app/whiteboard', icon: Presentation, i18nKey: 'nav.whiteboard' },
   { to: '/app/goals', icon: Target, i18nKey: 'nav.goals' },
   { to: '/app/activity', icon: Activity, i18nKey: 'nav.activity', shortcut: 'A' },
   { to: '/app/settings', icon: Settings, i18nKey: 'nav.settings', shortcut: 'S' },

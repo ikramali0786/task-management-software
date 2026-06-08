@@ -23,6 +23,7 @@ import supportRoutes from './support.routes';
 import sharingRoutes from './sharing.routes';
 import publicRoutes from './public.routes';
 import goalRoutes from './goal.routes';
+import whiteboardRoutes from './whiteboard.routes';
 
 const router = Router();
 
@@ -50,5 +51,6 @@ router.use('/support', supportRoutes);
 router.use('/sharing', sharingRoutes);
 router.use('/public', publicRoutes);
 router.use('/goals', goalRoutes);
+router.use('/whiteboard', whiteboardRoutes);
 
 export default router;
