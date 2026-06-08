@@ -24,7 +24,7 @@ export const LoginPage = () => {
   const { login, verifyTwoFactor, isLoading } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as any)?.from?.pathname || '/app';
 
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const [showPassword, setShowPassword] = useState(false);

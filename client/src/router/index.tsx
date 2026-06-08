@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { GuestGuard } from '@/components/auth/GuestGuard';
 
@@ -26,43 +27,44 @@ const VerifyEmailPage    = lazy(() => import('@/pages/VerifyEmailPage').then(m =
 const JoinTeamPage       = lazy(() => import('@/pages/JoinTeamPage').then(m => ({ default: m.JoinTeamPage })));
 const PrivacyPage        = lazy(() => import('@/pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 
+// ── Marketing (public) pages ─────────────────────────────────────────────────
+const LandingPage     = lazy(() => import('@/pages/marketing/LandingPage').then(m => ({ default: m.LandingPage })));
+const FeaturesPage    = lazy(() => import('@/pages/marketing/FeaturesPage').then(m => ({ default: m.FeaturesPage })));
+const PricingPage     = lazy(() => import('@/pages/marketing/PricingPage').then(m => ({ default: m.PricingPage })));
+const HelpPage        = lazy(() => import('@/pages/marketing/HelpPage').then(m => ({ default: m.HelpPage })));
+const HelpArticlePage = lazy(() => import('@/pages/marketing/HelpArticlePage').then(m => ({ default: m.HelpArticlePage })));
+const ContactPage     = lazy(() => import('@/pages/marketing/ContactPage').then(m => ({ default: m.ContactPage })));
+
 // ── Router definition ─────────────────────────────────────────────────────────
 
 export const router = createBrowserRouter([
-  {
-    path: '/status',
-    element: <StatusPage />,
-  },
-  {
-    path: '/login',
-    element: <GuestGuard><LoginPage /></GuestGuard>,
-  },
-  {
-    path: '/register',
-    element: <GuestGuard><RegisterPage /></GuestGuard>,
-  },
-  {
-    path: '/forgot-password',
-    element: <GuestGuard><ForgotPasswordPage /></GuestGuard>,
-  },
-  {
-    path: '/reset-password',
-    element: <ResetPasswordPage />,
-  },
-  {
-    path: '/verify-email',
-    element: <VerifyEmailPage />,
-  },
-  {
-    path: '/join',
-    element: <JoinTeamPage />,
-  },
-  {
-    path: '/privacy',
-    element: <PrivacyPage />,
-  },
+  // Standalone (no layout) pages
+  { path: '/status', element: <StatusPage /> },
+  { path: '/login', element: <GuestGuard><LoginPage /></GuestGuard> },
+  { path: '/register', element: <GuestGuard><RegisterPage /></GuestGuard> },
+  { path: '/forgot-password', element: <GuestGuard><ForgotPasswordPage /></GuestGuard> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
+  { path: '/verify-email', element: <VerifyEmailPage /> },
+  { path: '/join', element: <JoinTeamPage /> },
+  { path: '/privacy', element: <PrivacyPage /> },
+
+  // Public marketing site
   {
     path: '/',
+    element: <MarketingLayout />,
+    children: [
+      { index: true, element: <LandingPage /> },
+      { path: 'features', element: <FeaturesPage /> },
+      { path: 'pricing', element: <PricingPage /> },
+      { path: 'help', element: <HelpPage /> },
+      { path: 'help/:slug', element: <HelpArticlePage /> },
+      { path: 'contact', element: <ContactPage /> },
+    ],
+  },
+
+  // Authenticated app
+  {
+    path: '/app',
     element: (
       <AuthGuard>
         <AppLayout />
@@ -80,6 +82,7 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
     ],
   },
+
   {
     path: '*',
     element: (

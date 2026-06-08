@@ -106,7 +106,7 @@ export const RegisterPage = () => {
         }
       }
       sessionStorage.removeItem('pendingInviteCode');
-      navigate('/');
+      navigate('/app');
     } catch (err: any) {
       setFormError(err.response?.data?.message || 'Registration failed. Please try again.');
     }

@@ -19,6 +19,7 @@ import aiRoutes from './ai.routes';
 import automationRoutes from './automation.routes';
 import auditLogRoutes from './auditLog.routes';
 import customFieldRoutes from './customField.routes';
+import supportRoutes from './support.routes';
 
 const router = Router();
 
@@ -42,5 +43,6 @@ router.use('/ai', aiRoutes);
 router.use('/automations', automationRoutes);
 router.use('/audit', auditLogRoutes);
 router.use('/custom-fields', customFieldRoutes);
+router.use('/support', supportRoutes);
 
 export default router;

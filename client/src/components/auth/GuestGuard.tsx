@@ -15,7 +15,7 @@ export const GuestGuard = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, user } = useAuthStore();
 
   // Only redirect when we have a confirmed, loaded session
-  if (isAuthenticated && user) return <Navigate to="/" replace />;
+  if (isAuthenticated && user) return <Navigate to="/app" replace />;
 
   return <>{children}</>;
 };

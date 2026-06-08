@@ -68,15 +68,15 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
   // Build commands list
   const commands = useMemo((): Command[] => [
     // Navigation
-    { id: 'go-dashboard', label: 'Go to Dashboard', description: 'Dashboard', icon: LayoutDashboard, keywords: 'navigate home', action: () => { navigate('/'); onClose(); } },
-    { id: 'go-mytasks', label: 'Go to My Tasks', description: 'My Tasks', icon: User, keywords: 'navigate my tasks', action: () => { navigate('/my-tasks'); onClose(); } },
-    { id: 'go-board', label: 'Go to Board', description: 'Kanban Board', icon: Kanban, keywords: 'navigate board kanban', action: () => { navigate('/board'); onClose(); } },
-    { id: 'go-calendar', label: 'Go to Calendar', description: 'Calendar', icon: CalendarDays, keywords: 'navigate calendar', action: () => { navigate('/calendar'); onClose(); } },
-    { id: 'go-team', label: 'Go to Team', description: 'Team', icon: Users, keywords: 'navigate team', action: () => { navigate('/team'); onClose(); } },
-    { id: 'go-workload', label: 'Go to Workload', description: 'Workload', icon: BarChart2, keywords: 'navigate workload', action: () => { navigate('/workload'); onClose(); } },
-    { id: 'go-activity', label: 'Go to Activity', description: 'Activity', icon: Activity, keywords: 'navigate activity', action: () => { navigate('/activity'); onClose(); } },
-    { id: 'go-chatbots', label: 'Go to AI Chatbots', description: 'AI Chatbots', icon: Bot, keywords: 'navigate chatbot ai', action: () => { navigate('/chatbots'); onClose(); } },
-    { id: 'go-settings', label: 'Go to Settings', description: 'Settings', icon: Settings, keywords: 'navigate settings', action: () => { navigate('/settings'); onClose(); } },
+    { id: 'go-dashboard', label: 'Go to Dashboard', description: 'Dashboard', icon: LayoutDashboard, keywords: 'navigate home', action: () => { navigate('/app'); onClose(); } },
+    { id: 'go-mytasks', label: 'Go to My Tasks', description: 'My Tasks', icon: User, keywords: 'navigate my tasks', action: () => { navigate('/app/my-tasks'); onClose(); } },
+    { id: 'go-board', label: 'Go to Board', description: 'Kanban Board', icon: Kanban, keywords: 'navigate board kanban', action: () => { navigate('/app/board'); onClose(); } },
+    { id: 'go-calendar', label: 'Go to Calendar', description: 'Calendar', icon: CalendarDays, keywords: 'navigate calendar', action: () => { navigate('/app/calendar'); onClose(); } },
+    { id: 'go-team', label: 'Go to Team', description: 'Team', icon: Users, keywords: 'navigate team', action: () => { navigate('/app/team'); onClose(); } },
+    { id: 'go-workload', label: 'Go to Workload', description: 'Workload', icon: BarChart2, keywords: 'navigate workload', action: () => { navigate('/app/workload'); onClose(); } },
+    { id: 'go-activity', label: 'Go to Activity', description: 'Activity', icon: Activity, keywords: 'navigate activity', action: () => { navigate('/app/activity'); onClose(); } },
+    { id: 'go-chatbots', label: 'Go to AI Chatbots', description: 'AI Chatbots', icon: Bot, keywords: 'navigate chatbot ai', action: () => { navigate('/app/chatbots'); onClose(); } },
+    { id: 'go-settings', label: 'Go to Settings', description: 'Settings', icon: Settings, keywords: 'navigate settings', action: () => { navigate('/app/settings'); onClose(); } },
     // Actions
     { id: 'new-task', label: 'New task', description: 'Create a new task', icon: Plus, keywords: 'create add task new', action: () => { setQuickCreateOpen(true); onClose(); } },
     { id: 'toggle-theme', label: `Toggle ${theme === 'dark' ? 'light' : 'dark'} mode`, description: 'Switch color scheme', icon: theme === 'dark' ? Sun : Moon, keywords: 'dark light mode theme', action: () => { setTheme(theme === 'dark' ? 'light' : 'dark'); onClose(); } },
@@ -209,10 +209,10 @@ export const GlobalSearch = ({ isOpen, onClose }: Props) => {
       openTaskDetail(r.task._id);
     } else if (r.kind === 'team') {
       setActiveTeam(r.team);
-      navigate('/board');
+      navigate('/app/board');
     } else {
       setActiveTeam(r.team);
-      navigate('/team');
+      navigate('/app/team');
     }
     onClose();
   };

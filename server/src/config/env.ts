@@ -26,6 +26,8 @@ export const env = {
   //   Until a custom domain is verified, Resend allows "onboarding@resend.dev".
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',
   EMAIL_FROM: process.env.EMAIL_FROM || 'TaskFlow <onboarding@resend.dev>',
+  // Inbox that support contact-form messages are delivered to.
+  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL || 'ikram.ali3811@gmail.com',
 
   // ── Subscriptions (Pro plan) ─────────────────────────────────────────────
   // Comma-separated list of emails granted complimentary Pro access (founders,

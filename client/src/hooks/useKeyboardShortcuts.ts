@@ -74,35 +74,35 @@ export const useKeyboardShortcuts = ({
           break;
         case 'd':
         case 'D':
-          navigate('/');
+          navigate('/app');
           break;
         case 'b':
         case 'B':
-          navigate('/board');
+          navigate('/app/board');
           break;
         case 'l':
         case 'L':
-          navigate('/calendar');
+          navigate('/app/calendar');
           break;
         case 't':
         case 'T':
-          navigate('/team');
+          navigate('/app/team');
           break;
         case 'w':
         case 'W':
-          navigate('/workload');
+          navigate('/app/workload');
           break;
         case 'a':
         case 'A':
-          navigate('/activity');
+          navigate('/app/activity');
           break;
         case 'c':
         case 'C':
-          navigate('/chatbots');
+          navigate('/app/chatbots');
           break;
         case 's':
         case 'S':
-          navigate('/settings');
+          navigate('/app/settings');
           break;
         case 'n':
         case 'N':

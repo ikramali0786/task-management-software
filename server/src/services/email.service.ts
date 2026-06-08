@@ -20,9 +20,10 @@ interface SendArgs {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
 }
 
-const send = async ({ to, subject, html }: SendArgs): Promise<void> => {
+const send = async ({ to, subject, html, replyTo }: SendArgs): Promise<void> => {
   const client = getClient();
   if (!client) {
     logger.warn(
@@ -38,6 +39,7 @@ const send = async ({ to, subject, html }: SendArgs): Promise<void> => {
       to,
       subject,
       html,
+      ...(replyTo ? { replyTo } : {}),
     });
     if (error) throw new Error(error.message);
   } catch (err: any) {
@@ -488,6 +490,28 @@ export const sendMentionEmail = async (
       cta: { label: 'View the conversation', url: opts.url },
       footerNote:
         "You're receiving this because you were mentioned. Manage email notifications in your TaskFlow settings.",
+    }),
+  });
+};
+
+/** Support contact form → support inbox. Reply-To is set to the submitter. */
+export const sendSupportEmail = async (opts: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}): Promise<void> => {
+  await send({
+    to: env.SUPPORT_EMAIL,
+    replyTo: opts.email,
+    subject: `[Support] ${opts.subject}`,
+    html: renderEmail({
+      preview: `New support message from ${opts.name}`,
+      eyebrow: 'Support request',
+      heading: 'New support message',
+      intro: `<p style="margin:0 0 14px;">From <strong class="ink" style="color:${C.ink};">${esc(opts.name)}</strong> &lt;${esc(opts.email)}&gt;</p><p style="margin:0;white-space:pre-wrap;">${esc(opts.message)}</p>`,
+      panel: detailPanel(panelRow('Subject', esc(opts.subject)) + panelRow('From', esc(opts.email))),
+      footerNote: 'Reply directly to this email to respond to the sender.',
     }),
   });
 };

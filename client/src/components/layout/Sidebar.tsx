@@ -14,15 +14,15 @@ import { Avatar } from '@/components/ui/Avatar';
 import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, i18nKey: 'nav.dashboard', end: true, shortcut: 'D' },
-  { to: '/my-tasks', icon: User, i18nKey: 'nav.myTasks', shortcut: 'M' },
-  { to: '/board', icon: Kanban, i18nKey: 'nav.board', shortcut: 'B' },
-  { to: '/calendar', icon: CalendarDays, i18nKey: 'nav.calendar', shortcut: 'L' },
-  { to: '/chatbots', icon: Bot, i18nKey: 'nav.chatbots', shortcut: 'C' },
-  { to: '/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
-  { to: '/workload', icon: BarChart2, i18nKey: 'nav.workload', shortcut: 'W' },
-  { to: '/activity', icon: Activity, i18nKey: 'nav.activity', shortcut: 'A' },
-  { to: '/settings', icon: Settings, i18nKey: 'nav.settings', shortcut: 'S' },
+  { to: '/app', icon: LayoutDashboard, i18nKey: 'nav.dashboard', end: true, shortcut: 'D' },
+  { to: '/app/my-tasks', icon: User, i18nKey: 'nav.myTasks', shortcut: 'M' },
+  { to: '/app/board', icon: Kanban, i18nKey: 'nav.board', shortcut: 'B' },
+  { to: '/app/calendar', icon: CalendarDays, i18nKey: 'nav.calendar', shortcut: 'L' },
+  { to: '/app/chatbots', icon: Bot, i18nKey: 'nav.chatbots', shortcut: 'C' },
+  { to: '/app/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
+  { to: '/app/workload', icon: BarChart2, i18nKey: 'nav.workload', shortcut: 'W' },
+  { to: '/app/activity', icon: Activity, i18nKey: 'nav.activity', shortcut: 'A' },
+  { to: '/app/settings', icon: Settings, i18nKey: 'nav.settings', shortcut: 'S' },
 ];
 
 export const Sidebar = () => {

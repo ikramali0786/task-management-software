@@ -43,7 +43,7 @@ export const JoinTeamPage = () => {
         if (team?._id) joinTeamRooms([team._id]);
         setStatus('success');
         setMessage(`You've joined ${team?.name || 'the team'}. Redirecting…`);
-        setTimeout(() => navigate('/team', { replace: true }), 1800);
+        setTimeout(() => navigate('/app/team', { replace: true }), 1800);
       })
       .catch((err: any) => {
         sessionStorage.removeItem('pendingInviteCode');

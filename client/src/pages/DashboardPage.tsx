@@ -291,7 +291,7 @@ export const DashboardPage = () => {
             })}
           </p>
         </div>
-        <Button onClick={() => navigate('/board')} className="gap-2">
+        <Button onClick={() => navigate('/app/board')} className="gap-2">
           <ArrowRight className="h-4 w-4" />
           Open Board
         </Button>
@@ -358,7 +358,7 @@ export const DashboardPage = () => {
               </p>
             </div>
             <button
-              onClick={() => navigate('/board')}
+              onClick={() => navigate('/app/board')}
               className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors"
             >
               View all <ChevronRight className="h-3.5 w-3.5" />
@@ -428,7 +428,7 @@ export const DashboardPage = () => {
                   <div
                     key={task._id}
                     className="group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    onClick={() => navigate('/board')}
+                    onClick={() => navigate('/app/board')}
                   >
                     {/* Status dot */}
                     <div
@@ -704,7 +704,7 @@ export const DashboardPage = () => {
               Team Members
             </h3>
             <button
-              onClick={() => navigate('/team')}
+              onClick={() => navigate('/app/team')}
               className="flex items-center gap-1 text-xs font-medium text-brand-500 transition-colors hover:text-brand-600"
             >
               Manage <ChevronRight className="h-3.5 w-3.5" />
@@ -734,7 +734,7 @@ export const DashboardPage = () => {
             })}
             {activeTeam.members.length > 7 && (
               <button
-                onClick={() => navigate('/team')}
+                onClick={() => navigate('/app/team')}
                 className="w-full rounded-xl py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 +{activeTeam.members.length - 7} more members
