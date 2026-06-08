@@ -22,6 +22,7 @@ import { taskService } from '@/services/taskService';
 import { Task, TaskStats, PRIORITY_CONFIG, TASK_STATUSES } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import { CountUp } from '@/components/ui/CountUp';
 import { formatRelative, formatLastSeen, cn } from '@/lib/utils';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -31,11 +32,11 @@ import {
 /* ─── Motion variants ──────────────────────────────────────────────────── */
 const containerVariants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.07 } },
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
 };
 const cardVariant = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
+  hidden: { opacity: 0, y: 22, scale: 0.98 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 320, damping: 26 } },
 };
 
 /* ─── Constants ────────────────────────────────────────────────────────── */
@@ -308,7 +309,9 @@ export const DashboardPage = () => {
           <motion.div
             key={card.label}
             variants={cardVariant}
-            className="card relative overflow-hidden pt-5"
+            whileHover={{ y: -4 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+            className="card relative overflow-hidden pt-5 transition-shadow hover:shadow-lift"
           >
             {/* Colored accent strip */}
             <div
@@ -327,6 +330,8 @@ export const DashboardPage = () => {
                   <span className="animate-pulse text-lg text-slate-300 dark:text-slate-600">
                     ···
                   </span>
+                ) : typeof card.value === 'number' ? (
+                  <CountUp value={card.value} />
                 ) : (
                   card.value
                 )}
