@@ -15,6 +15,12 @@ import {
   Inbox,
   Timer,
   Check,
+  Rocket,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -27,7 +33,7 @@ import { Button } from '@/components/ui/Button';
 import { CountUp } from '@/components/ui/CountUp';
 import { formatRelative, formatLastSeen, cn } from '@/lib/utils';
 // Recharts is heavy — defer it so cards & tasks paint first.
-const DashboardCharts = lazy(() => import('@/components/dashboard/DashboardCharts'));
+const TrendChart = lazy(() => import('@/components/dashboard/TrendChart'));
 
 /* ─── Motion variants ──────────────────────────────────────────────────── */
 const containerVariants = {
@@ -47,6 +53,23 @@ const STATUS_COLORS: Record<string, string> = {
   review: '#d97706',
   done: '#16a34a',
 };
+
+// Customizable dashboard widgets (order + visibility persist to localStorage).
+const WIDGET_META: { id: string; label: string }[] = [
+  { id: 'myTasks', label: 'My Tasks' },
+  { id: 'focus', label: 'Suggested next' },
+  { id: 'trend', label: 'Completion trend' },
+  { id: 'status', label: 'Task status' },
+  { id: 'priority', label: 'By priority' },
+  { id: 'activity', label: 'Recent activity' },
+  { id: 'team', label: 'Team members' },
+];
+const DEFAULT_ORDER = WIDGET_META.map((w) => w.id);
+const loadOrder = (): string[] => {
+  try { const raw = JSON.parse(localStorage.getItem('dash-widget-order') || 'null'); if (Array.isArray(raw)) { const valid = raw.filter((id) => DEFAULT_ORDER.includes(id)); for (const id of DEFAULT_ORDER) if (!valid.includes(id)) valid.push(id); return valid; } } catch { /* ignore */ }
+  return [...DEFAULT_ORDER];
+};
+const loadHidden = (): Set<string> => { try { const raw = JSON.parse(localStorage.getItem('dash-widget-hidden') || '[]'); return new Set(Array.isArray(raw) ? raw : []); } catch { return new Set(); } };
 
 // Tiny dependency-free trend line for stat cards.
 const Sparkline = ({ values, color = '#22c55e' }: { values: number[]; color?: string }) => {
@@ -150,17 +173,29 @@ export const DashboardPage = () => {
     setFocus((f) => f.filter((x) => x.taskId !== taskId));
     try { await taskService.updateTask(taskId, { dueDate: date } as Partial<Task>); void load(); } catch { void loadFocus(); }
   };
+  const reschedule = async (task: Task, value: string) => {
+    const dueDate = value ? new Date(value + 'T12:00:00').toISOString() : null;
+    setMyTasks((ts) => ts.map((t) => (t._id === task._id ? { ...t, dueDate } : t)));
+    try { await taskService.updateTask(task._id, { dueDate } as Partial<Task>); } catch { void load(); }
+  };
+
+  // ── Customizable layout (order + visibility) ───────────────────────────────
+  const [widgetOrder, setWidgetOrder] = useState<string[]>(loadOrder);
+  const [hiddenWidgets, setHiddenWidgets] = useState<Set<string>>(loadHidden);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  useEffect(() => { localStorage.setItem('dash-widget-order', JSON.stringify(widgetOrder)); }, [widgetOrder]);
+  useEffect(() => { localStorage.setItem('dash-widget-hidden', JSON.stringify([...hiddenWidgets])); }, [hiddenWidgets]);
+  const vis = (id: string) => !hiddenWidgets.has(id);
+  const ord = (id: string) => { const i = widgetOrder.indexOf(id); return i < 0 ? 99 : i; };
+  const toggleWidget = (id: string) => setHiddenWidgets((h) => { const n = new Set(h); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const moveWidget = (id: string, dir: -1 | 1) => setWidgetOrder((o) => { const i = o.indexOf(id); const j = i + dir; if (i < 0 || j < 0 || j >= o.length) return o; const n = [...o]; [n[i], n[j]] = [n[j], n[i]]; return n; });
+  const resetLayout = () => { setWidgetOrder([...DEFAULT_ORDER]); setHiddenWidgets(new Set()); };
 
   /* derived */
   const totalTasks = stats ? Object.values(stats.byStatus).reduce((a, b) => a + b, 0) : 0;
   const completedPct =
     totalTasks > 0 ? Math.round(((stats?.byStatus.done ?? 0) / totalTasks) * 100) : 0;
 
-  const pieData = TASK_STATUSES.map(({ id, label }) => ({
-    name: label,
-    value: stats?.byStatus[id] ?? 0,
-    color: STATUS_COLORS[id],
-  })).filter((d) => d.value > 0);
 
   const overdueCount = useMemo(() => myTasks.filter(isOverdue).length, [myTasks]);
   const dueSoonCount = useMemo(() => myTasks.filter(isDueSoon).length, [myTasks]);
@@ -333,10 +368,41 @@ export const DashboardPage = () => {
             })}
           </p>
         </div>
-        <Button onClick={() => navigate('/app/board')} className="gap-2">
-          <ArrowRight className="h-4 w-4" />
-          Open Board
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button onClick={() => setCustomizeOpen((v) => !v)} title="Customize dashboard" aria-label="Customize dashboard" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+            {customizeOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setCustomizeOpen(false)} />
+                <div className="absolute right-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex items-center justify-between px-3 py-1.5">
+                    <span className="text-xs font-semibold text-slate-500">Widgets</span>
+                    <button onClick={resetLayout} className="text-[11px] font-medium text-brand-500 hover:underline">Reset</button>
+                  </div>
+                  {[...widgetOrder].map((id, i) => {
+                    const meta = WIDGET_META.find((w) => w.id === id); if (!meta) return null;
+                    return (
+                      <div key={id} className="flex items-center gap-1 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                        <button onClick={() => toggleWidget(id)} title={vis(id) ? 'Hide' : 'Show'} className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                          {vis(id) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        </button>
+                        <span className={cn('flex-1 truncate text-sm', vis(id) ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 line-through')}>{meta.label}</span>
+                        <button onClick={() => moveWidget(id, -1)} disabled={i === 0} className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:text-slate-600 disabled:opacity-30 dark:hover:text-slate-200"><ArrowUp className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => moveWidget(id, 1)} disabled={i === widgetOrder.length - 1} className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:text-slate-600 disabled:opacity-30 dark:hover:text-slate-200"><ArrowDown className="h-3.5 w-3.5" /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+          <Button onClick={() => navigate('/app/board')} className="gap-2">
+            <ArrowRight className="h-4 w-4" />
+            Open Board
+          </Button>
+        </div>
       </div>
 
       {/* ── Stat cards ──────────────────────────────────────────────── */}
@@ -398,81 +464,48 @@ export const DashboardPage = () => {
       </motion.div>
 
       {/* ── Main content: My Tasks + Charts ─────────────────────────── */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* My Tasks – 3 / 5 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="card lg:col-span-3"
-        >
-          {/* Widget header */}
+      {!statsLoading && !error && stats && totalTasks === 0 ? (
+        /* Zero-data onboarding */
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card flex flex-col items-center gap-5 py-12 text-center">
+          <div className="rounded-2xl bg-brand-50 p-5 dark:bg-brand-500/10"><Rocket className="h-9 w-9 text-brand-500" /></div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Let’s get {activeTeam.name} rolling</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">Create your first task and invite your teammates — your dashboard fills up with progress, trends and activity as you go.</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button onClick={() => navigate('/app/board')} className="gap-2"><Plus className="h-4 w-4" /> Create your first task</Button>
+            <button onClick={() => navigate('/app/team')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Invite teammates</button>
+          </div>
+        </motion.div>
+      ) : (
+      <div className="grid items-start gap-6 lg:grid-cols-12">
+        {/* My Tasks */}
+        {vis('myTasks') && (
+        <div className="min-w-0 lg:col-span-7" style={{ order: ord('myTasks') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">My Tasks</h3>
-              <p className="mt-0.5 text-xs text-slate-400">
-                {myTasks.length} open task{myTasks.length !== 1 ? 's' : ''} assigned to you
-              </p>
+              <p className="mt-0.5 text-xs text-slate-400">{myTasks.length} open task{myTasks.length !== 1 ? 's' : ''} assigned to you</p>
             </div>
-            <button
-              onClick={() => navigate('/app/board')}
-              className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors"
-            >
-              View all <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+            <button onClick={() => navigate('/app/my-tasks')} className="flex items-center gap-1 text-xs font-medium text-brand-500 transition-colors hover:text-brand-600">View all <ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
-
-          {/* Filter tabs */}
           <div className="mb-4 flex w-fit gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
-            {(
-              [
-                { key: 'all' as const, label: `All (${myTasks.length})` },
-                { key: 'due_soon' as const, label: `Due Soon${dueSoonCount > 0 ? ` (${dueSoonCount})` : ''}` },
-                { key: 'overdue' as const, label: `Overdue${overdueCount > 0 ? ` (${overdueCount})` : ''}` },
-              ]
-            ).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setMyTasksTab(tab.key)}
-                className={cn(
-                  'rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-                  myTasksTab === tab.key
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                )}
-              >
-                {tab.label}
-              </button>
+            {([
+              { key: 'all' as const, label: `All (${myTasks.length})` },
+              { key: 'due_soon' as const, label: `Due Soon${dueSoonCount > 0 ? ` (${dueSoonCount})` : ''}` },
+              { key: 'overdue' as const, label: `Overdue${overdueCount > 0 ? ` (${overdueCount})` : ''}` },
+            ]).map((tab) => (
+              <button key={tab.key} onClick={() => setMyTasksTab(tab.key)} className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-all', myTasksTab === tab.key ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300')}>{tab.label}</button>
             ))}
           </div>
-
-          {/* Task list */}
           {myTasksLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
-                />
-              ))}
-            </div>
+            <div className="space-y-2">{[1, 2, 3, 4].map((i) => (<div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />))}</div>
           ) : filteredMyTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-3 rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
-                <Inbox className="h-6 w-6 text-slate-400" />
-              </div>
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                {myTasksTab === 'overdue'
-                  ? 'No overdue tasks — great job! 🎉'
-                  : myTasksTab === 'due_soon'
-                  ? 'Nothing due in the next 2 days'
-                  : 'No open tasks assigned to you'}
-              </p>
-              {myTasksTab === 'all' && (
-                <p className="mt-1 text-xs text-slate-400">
-                  Ask a teammate to assign you some tasks!
-                </p>
-              )}
+              <div className="mb-3 rounded-2xl bg-slate-100 p-4 dark:bg-slate-800"><Inbox className="h-6 w-6 text-slate-400" /></div>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{myTasksTab === 'overdue' ? 'No overdue tasks — great job! \U0001F389' : myTasksTab === 'due_soon' ? 'Nothing due in the next 2 days' : 'No open tasks assigned to you'}</p>
+              {myTasksTab === 'all' && <p className="mt-1 text-xs text-slate-400">Ask a teammate to assign you some tasks!</p>}
             </div>
           ) : (
             <div className="space-y-1">
@@ -482,122 +515,113 @@ export const DashboardPage = () => {
                 const prioConfig = PRIORITY_CONFIG[task.priority];
                 const statusInfo = TASK_STATUSES.find((s) => s.id === task.status);
                 return (
-                  <div
-                    key={task._id}
-                    className="group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    onClick={() => navigate('/app/board')}
-                  >
-                    {/* Mark complete (hover) */}
-                    <button
-                      onClick={(e) => markDone(e, task)}
-                      title="Mark complete"
-                      aria-label={`Mark "${task.title}" complete`}
-                      className="group/done flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors hover:border-emerald-500 hover:bg-emerald-500"
-                      style={{ borderColor: statusInfo?.color ?? '#94a3b8' }}
-                    >
+                  <div key={task._id} className="group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={() => navigate('/app/board')}>
+                    <button onClick={(e) => markDone(e, task)} title="Mark complete" aria-label={`Mark "${task.title}" complete`} className="group/done flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors hover:border-emerald-500 hover:bg-emerald-500" style={{ borderColor: statusInfo?.color ?? '#94a3b8' }}>
                       <Check className="h-3 w-3 text-white opacity-0 transition-opacity group-hover/done:opacity-100" />
                     </button>
-
-                    {/* Title + meta */}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">
-                        {task.title}
-                      </p>
+                      <p className="truncate text-sm font-medium text-slate-800 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">{task.title}</p>
                       <div className="mt-0.5 flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium',
-                            STATUS_CHIP[task.status]
-                          )}
-                        >
-                          {statusInfo?.label}
-                        </span>
+                        <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium', STATUS_CHIP[task.status])}>{statusInfo?.label}</span>
                         {task.dueDate && (
-                          <span
-                            className={cn(
-                              'flex items-center gap-1 text-[10px]',
-                              overdue
-                                ? 'font-semibold text-red-500'
-                                : soon
-                                ? 'font-medium text-amber-500'
-                                : 'text-slate-400'
-                            )}
-                          >
-                            <CalendarClock className="h-3 w-3" />
-                            {overdue ? 'Overdue · ' : ''}
-                            {new Date(task.dueDate).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                            })}
+                          <span className={cn('flex items-center gap-1 text-[10px]', overdue ? 'font-semibold text-red-500' : soon ? 'font-medium text-amber-500' : 'text-slate-400')}>
+                            <CalendarClock className="h-3 w-3" />{overdue ? 'Overdue · ' : ''}{new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </span>
                         )}
                       </div>
                     </div>
-
-                    {/* Priority chip */}
-                    <span
-                      className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                      style={{
-                        backgroundColor: prioConfig.color + '22',
-                        color: prioConfig.color,
-                      }}
-                    >
-                      {prioConfig.label}
-                    </span>
+                    <label onClick={(e) => e.stopPropagation()} title="Reschedule" className="flex flex-shrink-0 cursor-pointer items-center opacity-0 transition-opacity group-hover:opacity-100">
+                      <CalendarClock className="h-3.5 w-3.5 text-slate-400 hover:text-brand-500" />
+                      <input type="date" defaultValue={task.dueDate ? task.dueDate.slice(0, 10) : ''} onChange={(e) => reschedule(task, e.target.value)} className="sr-only" />
+                    </label>
+                    <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: prioConfig.color + '22', color: prioConfig.color }}>{prioConfig.label}</span>
                   </div>
                 );
               })}
             </div>
           )}
         </motion.div>
-
-        {/* Right column – 2 / 5: Focus + (lazy) charts */}
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          {focus.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }} className="card">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Suggested next</h3>
-                <span className="text-xs text-slate-400">needs a due date</span>
-              </div>
-              <div className="space-y-2">
-                {focus.map((s) => (
-                  <div key={s.taskId} className="flex items-center gap-2">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: PRIORITY_CONFIG[s.priority as keyof typeof PRIORITY_CONFIG]?.color ?? '#94a3b8' }} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{s.title}</span>
-                    <button onClick={() => scheduleTask(s.taskId, s.suggestedDate)} className="shrink-0 rounded-md bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20">
-                      Schedule {new Date(s.suggestedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-          <Suspense fallback={<div className="card h-64 animate-pulse" />}>
-            <DashboardCharts
-              trend={completionTrend}
-              range={range}
-              onRangeChange={setRange}
-              pieData={pieData}
-              statusCounts={stats?.byStatus ?? {}}
-              priorityCounts={stats?.byPriority ?? {}}
-              totalTasks={totalTasks}
-            />
-          </Suspense>
         </div>
-      </div>
+        )}
 
-      {/* ── Bottom row: Activity + Team Members ─────────────────────── */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Activity – 2 / 3 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="card lg:col-span-2"
-        >
-          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Recent Activity
-          </h3>
+        {/* Suggested next */}
+        {vis('focus') && focus.length > 0 && (
+        <div className="min-w-0 lg:col-span-5" style={{ order: ord('focus') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }} className="card">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Suggested next</h3>
+            <span className="text-xs text-slate-400">needs a due date</span>
+          </div>
+          <div className="space-y-2">
+            {focus.map((s) => (
+              <div key={s.taskId} className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: PRIORITY_CONFIG[s.priority as keyof typeof PRIORITY_CONFIG]?.color ?? '#94a3b8' }} />
+                <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{s.title}</span>
+                <button onClick={() => scheduleTask(s.taskId, s.suggestedDate)} className="shrink-0 rounded-md bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20">Schedule {new Date(s.suggestedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+        </div>
+        )}
+
+        {/* Completion trend */}
+        {vis('trend') && (
+        <div className="min-w-0 lg:col-span-5" style={{ order: ord('trend') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }} className="card">
+          <Suspense fallback={<div className="h-32 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />}>
+            <TrendChart trend={completionTrend} range={range} onRangeChange={setRange} />
+          </Suspense>
+        </motion.div>
+        </div>
+        )}
+
+        {/* Task status (stacked bar) */}
+        {vis('status') && (
+        <div className="min-w-0 lg:col-span-4" style={{ order: ord('status') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="card">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Task Status</h3>
+          {totalTasks > 0 ? (
+            <>
+              <div className="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                {TASK_STATUSES.map(({ id }) => { const c = stats?.byStatus[id] ?? 0; const pct = totalTasks > 0 ? (c / totalTasks) * 100 : 0; return pct > 0 ? <div key={id} style={{ width: `${pct}%`, backgroundColor: STATUS_COLORS[id] }} /> : null; })}
+              </div>
+              <div className="space-y-1.5">
+                {TASK_STATUSES.map(({ id, label }) => { const c = stats?.byStatus[id] ?? 0; const pct = totalTasks > 0 ? Math.round((c / totalTasks) * 100) : 0; return (
+                  <div key={id} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[id] }} /><span className="text-slate-500 dark:text-slate-400">{label}</span></div>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{c} <span className="text-slate-400">({pct}%)</span></span>
+                  </div>
+                ); })}
+              </div>
+            </>
+          ) : <div className="flex h-32 items-center justify-center text-sm text-slate-400">No tasks yet</div>}
+        </motion.div>
+        </div>
+        )}
+
+        {/* By priority */}
+        {vis('priority') && (
+        <div className="min-w-0 lg:col-span-3" style={{ order: ord('priority') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="card">
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">By Priority</h3>
+          <div className="space-y-3">
+            {(['urgent', 'high', 'medium', 'low'] as const).map((pr) => { const config = PRIORITY_CONFIG[pr]; const count = stats?.byPriority[pr] ?? 0; const pct = totalTasks > 0 ? (count / totalTasks) * 100 : 0; return (
+              <div key={pr}>
+                <div className="mb-1 flex items-center justify-between text-xs"><span className="font-medium text-slate-600 dark:text-slate-400">{config.label}</span><span className="font-semibold text-slate-900 dark:text-slate-100">{count}</span></div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: 0.6, type: 'spring', stiffness: 200 }} className="h-full rounded-full" style={{ backgroundColor: config.color }} /></div>
+              </div>
+            ); })}
+          </div>
+        </motion.div>
+        </div>
+        )}
+
+        {/* Recent activity */}
+        {vis('activity') && (
+        <div className="min-w-0 lg:col-span-8" style={{ order: ord('activity') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="card">
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Recent Activity</h3>
           {activityFeed.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">No recent activity</p>
           ) : (
@@ -607,75 +631,42 @@ export const DashboardPage = () => {
                   {entry.kind === 'notification' && entry.actorName ? (
                     <Avatar name={entry.actorName} src={entry.actorAvatar ?? null} size="xs" />
                   ) : (
-                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10">
-                      {entry.icon === 'member' ? (
-                        <UserPlus className="h-3 w-3 text-brand-500" />
-                      ) : (
-                        <SquareKanban className="h-3 w-3 text-brand-500" />
-                      )}
-                    </div>
+                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-500/10">{entry.icon === 'member' ? <UserPlus className="h-3 w-3 text-brand-500" /> : <SquareKanban className="h-3 w-3 text-brand-500" />}</div>
                   )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-700 dark:text-slate-300">{entry.message}</p>
-                    <p className="text-xs text-slate-400">{formatRelative(entry.createdAt)}</p>
-                  </div>
+                  <div className="min-w-0 flex-1"><p className="text-sm text-slate-700 dark:text-slate-300">{entry.message}</p><p className="text-xs text-slate-400">{formatRelative(entry.createdAt)}</p></div>
                 </div>
               ))}
             </div>
           )}
         </motion.div>
+        </div>
+        )}
 
-        {/* Team Members – 1 / 3 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="card"
-        >
+        {/* Team members */}
+        {vis('team') && (
+        <div className="min-w-0 lg:col-span-4" style={{ order: ord('team') }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="card">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Team Members
-            </h3>
-            <button
-              onClick={() => navigate('/app/team')}
-              className="flex items-center gap-1 text-xs font-medium text-brand-500 transition-colors hover:text-brand-600"
-            >
-              Manage <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team Members</h3>
+            <button onClick={() => navigate('/app/team')} className="flex items-center gap-1 text-xs font-medium text-brand-500 transition-colors hover:text-brand-600">Manage <ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
           <div className="space-y-3">
             {activeTeam.members.slice(0, 7).map((m) => {
               const { label: activeLabel, isActive } = formatLastSeen(m.user.lastSeenAt);
               return (
                 <div key={m.user._id} className="flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar name={m.user.name} src={m.user.avatar} size="sm" />
-                    <div
-                      className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900 ${
-                        isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'
-                      }`}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {m.user.name}
-                    </p>
-                    <p className="text-xs text-slate-400">{activeLabel}</p>
-                  </div>
+                  <div className="relative"><Avatar name={m.user.name} src={m.user.avatar} size="sm" /><div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900 ${isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'}`} /></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{m.user.name}</p><p className="text-xs text-slate-400">{activeLabel}</p></div>
                 </div>
               );
             })}
-            {activeTeam.members.length > 7 && (
-              <button
-                onClick={() => navigate('/app/team')}
-                className="w-full rounded-xl py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                +{activeTeam.members.length - 7} more members
-              </button>
-            )}
+            {activeTeam.members.length > 7 && <button onClick={() => navigate('/app/team')} className="w-full rounded-xl py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">+{activeTeam.members.length - 7} more members</button>}
           </div>
         </motion.div>
+        </div>
+        )}
       </div>
+      )}
     </div>
   );
 };
