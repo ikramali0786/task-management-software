@@ -7,7 +7,10 @@ import {
   List, AlignLeft, AlignCenter, AlignRight, Plus, Search, X,
   ZoomIn, ZoomOut, Maximize2, Grid3x3, Map as MapIcon, LocateFixed,
   ChevronDown, FolderOpen, History, Clock, RotateCcw, LayoutTemplate,
-  Download, Share2, FileCode, FileText, Link2,
+  Download, Share2, FileCode, FileText, Link2, Magnet,
+  AlignHorizontalJustifyStart, AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd,
+  AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
+  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -243,6 +246,8 @@ export const WhiteboardPage = () => {
   const [showMinimap, setShowMinimap] = useState(() => localStorage.getItem('wb-minimap') !== '0');
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [presence, setPresence] = useState<{ id: string; name: string }[]>([]);
+  const [snap, setSnap] = useState(() => localStorage.getItem('wb-snap') !== '0');
+  const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([]);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
@@ -289,6 +294,9 @@ export const WhiteboardPage = () => {
   const penActiveRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const pendingRef = useRef<{ cx: number; cy: number } | null>(null);
+  const snapRef = useRef(snap); snapRef.current = snap;
+  const modRef = useRef({ shift: false, alt: false });
+  const guidesRef = useRef('[]');
 
   // ── Live ops ───────────────────────────────────────────────────────────────
   const emitOp = (op: any) => { if (activeTeam) getSocket()?.emit('whiteboard:op', { teamId: activeTeam._id, boardId: boardIdRef.current, op }); };
@@ -540,6 +548,29 @@ export const WhiteboardPage = () => {
   };
   const copyText = (text: string, title: string) => { navigator.clipboard.writeText(text).then(() => addToast({ type: 'success', title })).catch(() => {}); };
 
+  // ── Snapping & alignment guides ────────────────────────────────────────────
+  // Candidate snap lines (left/center/right · top/middle/bottom) of every element
+  // except those being moved. Built once at the start of a drag/resize.
+  const snapCands = (exclude: Set<string>) => {
+    const m = byId(); const xs: number[] = [], ys: number[] = [];
+    for (const el of elsRef.current) { if (exclude.has(el.id) || el.type === 'connector') continue; const b = elBBox(el, m); xs.push(b.x, b.x + b.w / 2, b.x + b.w); ys.push(b.y, b.y + b.h / 2, b.y + b.h); }
+    return { xs, ys };
+  };
+  const unionBox = (els: El[]) => { const m = byId(); let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity; for (const el of els) { const b = elBBox(el, m); minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); } return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }; };
+  // Snap any of `refs` to the nearest candidate (or 24px grid); returns the winning delta + guide line.
+  const pickSnap = (refs: number[], cands: number[], thr: number): { delta: number; guide: number } | null => {
+    let bestDelta: number | null = null, guide = 0, bestAbs = thr;
+    for (const r of refs) {
+      let cBest: number | null = null, cAbs = thr;
+      for (const c of cands) { const d = Math.abs(c - r); if (d < cAbs) { cAbs = d; cBest = c; } }
+      const g = Math.round(r / 24) * 24; if (Math.abs(g - r) < cAbs) { cAbs = Math.abs(g - r); cBest = g; }
+      if (cBest != null && cAbs < bestAbs) { bestAbs = cAbs; bestDelta = cBest - r; guide = cBest; }
+    }
+    return bestDelta == null ? null : { delta: bestDelta, guide };
+  };
+  const setGuidesIf = (arr: { x?: number; y?: number }[]) => { const s = JSON.stringify(arr); if (s !== guidesRef.current) { guidesRef.current = s; setGuides(arr); } };
+  const attachSnap = (op: any, exclude: Set<string>) => { if (snapRef.current) { const c = snapCands(exclude); op.snapX = c.xs; op.snapY = c.ys; } };
+
   // ── Canvas pointer ─────────────────────────────────────────────────────────
   const onBgPointerDown = (e: React.PointerEvent) => {
     if (editingId) return;
@@ -556,11 +587,11 @@ export const WhiteboardPage = () => {
     if (tool === 'note') { const el: Shape = { id: uid(), type: 'note', x: p.x, y: p.y, w: 168, h: 120, fill: NOTE_FILL, stroke: '#00000018', strokeWidth: 1, opacity: 1, fontSize: 14, align: 'left', html: '' }; setElements((els) => [...els, el]); setSelectedIds([el.id]); setEditingId(el.id); return; }
     if (tool === 'text') { const el: Txt = { id: uid(), type: 'text', x: p.x, y: p.y, text: 'Text', size: 18, align: 'left', stroke: paint.stroke, opacity: 1 }; setElements((els) => [...els, el]); setSelectedIds([el.id]); setEditingId(el.id); return; }
     if (tool === 'pen') { const el: PathEl = { id: uid(), type: 'path', points: [[p.x, p.y]], stroke: paint.stroke, strokeWidth: paint.strokeWidth, dash: paint.dash, opacity: paint.opacity }; setElements((els) => [...els, el]); opRef.current = { kind: 'draw', id: el.id }; return; }
-    if (tool === 'line' || tool === 'arrow') { const el: LineEl = { id: uid(), type: tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: paint.stroke, strokeWidth: paint.strokeWidth, dash: paint.dash, opacity: paint.opacity }; setElements((els) => [...els, el]); setSelectedIds([el.id]); opRef.current = { kind: 'lineDraw', id: el.id }; return; }
+    if (tool === 'line' || tool === 'arrow') { const el: LineEl = { id: uid(), type: tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: paint.stroke, strokeWidth: paint.strokeWidth, dash: paint.dash, opacity: paint.opacity }; setElements((els) => [...els, el]); setSelectedIds([el.id]); const op: any = { kind: 'lineDraw', id: el.id }; attachSnap(op, new Set()); opRef.current = op; return; }
     // shape (rect/ellipse/diamond/triangle/star/frame)
     const isFrame = tool === 'frame';
     const el: Shape = { id: uid(), type: tool as ShapeType, x: p.x, y: p.y, w: 1, h: 1, fill: isFrame ? hexA('#94a3b8', 0.06) : paint.fill, stroke: isFrame ? '#94a3b8' : paint.stroke, strokeWidth: isFrame ? 1.5 : paint.strokeWidth, dash: isFrame ? true : paint.dash, opacity: paint.opacity, fontSize: 14, align: 'center', text: isFrame ? 'Frame' : '' };
-    setElements((els) => isFrame ? [el, ...els] : [...els, el]); setSelectedIds([el.id]); opRef.current = { kind: 'resize', id: el.id, sx: p.x, sy: p.y };
+    setElements((els) => isFrame ? [el, ...els] : [...els, el]); setSelectedIds([el.id]); const op: any = { kind: 'resize', id: el.id, sx: p.x, sy: p.y }; attachSnap(op, new Set()); opRef.current = op;
   };
 
   // Core op application, fed from a single rAF tick (coalesces multiple moves/frame).
@@ -568,23 +599,49 @@ export const WhiteboardPage = () => {
     const op = opRef.current; if (!op) return;
     if (op.kind === 'pan') { setOffset({ x: op.ox + (cx - op.sx), y: op.oy + (cy - op.sy) }); return; }
     const p = ptc(cx, cy);
+    const shift = modRef.current.shift;
+    const thr = 6 / scaleRef.current;
+    const canSnap = snapRef.current && !shift && op.snapX;
     if (op.kind === 'marquee') setMarquee({ x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) });
     else if (op.kind === 'draw') { setElements((els) => els.map((el) => { if (el.id !== op.id || el.type !== 'path') return el; const last = el.points[el.points.length - 1]; if (last && Math.abs(p.x - last[0]) < 2.5 && Math.abs(p.y - last[1]) < 2.5) return el; return { ...el, points: [...el.points, [p.x, p.y]] }; })); liveEmit([op.id]); }
-    else if (op.kind === 'lineDraw') { patch(op.id, { x2: p.x, y2: p.y }); liveEmit([op.id]); }
-    else if (op.kind === 'lineHandle') { patch(op.id, op.end === 1 ? { x1: p.x, y1: p.y } : { x2: p.x, y2: p.y }); liveEmit([op.id]); }
-    else if (op.kind === 'resize') { patch(op.id, { x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) }); liveEmit([op.id]); }
-    else if (op.kind === 'move') { const dx = p.x - op.sx, dy = p.y - op.sy; setElements((els) => els.map((el) => op.orig[el.id] ? translateEl(op.orig[el.id], dx, dy) : el)); liveEmit(Object.keys(op.orig)); }
+    else if (op.kind === 'lineDraw' || op.kind === 'lineHandle') {
+      const el = elsRef.current.find((e) => e.id === op.id) as LineEl | undefined; if (!el) return;
+      const fixed = op.kind === 'lineDraw' ? { x: el.x1, y: el.y1 } : (op.end === 1 ? { x: el.x2, y: el.y2 } : { x: el.x1, y: el.y1 });
+      let nx = p.x, ny = p.y;
+      if (shift) { const len = Math.hypot(nx - fixed.x, ny - fixed.y); const a = Math.round(Math.atan2(ny - fixed.y, nx - fixed.x) / (Math.PI / 4)) * (Math.PI / 4); nx = fixed.x + len * Math.cos(a); ny = fixed.y + len * Math.sin(a); setGuidesIf([]); }
+      else if (canSnap) { const sx = pickSnap([nx], op.snapX, thr), sy = pickSnap([ny], op.snapY, thr); if (sx) nx += sx.delta; if (sy) ny += sy.delta; setGuidesIf([...(sx ? [{ x: sx.guide }] : []), ...(sy ? [{ y: sy.guide }] : [])]); }
+      else setGuidesIf([]);
+      patch(op.id, op.kind === 'lineDraw' || op.end === 2 ? { x2: nx, y2: ny } : { x1: nx, y1: ny }); liveEmit([op.id]);
+    }
+    else if (op.kind === 'resize') {
+      let px = p.x, py = p.y;
+      if (shift) { const s = Math.max(Math.abs(px - op.sx), Math.abs(py - op.sy)); px = op.sx + (px < op.sx ? -s : s); py = op.sy + (py < op.sy ? -s : s); setGuidesIf([]); }
+      else if (canSnap) { const sx = pickSnap([px], op.snapX, thr), sy = pickSnap([py], op.snapY, thr); if (sx) px += sx.delta; if (sy) py += sy.delta; setGuidesIf([...(sx ? [{ x: sx.guide }] : []), ...(sy ? [{ y: sy.guide }] : [])]); }
+      else setGuidesIf([]);
+      patch(op.id, { x: Math.min(op.sx, px), y: Math.min(op.sy, py), w: Math.abs(px - op.sx), h: Math.abs(py - op.sy) }); liveEmit([op.id]);
+    }
+    else if (op.kind === 'move') {
+      let dx = p.x - op.sx, dy = p.y - op.sy;
+      if (shift) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; setGuidesIf([]); }
+      else if (canSnap && op.groupBox) { const gb = op.groupBox; const sx = pickSnap([gb.x + dx, gb.x + dx + gb.w / 2, gb.x + dx + gb.w], op.snapX, thr), sy = pickSnap([gb.y + dy, gb.y + dy + gb.h / 2, gb.y + dy + gb.h], op.snapY, thr); if (sx) dx += sx.delta; if (sy) dy += sy.delta; setGuidesIf([...(sx ? [{ x: sx.guide }] : []), ...(sy ? [{ y: sy.guide }] : [])]); }
+      else setGuidesIf([]);
+      setElements((els) => els.map((el) => op.orig[el.id] ? translateEl(op.orig[el.id], dx, dy) : el)); liveEmit(Object.keys(op.orig));
+    }
     else if (op.kind === 'handle') {
-      const minS = 12; let { x, y, w, h } = op;
-      if (op.corner.includes('e')) w = Math.max(minS, p.x - op.x);
-      if (op.corner.includes('s')) h = Math.max(minS, p.y - op.y);
-      if (op.corner.includes('w')) { const nx = Math.min(p.x, op.x + op.w - minS); w = op.x + op.w - nx; x = nx; }
-      if (op.corner.includes('n')) { const ny = Math.min(p.y, op.y + op.h - minS); h = op.y + op.h - ny; y = ny; }
+      const minS = 12; let px = p.x, py = p.y;
+      if (canSnap) { const sx = pickSnap([px], op.snapX, thr), sy = pickSnap([py], op.snapY, thr); if (sx) px += sx.delta; if (sy) py += sy.delta; setGuidesIf([...(sx ? [{ x: sx.guide }] : []), ...(sy ? [{ y: sy.guide }] : [])]); } else setGuidesIf([]);
+      let { x, y, w, h } = op;
+      if (op.corner.includes('e')) w = Math.max(minS, px - op.x);
+      if (op.corner.includes('s')) h = Math.max(minS, py - op.y);
+      if (op.corner.includes('w')) { const nx = Math.min(px, op.x + op.w - minS); w = op.x + op.w - nx; x = nx; }
+      if (op.corner.includes('n')) { const ny = Math.min(py, op.y + op.h - minS); h = op.y + op.h - ny; y = ny; }
+      if (shift) { const ar = op.w / op.h || 1; const nh = Math.max(minS, w / ar); if (op.corner.includes('n')) y = op.y + op.h - nh; h = nh; }
       patch(op.id, { x, y, w, h }); liveEmit([op.id]);
     }
   };
   const flushMove = () => { rafRef.current = null; const pm = pendingRef.current; if (pm) applyMove(pm.cx, pm.cy); };
   const onPointerMove = (e: React.PointerEvent) => {
+    modRef.current = { shift: e.shiftKey, alt: e.altKey };
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = ptc(e.clientX, e.clientY); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, boardId: boardIdRef.current, x: c.x, y: c.y }); } }
     if (gestureRef.current) { handlePinch(); return; }
@@ -597,6 +654,7 @@ export const WhiteboardPage = () => {
     if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (pendingRef.current && opRef.current) applyMove(pendingRef.current.cx, pendingRef.current.cy);
     pendingRef.current = null;
+    setGuidesIf([]);
     const op = opRef.current;
     if (op?.kind === 'marquee') {
       const m = marquee;
@@ -651,14 +709,30 @@ export const WhiteboardPage = () => {
       const f = map.get(id); if (f?.type === 'frame') { const fb = elBBox(f, map); for (const o of elsRef.current) { if (o.id === id || o.locked) continue; const c = center(elBBox(o, map)); if (c.x >= fb.x && c.x <= fb.x + fb.w && c.y >= fb.y && c.y <= fb.y + fb.h) moveSet.add(o.id); } }
     }
     if (!moveSet.size) return;
+    const p = pt(e);
     pushHistory();
-    const p = pt(e); const orig: Record<string, El> = {};
-    for (const id of moveSet) { const x = map.get(id); if (x) orig[id] = clone(x); }
-    opRef.current = { kind: 'move', sx: p.x, sy: p.y, orig };
+    // Alt-drag clones the selection and drags the copies instead of the originals.
+    if (e.altKey) {
+      const copies: El[] = [];
+      for (const id of moveSet) { const o = map.get(id); if (!o || o.type === 'connector') continue; copies.push({ ...clone(o), id: uid() } as El); }
+      if (copies.length) {
+        setElements((els) => [...els, ...copies]);
+        const newIds = copies.map((c) => c.id); setSelectedIds(newIds);
+        const orig: Record<string, El> = {}; for (const c of copies) orig[c.id] = clone(c);
+        const op: any = { kind: 'move', sx: p.x, sy: p.y, orig, groupBox: unionBox(copies) };
+        attachSnap(op, new Set(newIds)); opRef.current = op;
+        setTimeout(() => copies.forEach((c) => emitOp({ kind: 'upsert', el: c })), 0);
+        return;
+      }
+    }
+    const orig: Record<string, El> = {}; const origEls: El[] = [];
+    for (const id of moveSet) { const x = map.get(id); if (x) { orig[id] = clone(x); origEls.push(x); } }
+    const op: any = { kind: 'move', sx: p.x, sy: p.y, orig, groupBox: unionBox(origEls) };
+    attachSnap(op, moveSet); opRef.current = op;
   };
 
-  const onHandleDown = (e: React.PointerEvent, el: El, corner: string) => { e.stopPropagation(); (e.target as Element).setPointerCapture?.(e.pointerId); const b = getBox(el)!; pushHistory(); opRef.current = { kind: 'handle', id: el.id, corner, x: b.x, y: b.y, w: b.w, h: b.h }; };
-  const onLineHandleDown = (e: React.PointerEvent, el: LineEl, end: 1 | 2) => { e.stopPropagation(); (e.target as Element).setPointerCapture?.(e.pointerId); pushHistory(); opRef.current = { kind: 'lineHandle', id: el.id, end }; };
+  const onHandleDown = (e: React.PointerEvent, el: El, corner: string) => { e.stopPropagation(); (e.target as Element).setPointerCapture?.(e.pointerId); const b = getBox(el)!; pushHistory(); const op: any = { kind: 'handle', id: el.id, corner, x: b.x, y: b.y, w: b.w, h: b.h }; attachSnap(op, new Set([el.id])); opRef.current = op; };
+  const onLineHandleDown = (e: React.PointerEvent, el: LineEl, end: 1 | 2) => { e.stopPropagation(); (e.target as Element).setPointerCapture?.(e.pointerId); pushHistory(); const op: any = { kind: 'lineHandle', id: el.id, end }; attachSnap(op, new Set([el.id])); opRef.current = op; };
   const commitText = (id: string, text: string) => { patch(id, { text }); setEditingId(null); setTimeout(() => emitUpsert(id), 0); };
   const commitHtml = (id: string, html: string) => { patch(id, { html: sanitizeHtml(html) }); setEditingId(null); setTimeout(() => emitUpsert(id), 0); };
 
@@ -668,6 +742,36 @@ export const WhiteboardPage = () => {
   const reorder = (toFront: boolean) => { if (!selectedIds.length || !canEdit) return; pushHistory(); const sel = elsRef.current.filter((e) => selectedIds.includes(e.id)); const rest = elsRef.current.filter((e) => !selectedIds.includes(e.id)); const next = toFront ? [...rest, ...sel] : [...sel, ...rest]; setElements(next); setCtxMenu(null); setTimeout(() => emitOp({ kind: 'order', ids: next.map((e) => e.id) }), 0); };
   const toggleLock = () => { if (!selectedIds.length || !canEdit) return; pushHistory(); const anyUnlocked = elsRef.current.some((e) => selectedIds.includes(e.id) && !e.locked); setElements((els) => els.map((el) => selectedIds.includes(el.id) ? ({ ...el, locked: anyUnlocked } as El) : el)); setCtxMenu(null); setTimeout(() => selectedIds.forEach((id) => emitUpsert(id)), 0); };
   const nudge = (dx: number, dy: number) => { if (!selectedIds.length || !canEdit) return; const set = new Set(selectedIds); setElements((els) => els.map((el) => set.has(el.id) && !el.locked ? translateEl(el, dx, dy) : el)); setTimeout(() => selectedIds.forEach((id) => emitUpsert(id)), 0); };
+  type AlignMode = 'left' | 'centerH' | 'right' | 'top' | 'middle' | 'bottom';
+  const alignSelected = (mode: AlignMode) => {
+    if (!canEdit) return; const m = byId();
+    const items = selectedIds.map((id) => m.get(id)).filter((el): el is El => !!el && el.type !== 'connector' && !el.locked).map((el) => ({ el, b: elBBox(el, m) }));
+    if (items.length < 2) return; pushHistory();
+    const minX = Math.min(...items.map((i) => i.b.x)), maxX = Math.max(...items.map((i) => i.b.x + i.b.w));
+    const minY = Math.min(...items.map((i) => i.b.y)), maxY = Math.max(...items.map((i) => i.b.y + i.b.h));
+    const target = new Map(items.map(({ el, b }) => {
+      let dx = 0, dy = 0;
+      if (mode === 'left') dx = minX - b.x; else if (mode === 'right') dx = maxX - (b.x + b.w); else if (mode === 'centerH') dx = (minX + maxX) / 2 - (b.x + b.w / 2);
+      else if (mode === 'top') dy = minY - b.y; else if (mode === 'bottom') dy = maxY - (b.y + b.h); else if (mode === 'middle') dy = (minY + maxY) / 2 - (b.y + b.h / 2);
+      return [el.id, { dx, dy }];
+    }));
+    setElements((els) => els.map((el) => target.has(el.id) ? translateEl(el, target.get(el.id)!.dx, target.get(el.id)!.dy) : el));
+    setTimeout(() => target.forEach((_, id) => emitUpsert(id)), 0);
+  };
+  const distributeSelected = (axis: 'h' | 'v') => {
+    if (!canEdit) return; const m = byId();
+    const items = selectedIds.map((id) => m.get(id)).filter((el): el is El => !!el && el.type !== 'connector' && !el.locked).map((el) => ({ el, b: elBBox(el, m) }));
+    if (items.length < 3) return; pushHistory();
+    items.sort((a, b) => axis === 'h' ? (a.b.x + a.b.w / 2) - (b.b.x + b.b.w / 2) : (a.b.y + a.b.h / 2) - (b.b.y + b.b.h / 2));
+    const c0 = axis === 'h' ? items[0].b.x + items[0].b.w / 2 : items[0].b.y + items[0].b.h / 2;
+    const cN = axis === 'h' ? items[items.length - 1].b.x + items[items.length - 1].b.w / 2 : items[items.length - 1].b.y + items[items.length - 1].b.h / 2;
+    const step = (cN - c0) / (items.length - 1);
+    const target = new Map<string, { dx: number; dy: number }>();
+    items.forEach((it, i) => { if (i === 0 || i === items.length - 1) return; const cur = axis === 'h' ? it.b.x + it.b.w / 2 : it.b.y + it.b.h / 2; const d = c0 + step * i - cur; target.set(it.el.id, axis === 'h' ? { dx: d, dy: 0 } : { dx: 0, dy: d }); });
+    setElements((els) => els.map((el) => target.has(el.id) ? translateEl(el, target.get(el.id)!.dx, target.get(el.id)!.dy) : el));
+    setTimeout(() => target.forEach((_, id) => emitUpsert(id)), 0);
+  };
+  const selectAll = () => { if (!canEdit) return; setSelectedIds(elsRef.current.filter((el) => !el.locked).map((el) => el.id)); };
   const clearAll = async () => { if (!elements.length || !canEdit) return; const ok = await showConfirm({ title: 'Clear the whiteboard?', message: 'This removes every element for the whole team.', confirmLabel: 'Clear', variant: 'danger' }); if (ok) { pushHistory(); emitOp({ kind: 'clear' }); setElements([]); setSelectedIds([]); } };
 
   // ── Style ──────────────────────────────────────────────────────────────────
@@ -712,6 +816,7 @@ export const WhiteboardPage = () => {
         const k = e.key.toLowerCase();
         if (tmap[k]) { e.preventDefault(); setTool(tmap[k]); setConnectFrom(null); return; }
       }
+      if (meta && e.key.toLowerCase() === 'a') { e.preventDefault(); selectAll(); return; }
       if (meta && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
       if (meta && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
       if (meta && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
@@ -999,6 +1104,9 @@ export const WhiteboardPage = () => {
               return renderShape(el as Shape, selected, moveCursor);
             })}
             {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} fill="#e8502e10" stroke="#e8502e" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />}
+            {guides.map((g, i) => g.x != null
+              ? <line key={i} x1={g.x} y1={-100000} x2={g.x} y2={100000} stroke="#e8502e" strokeWidth={1} vectorEffect="non-scaling-stroke" pointerEvents="none" />
+              : <line key={i} x1={-100000} y1={g.y} x2={100000} y2={g.y} stroke="#e8502e" strokeWidth={1} vectorEffect="non-scaling-stroke" pointerEvents="none" />)}
             {connectFrom && (() => { const f = map.get(connectFrom); if (!f) return null; const b = elBBox(f, map); return <rect x={b.x - 4} y={b.y - 4} width={b.w + 8} height={b.h + 8} rx={8} fill="none" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="5 4" pointerEvents="none" />; })()}
             {/* Teammate cursors + selection — isolated so cursor traffic never re-renders elements. */}
             {boardId && <CollabLayer key={boardId} teamId={activeTeam._id} boardIdRef={boardIdRef} scale={scale} getBBox={getBBox} onPresence={handlePresence} />}
@@ -1016,6 +1124,23 @@ export const WhiteboardPage = () => {
         {/* Style panel */}
         {showStyle && (
           <div className="absolute bottom-4 left-1/2 flex max-w-[94vw] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+            {selectedIds.length >= 2 && canEdit && (
+              <>
+                <div className="flex items-center gap-0.5">
+                  <button onClick={() => alignSelected('left')} title="Align left" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignHorizontalJustifyStart className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => alignSelected('centerH')} title="Align center" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignHorizontalJustifyCenter className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => alignSelected('right')} title="Align right" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignHorizontalJustifyEnd className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => alignSelected('top')} title="Align top" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignVerticalJustifyStart className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => alignSelected('middle')} title="Align middle" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignVerticalJustifyCenter className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => alignSelected('bottom')} title="Align bottom" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignVerticalJustifyEnd className="h-3.5 w-3.5" /></button>
+                  {selectedIds.length >= 3 && <>
+                    <button onClick={() => distributeSelected('h')} title="Distribute horizontally" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignHorizontalDistributeCenter className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => distributeSelected('v')} title="Distribute vertically" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><AlignVerticalDistributeCenter className="h-3.5 w-3.5" /></button>
+                  </>}
+                </div>
+                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
+              </>
+            )}
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Fill</span>
               {FILLS.map((c) => (<button key={c} onClick={() => applyStyle({ fill: c })} className={cn('h-5 w-5 rounded-md border ring-1 ring-offset-1 dark:ring-offset-slate-900', paint.fill === c ? 'ring-brand-400' : 'ring-transparent', c === 'none' && 'relative overflow-hidden')} style={{ background: c === 'none' ? '#fff' : c, borderColor: '#0000001a' }} title={c}>{c === 'none' && <span className="absolute left-1/2 top-0 h-7 w-px -translate-x-1/2 rotate-45 bg-red-400" />}</button>))}
@@ -1116,6 +1241,7 @@ export const WhiteboardPage = () => {
           <button onClick={zoomToFit} title="Zoom to fit" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><Maximize2 className="h-4 w-4" /></button>
           <button onClick={resetView} title="Center / reset view" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><LocateFixed className="h-4 w-4" /></button>
           <button onClick={cycleGrid} title={`Grid: ${grid}`} className={cn('rounded-lg p-1.5', grid !== 'off' ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><Grid3x3 className="h-4 w-4" /></button>
+          <button onClick={() => setSnap((v) => { localStorage.setItem('wb-snap', v ? '0' : '1'); return !v; })} title={`Snapping ${snap ? 'on' : 'off'}`} className={cn('rounded-lg p-1.5', snap ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><Magnet className="h-4 w-4" /></button>
           <button onClick={() => setShowMinimap((v) => !v)} title="Toggle minimap" className={cn('rounded-lg p-1.5', showMinimap ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><MapIcon className="h-4 w-4" /></button>
         </div>
       </div>
