@@ -1036,6 +1036,43 @@ export const getTaskStats = asyncHandler(async (req: Request, res: Response) => 
   sendSuccess(res, { stats });
 });
 
+/* GET /tasks/dashboard-metrics?teamId=&days=30 — lightweight, ungated dashboard
+ * analytics computed server-side (completion trend, avg cycle time, throughput
+ * + previous-period delta). Replaces pulling hundreds of done tasks to the client. */
+export const getDashboardMetrics = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+  await verifyTeamMember(teamId, req.user!._id.toString());
+
+  const mongoose = require('mongoose');
+  const teamObjId = new mongoose.Types.ObjectId(teamId);
+  const dayMs = 86_400_000;
+  const days = Math.min(90, Math.max(7, parseInt((req.query.days as string) || '30', 10) || 30));
+  const since = new Date(Date.now() - days * dayMs); since.setHours(0, 0, 0, 0);
+  const prevSince = new Date(since.getTime() - days * dayMs);
+
+  const [completedAgg, cycleAgg, prevThroughput] = await Promise.all([
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$completedAt' } }, count: { $sum: 1 } } },
+    ]),
+    Task.aggregate([
+      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
+      { $project: { cycle: { $subtract: ['$completedAt', '$createdAt'] } } },
+      { $group: { _id: null, avg: { $avg: '$cycle' } } },
+    ]),
+    Task.countDocuments({ team: teamObjId, isArchived: false, completedAt: { $gte: prevSince, $lt: since } }),
+  ]);
+
+  const completedMap: Record<string, number> = Object.fromEntries(completedAgg.map((d: any) => [d._id, d.count]));
+  const trend: { date: string; count: number }[] = [];
+  for (let i = 0; i < days; i++) { const key = new Date(since.getTime() + i * dayMs).toISOString().slice(0, 10); trend.push({ date: key, count: completedMap[key] || 0 }); }
+  const throughput = completedAgg.reduce((a: number, d: any) => a + d.count, 0);
+  const avgCycleDays = cycleAgg[0]?.avg ? Math.round((cycleAgg[0].avg / dayMs) * 10) / 10 : null;
+
+  sendSuccess(res, { metrics: { days, trend, throughput, prevThroughput, avgCycleDays } });
+});
+
 /* ── Kanban position rebalance ───────────────────────────────────────────── */
 
 export const rebalancePositions = asyncHandler(async (req: Request, res: Response) => {

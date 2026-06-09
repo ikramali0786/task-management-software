@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Kanban } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -62,6 +63,18 @@ export const KanbanPage = () => {
     setSelectionMode(false);
     setView('board');
   }, [activeTeam?._id]);
+
+  // Seed a filter from a deep link (e.g. Dashboard "Overdue" → /app/board?due=overdue),
+  // then clear the param so it doesn't re-apply on later navigation.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const due = searchParams.get('due');
+    if (!due) return;
+    if (['overdue', 'today', 'week', 'no-date'].includes(due)) {
+      setFilters((f) => ({ ...f, dueDateFilter: due as TaskFilters['dueDateFilter'] }));
+    }
+    setSearchParams({}, { replace: true });
+  }, [activeTeam?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allTasks = useMemo(() => Object.values(tasks), [tasks]);
   const filteredTaskIds = useMemo(() => {

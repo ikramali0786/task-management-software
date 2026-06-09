@@ -8,6 +8,7 @@ import {
   updateTaskPosition,
   deleteTask,
   getTaskStats,
+  getDashboardMetrics,
   getWorkload,
   searchTasks,
   semanticSearch,
@@ -37,6 +38,7 @@ router.use(protect);
 
 // Stats, workload & cross-team search (must be before /:taskId)
 router.get('/stats', getTaskStats);
+router.get('/dashboard-metrics', getDashboardMetrics);
 router.get('/workload', getWorkload);
 router.get('/search', searchTasks);
 router.post('/semantic-search', semanticSearch);

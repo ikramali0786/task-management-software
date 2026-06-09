@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -18,6 +18,7 @@ import {
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
+import { getSocket } from '@/lib/socket';
 import { taskService } from '@/services/taskService';
 import { Task, TaskStats, PRIORITY_CONFIG, TASK_STATUSES } from '@/types';
 import { Avatar } from '@/components/ui/Avatar';
@@ -77,33 +78,40 @@ export const DashboardPage = () => {
   const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [myTasksLoading, setMyTasksLoading] = useState(false);
   const [myTasksTab, setMyTasksTab] = useState<'all' | 'due_soon' | 'overdue'>('all');
-  const [doneTasks, setDoneTasks] = useState<Task[]>([]);
+  const [metrics, setMetrics] = useState<Awaited<ReturnType<typeof taskService.getDashboardMetrics>> | null>(null);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!activeTeam) return;
-    setStatsLoading(true);
-    taskService
-      .getStats(activeTeam._id)
-      .then((s) => setStats(s))
-      .finally(() => setStatsLoading(false));
-  }, [activeTeam?._id]);
-
-  useEffect(() => {
+  // Monotonic token so a stale response from a previous team can't overwrite the current one.
+  const reqRef = useRef(0);
+  const load = useCallback(async () => {
     if (!activeTeam || !user) return;
-    setMyTasksLoading(true);
-    taskService
-      .getTasks({ teamId: activeTeam._id, assignee: user._id, limit: '30' })
-      .then(({ tasks }) => setMyTasks(tasks.filter((t) => t.status !== 'done')))
-      .finally(() => setMyTasksLoading(false));
+    const token = ++reqRef.current;
+    const teamId = activeTeam._id;
+    setError(false); setStatsLoading(true); setMyTasksLoading(true);
+    const results = await Promise.allSettled([
+      taskService.getStats(teamId),
+      taskService.getTasks({ teamId, assignee: user._id, limit: '30' }),
+      taskService.getDashboardMetrics(teamId),
+    ]);
+    if (token !== reqRef.current) return; // a newer load started — discard
+    const [s, mt, m] = results;
+    if (s.status === 'fulfilled') setStats(s.value); else setError(true);
+    if (mt.status === 'fulfilled') setMyTasks(mt.value.tasks.filter((t) => t.status !== 'done')); else setError(true);
+    if (m.status === 'fulfilled') setMetrics(m.value); else setMetrics(null);
+    setStatsLoading(false); setMyTasksLoading(false);
   }, [activeTeam?._id, user?._id]);
 
+  useEffect(() => { void load(); }, [load]);
+
+  // Live refresh: when any task changes anywhere, debounce-refresh the dashboard.
   useEffect(() => {
-    if (!activeTeam) return;
-    taskService
-      .getTasks({ teamId: activeTeam._id, status: 'done', limit: '200' })
-      .then(({ tasks }) => setDoneTasks(tasks))
-      .catch(() => {});
-  }, [activeTeam?._id]);
+    const socket = getSocket(); if (!socket || !activeTeam) return;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => { if (t) clearTimeout(t); t = setTimeout(() => void load(), 800); };
+    const events = ['task:created', 'task:updated', 'task:deleted', 'task:moved'];
+    events.forEach((e) => socket.on(e, bump));
+    return () => { if (t) clearTimeout(t); events.forEach((e) => socket.off(e, bump)); };
+  }, [activeTeam?._id, load]);
 
   /* derived */
   const totalTasks = stats ? Object.values(stats.byStatus).reduce((a, b) => a + b, 0) : 0;
@@ -125,40 +133,10 @@ export const DashboardPage = () => {
     return myTasks;
   }, [myTasks, myTasksTab]);
 
-  // Avg cycle time: mean(completedAt - createdAt) in days for tasks done in last 30 days
-  const avgCycleTime = useMemo(() => {
-    const cutoff = Date.now() - 30 * 86_400_000;
-    const recent = doneTasks.filter(
-      (t) => t.completedAt && new Date(t.completedAt).getTime() > cutoff
-    );
-    if (!recent.length) return null;
-    const avg =
-      recent.reduce(
-        (s, t) =>
-          s +
-          (new Date(t.completedAt!).getTime() - new Date(t.createdAt).getTime()) /
-            86_400_000,
-        0
-      ) / recent.length;
-    return Math.round(avg * 10) / 10;
-  }, [doneTasks]);
-
-  // 30-day completion trend (one bucket per calendar day)
-  const completionTrend = useMemo(() => {
-    const map: Record<string, number> = {};
-    const cutoff = Date.now() - 30 * 86_400_000;
-    doneTasks
-      .filter((t) => t.completedAt && new Date(t.completedAt).getTime() > cutoff)
-      .forEach((t) => {
-        const d = t.completedAt!.slice(0, 10);
-        map[d] = (map[d] ?? 0) + 1;
-      });
-    return Array.from({ length: 30 }, (_, i) => {
-      const dt = new Date(Date.now() - (29 - i) * 86_400_000);
-      const key = dt.toISOString().slice(0, 10);
-      return { date: key.slice(5), count: map[key] ?? 0 };
-    });
-  }, [doneTasks]);
+  // Server-computed metrics (cycle time, 30-day completion trend, throughput delta).
+  const avgCycleTime = metrics?.avgCycleDays ?? null;
+  const completionTrend = useMemo(() => (metrics?.trend ?? []).map((p) => ({ date: p.date.slice(5), count: p.count })), [metrics]);
+  const completedDelta = metrics ? metrics.throughput - metrics.prevThroughput : 0;
 
   const activityFeed = useMemo(() => {
     const notifItems = notifications.map((n) => ({
@@ -212,6 +190,8 @@ export const DashboardPage = () => {
       bg: 'bg-brand-50 dark:bg-brand-500/10',
       accentColor: '#e8502e',
       sub: `${activeTeam?.members.length ?? 0} members in team`,
+      href: '/app/board',
+      delta: 0,
     },
     {
       label: 'In Progress',
@@ -221,6 +201,8 @@ export const DashboardPage = () => {
       bg: 'bg-brand-50 dark:bg-brand-500/10',
       accentColor: '#e8502e',
       sub: `${stats?.byStatus.review ?? 0} in review`,
+      href: '/app/board',
+      delta: 0,
     },
     {
       label: 'Completed',
@@ -230,6 +212,8 @@ export const DashboardPage = () => {
       bg: 'bg-emerald-50 dark:bg-emerald-500/10',
       accentColor: '#22c55e',
       sub: `${completedPct}% completion rate`,
+      href: '/app/board',
+      delta: completedDelta,
     },
     {
       label: 'Overdue',
@@ -239,6 +223,8 @@ export const DashboardPage = () => {
       bg: 'bg-red-50 dark:bg-red-500/10',
       accentColor: '#ef4444',
       sub: 'need immediate attention',
+      href: '/app/board?due=overdue',
+      delta: 0,
     },
     {
       label: 'Avg Cycle Time',
@@ -248,6 +234,8 @@ export const DashboardPage = () => {
       bg: cycleTimeBg,
       accentColor: cycleTimeAccent,
       sub: 'last 30 days',
+      href: '/app/workload',
+      delta: 0,
     },
   ];
 
@@ -266,16 +254,18 @@ export const DashboardPage = () => {
     );
   }
 
-  const greeting =
-    new Date().getHours() < 12
-      ? 'morning'
-      : new Date().getHours() < 18
-      ? 'afternoon'
-      : 'evening';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
 
   /* ── Main render ────────────────────────────────────────────────────── */
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 p-6 md:p-8">
+      {error && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
+          <span>Some dashboard data couldn’t load.</span>
+          <button onClick={() => void load()} className="font-medium underline-offset-2 hover:underline">Retry</button>
+        </div>
+      )}
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
@@ -311,7 +301,12 @@ export const DashboardPage = () => {
             variants={cardVariant}
             whileHover={{ y: -4 }}
             transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-            className="card relative overflow-hidden pt-5 transition-shadow hover:shadow-lift"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate(card.href)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(card.href); } }}
+            aria-label={`${card.label}: ${card.value}. ${card.sub}`}
+            className="card relative cursor-pointer overflow-hidden pt-5 transition-shadow hover:shadow-lift focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
             {/* Colored accent strip */}
             <div
@@ -323,6 +318,11 @@ export const DashboardPage = () => {
               <div className={cn('rounded-xl p-2.5', card.bg)}>
                 <card.icon className={cn('h-5 w-5', card.color)} />
               </div>
+              {card.delta !== 0 && (
+                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', card.delta > 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-red-500 dark:bg-red-500/10')} title="vs previous 30 days">
+                  {card.delta > 0 ? '+' : ''}{card.delta} vs prev
+                </span>
+              )}
             </div>
             <div className="mt-4">
               <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
@@ -512,6 +512,7 @@ export const DashboardPage = () => {
               </span>
             </div>
             <p className="mb-2 text-[10px] text-slate-400">Last 30 days</p>
+            <div role="img" aria-label={`Completion trend, last 30 days: ${completionTrend.reduce((s, d) => s + d.count, 0)} tasks completed`} />
             <ResponsiveContainer width="100%" height={80}>
               <AreaChart
                 data={completionTrend}

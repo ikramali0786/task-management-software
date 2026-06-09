@@ -35,6 +35,17 @@ export const taskService = {
       assignees: { name: string; avatar: string | null }[]; suggestedDate: string;
     }>;
   },
+  // Lightweight dashboard metrics (ungated): completion trend + cycle time + throughput delta.
+  getDashboardMetrics: async (teamId: string, days = 30) => {
+    const res = await api.get('/tasks/dashboard-metrics', { params: { teamId, days } });
+    return res.data.data.metrics as {
+      days: number;
+      trend: { date: string; count: number }[];
+      throughput: number;
+      prevThroughput: number;
+      avgCycleDays: number | null;
+    };
+  },
   // Advanced analytics aggregates (Business feature).
   getAnalytics: async (teamId: string, days = 30) => {
     const res = await api.get('/tasks/analytics', { params: { teamId, days } });
