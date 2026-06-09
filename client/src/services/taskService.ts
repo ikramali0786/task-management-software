@@ -35,15 +35,20 @@ export const taskService = {
       assignees: { name: string; avatar: string | null }[]; suggestedDate: string;
     }>;
   },
-  // Lightweight dashboard metrics (ungated): completion trend + cycle time + throughput delta.
-  getDashboardMetrics: async (teamId: string, days = 30) => {
-    const res = await api.get('/tasks/dashboard-metrics', { params: { teamId, days } });
+  // Lightweight dashboard metrics (ungated): tz-aligned trends + cycle time + deltas.
+  getDashboardMetrics: async (teamId: string, days = 30, tz?: string) => {
+    const res = await api.get('/tasks/dashboard-metrics', { params: { teamId, days, tz } });
     return res.data.data.metrics as {
       days: number;
+      tz: string;
       trend: { date: string; count: number }[];
+      created: { date: string; count: number }[];
       throughput: number;
       prevThroughput: number;
+      createdThroughput: number;
+      prevCreated: number;
       avgCycleDays: number | null;
+      prevAvgCycleDays: number | null;
     };
   },
   // Advanced analytics aggregates (Business feature).

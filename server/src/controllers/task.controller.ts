@@ -1036,9 +1036,9 @@ export const getTaskStats = asyncHandler(async (req: Request, res: Response) => 
   sendSuccess(res, { stats });
 });
 
-/* GET /tasks/dashboard-metrics?teamId=&days=30 — lightweight, ungated dashboard
- * analytics computed server-side (completion trend, avg cycle time, throughput
- * + previous-period delta). Replaces pulling hundreds of done tasks to the client. */
+/* GET /tasks/dashboard-metrics?teamId=&days=30&tz=America/New_York — lightweight,
+ * ungated dashboard analytics computed server-side. Trend day-buckets are aligned
+ * to the caller's timezone so "today" is the user's local day, not UTC. */
 export const getDashboardMetrics = asyncHandler(async (req: Request, res: Response) => {
   const { teamId } = req.query as Record<string, string>;
   if (!teamId) throw new ApiError(400, 'teamId is required.');
@@ -1048,29 +1048,52 @@ export const getDashboardMetrics = asyncHandler(async (req: Request, res: Respon
   const teamObjId = new mongoose.Types.ObjectId(teamId);
   const dayMs = 86_400_000;
   const days = Math.min(90, Math.max(7, parseInt((req.query.days as string) || '30', 10) || 30));
-  const since = new Date(Date.now() - days * dayMs); since.setHours(0, 0, 0, 0);
-  const prevSince = new Date(since.getTime() - days * dayMs);
 
-  const [completedAgg, cycleAgg, prevThroughput] = await Promise.all([
-    Task.aggregate([
-      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$completedAt' } }, count: { $sum: 1 } } },
-    ]),
-    Task.aggregate([
-      { $match: { team: teamObjId, isArchived: false, completedAt: { $ne: null, $gte: since } } },
-      { $project: { cycle: { $subtract: ['$completedAt', '$createdAt'] } } },
-      { $group: { _id: null, avg: { $avg: '$cycle' } } },
-    ]),
-    Task.countDocuments({ team: teamObjId, isArchived: false, completedAt: { $gte: prevSince, $lt: since } }),
+  // Validate the requested timezone; fall back to UTC if it isn't a real IANA zone.
+  let tz = (req.query.tz as string) || 'UTC';
+  let fmt: Intl.DateTimeFormat;
+  try { fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }); }
+  catch { tz = 'UTC'; fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }); }
+  const keyOf = (ms: number) => fmt.format(new Date(ms)); // 'YYYY-MM-DD' in tz
+
+  const now = Date.now();
+  const currentKeys: string[] = []; for (let i = days - 1; i >= 0; i--) currentKeys.push(keyOf(now - i * dayMs));
+  const prevKeys = new Set<string>(); for (let i = 2 * days - 1; i >= days; i--) prevKeys.add(keyOf(now - i * dayMs));
+  const matchSince = new Date(now - (2 * days + 1) * dayMs);
+  const curStart = new Date(now - days * dayMs);
+  const prevStart = new Date(now - 2 * days * dayMs);
+
+  const dayGroup = (field: string) => ([
+    { $match: { team: teamObjId, isArchived: false, [field]: { $ne: null, $gte: matchSince } } },
+    { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: `$${field}`, timezone: tz } }, count: { $sum: 1 } } },
+  ]);
+  const cycleAvg = (lo: Date, hi: Date | null) => ([
+    { $match: { team: teamObjId, isArchived: false, completedAt: hi ? { $gte: lo, $lt: hi } : { $ne: null, $gte: lo } } },
+    { $project: { cycle: { $subtract: ['$completedAt', '$createdAt'] } } },
+    { $group: { _id: null, avg: { $avg: '$cycle' } } },
+  ]);
+
+  const [completedAgg, createdAgg, cycleAgg, prevCycleAgg] = await Promise.all([
+    Task.aggregate(dayGroup('completedAt')),
+    Task.aggregate(dayGroup('createdAt')),
+    Task.aggregate(cycleAvg(curStart, null)),
+    Task.aggregate(cycleAvg(prevStart, curStart)),
   ]);
 
   const completedMap: Record<string, number> = Object.fromEntries(completedAgg.map((d: any) => [d._id, d.count]));
-  const trend: { date: string; count: number }[] = [];
-  for (let i = 0; i < days; i++) { const key = new Date(since.getTime() + i * dayMs).toISOString().slice(0, 10); trend.push({ date: key, count: completedMap[key] || 0 }); }
-  const throughput = completedAgg.reduce((a: number, d: any) => a + d.count, 0);
-  const avgCycleDays = cycleAgg[0]?.avg ? Math.round((cycleAgg[0].avg / dayMs) * 10) / 10 : null;
+  const createdMap: Record<string, number> = Object.fromEntries(createdAgg.map((d: any) => [d._id, d.count]));
+  const trend = currentKeys.map((k) => ({ date: k, count: completedMap[k] || 0 }));
+  const created = currentKeys.map((k) => ({ date: k, count: createdMap[k] || 0 }));
+  const sum = (map: Record<string, number>, keys: Iterable<string>) => { let s = 0; for (const k of keys) s += map[k] || 0; return s; };
+  const throughput = sum(completedMap, currentKeys);
+  const prevThroughput = sum(completedMap, prevKeys);
+  const createdThroughput = sum(createdMap, currentKeys);
+  const prevCreated = sum(createdMap, prevKeys);
+  const toDays = (v: any) => (v ? Math.round((v / dayMs) * 10) / 10 : null);
+  const avgCycleDays = toDays(cycleAgg[0]?.avg);
+  const prevAvgCycleDays = toDays(prevCycleAgg[0]?.avg);
 
-  sendSuccess(res, { metrics: { days, trend, throughput, prevThroughput, avgCycleDays } });
+  sendSuccess(res, { metrics: { days, tz, trend, created, throughput, prevThroughput, createdThroughput, prevCreated, avgCycleDays, prevAvgCycleDays } });
 });
 
 /* ── Kanban position rebalance ───────────────────────────────────────────── */

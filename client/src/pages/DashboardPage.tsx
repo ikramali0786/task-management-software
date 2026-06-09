@@ -116,9 +116,10 @@ export const DashboardPage = () => {
   const loadMetrics = useCallback(async () => {
     if (!activeTeam) return;
     const token = ++metricsReqRef.current; const teamId = activeTeam._id;
-    try { const m = await taskService.getDashboardMetrics(teamId, range); if (token === metricsReqRef.current) setMetrics(m); }
+    const tz = user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    try { const m = await taskService.getDashboardMetrics(teamId, range, tz); if (token === metricsReqRef.current) setMetrics(m); }
     catch { if (token === metricsReqRef.current) setMetrics(null); }
-  }, [activeTeam?._id, range]);
+  }, [activeTeam?._id, range, user?.timezone]);
 
   const loadFocus = useCallback(async () => {
     if (!activeTeam) return;
@@ -174,6 +175,9 @@ export const DashboardPage = () => {
   const avgCycleTime = metrics?.avgCycleDays ?? null;
   const completionTrend = useMemo(() => (metrics?.trend ?? []).map((p) => ({ date: p.date.slice(5), count: p.count })), [metrics]);
   const completedDelta = metrics ? metrics.throughput - metrics.prevThroughput : 0;
+  // Positive = cycle time dropped (team got faster) → shown green.
+  const cycleDelta = metrics && metrics.avgCycleDays != null && metrics.prevAvgCycleDays != null
+    ? Math.round((metrics.prevAvgCycleDays - metrics.avgCycleDays) * 10) / 10 : 0;
 
   const activityFeed = useMemo(() => {
     const notifItems = notifications.map((n) => ({
@@ -229,7 +233,8 @@ export const DashboardPage = () => {
       sub: `${activeTeam?.members.length ?? 0} members in team`,
       href: '/app/board',
       delta: 0,
-      sparkline: [] as number[],
+      deltaSuffix: '',
+      sparkline: (metrics?.created ?? []).map((c) => c.count),
     },
     {
       label: 'In Progress',
@@ -241,6 +246,7 @@ export const DashboardPage = () => {
       sub: `${stats?.byStatus.review ?? 0} in review`,
       href: '/app/board?status=in_progress&view=list',
       delta: 0,
+      deltaSuffix: '',
       sparkline: [] as number[],
     },
     {
@@ -253,6 +259,7 @@ export const DashboardPage = () => {
       sub: `${completedPct}% completion rate`,
       href: '/app/board?status=done&view=list',
       delta: completedDelta,
+      deltaSuffix: '',
       sparkline: (metrics?.trend ?? []).map((t) => t.count),
     },
     {
@@ -265,6 +272,7 @@ export const DashboardPage = () => {
       sub: 'need immediate attention',
       href: '/app/board?due=overdue',
       delta: 0,
+      deltaSuffix: '',
       sparkline: [] as number[],
     },
     {
@@ -274,9 +282,10 @@ export const DashboardPage = () => {
       color: cycleTimeColor,
       bg: cycleTimeBg,
       accentColor: cycleTimeAccent,
-      sub: 'last 30 days',
+      sub: `last ${range} days`,
       href: '/app/workload',
-      delta: 0,
+      delta: cycleDelta,
+      deltaSuffix: 'd',
       sparkline: [] as number[],
     },
   ];
@@ -361,8 +370,8 @@ export const DashboardPage = () => {
                 <card.icon className={cn('h-5 w-5', card.color)} />
               </div>
               {card.delta !== 0 && (
-                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', card.delta > 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-red-500 dark:bg-red-500/10')} title="vs previous 30 days">
-                  {card.delta > 0 ? '+' : ''}{card.delta} vs prev
+                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', card.delta > 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-red-500 dark:bg-red-500/10')} title={`vs previous ${range} days`}>
+                  {card.delta > 0 ? '+' : ''}{card.delta}{card.deltaSuffix} vs prev
                 </span>
               )}
             </div>
