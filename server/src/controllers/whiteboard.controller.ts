@@ -162,7 +162,7 @@ export const saveWhiteboard = asyncHandler(async (req: Request, res: Response) =
   // Auto-snapshot at most once per ~10 min so history has restore points.
   const last = await WhiteboardSnapshot.findOne({ board: board._id }).sort({ createdAt: -1 }).select('createdAt');
   if (!last || Date.now() - new Date(last.createdAt).getTime() > AUTO_SNAPSHOT_MS) {
-    await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label: 'Auto-save', createdBy: req.user!._id });
+    await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, preview: board.preview ?? [], label: 'Auto-save', createdBy: req.user!._id });
     const extra = await WhiteboardSnapshot.find({ board: board._id }).sort({ createdAt: -1 }).skip(MAX_SNAPSHOTS).select('_id');
     if (extra.length) await WhiteboardSnapshot.deleteMany({ _id: { $in: extra.map((e) => e._id) } });
   }
@@ -172,8 +172,8 @@ export const saveWhiteboard = asyncHandler(async (req: Request, res: Response) =
 /* GET /whiteboard/boards/:boardId/snapshots — list version history. */
 export const listSnapshots = asyncHandler(async (req: Request, res: Response) => {
   const { board } = await loadBoard(req.params.boardId, req.user!._id.toString());
-  const snaps = await WhiteboardSnapshot.find({ board: board._id }).select('label createdBy createdAt elements').sort({ createdAt: -1 }).populate('createdBy', 'name avatar');
-  sendSuccess(res, { snapshots: snaps.map((s) => ({ _id: s._id, label: s.label, createdBy: s.createdBy, createdAt: s.createdAt, elementCount: Array.isArray(s.elements) ? s.elements.length : 0 })) });
+  const snaps = await WhiteboardSnapshot.find({ board: board._id }).select('label preview createdBy createdAt elements').sort({ createdAt: -1 }).populate('createdBy', 'name avatar');
+  sendSuccess(res, { snapshots: snaps.map((s) => ({ _id: s._id, label: s.label, preview: s.preview ?? [], createdBy: s.createdBy, createdAt: s.createdAt, elementCount: Array.isArray(s.elements) ? s.elements.length : 0 })) });
 });
 
 /* POST /whiteboard/boards/:boardId/snapshots — manual "save version". */
@@ -182,7 +182,7 @@ export const createSnapshot = asyncHandler(async (req: Request, res: Response) =
   const { board, team } = await loadBoard(req.params.boardId, userId);
   canWrite(team, userId);
   const label = (typeof req.body?.label === 'string' && req.body.label.trim().slice(0, 80)) || 'Saved version';
-  const snap = await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label, createdBy: req.user!._id });
+  const snap = await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, preview: board.preview ?? [], label, createdBy: req.user!._id });
   const extra = await WhiteboardSnapshot.find({ board: board._id }).sort({ createdAt: -1 }).skip(MAX_SNAPSHOTS).select('_id');
   if (extra.length) await WhiteboardSnapshot.deleteMany({ _id: { $in: extra.map((e) => e._id) } });
   sendSuccess(res, { snapshot: { _id: snap._id, label: snap.label, createdAt: snap.createdAt } }, 'Version saved.', 201);
@@ -196,7 +196,7 @@ export const restoreSnapshot = asyncHandler(async (req: Request, res: Response) 
   const snap = await WhiteboardSnapshot.findOne({ _id: req.params.snapshotId, board: board._id });
   if (!snap) throw new ApiError(404, 'Snapshot not found.');
   // Keep the pre-restore state as its own snapshot so a restore is reversible.
-  await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label: 'Before restore', createdBy: req.user!._id });
+  await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, preview: board.preview ?? [], label: 'Before restore', createdBy: req.user!._id });
   board.elements = snap.elements; board.updatedBy = req.user!._id; await board.save();
   sendSuccess(res, { elements: board.elements }, 'Restored.');
 });

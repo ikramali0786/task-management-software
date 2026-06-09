@@ -15,6 +15,7 @@ export interface BoardMeta {
 export interface SnapshotMeta {
   _id: string;
   label: string;
+  preview: BoardPreviewRect[];
   createdBy?: { _id: string; name: string; avatar: string | null } | null;
   createdAt: string;
   elementCount: number;

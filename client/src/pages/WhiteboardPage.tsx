@@ -247,6 +247,7 @@ export const WhiteboardPage = () => {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [presence, setPresence] = useState<{ id: string; name: string }[]>([]);
   const [snap, setSnap] = useState(() => localStorage.getItem('wb-snap') !== '0');
+  const [liveMsg, setLiveMsg] = useState('');
   const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([]);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -254,7 +255,7 @@ export const WhiteboardPage = () => {
   const [taskPicker, setTaskPicker] = useState(false);
   const [taskQuery, setTaskQuery] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
   const [boards, setBoards] = useState<BoardMeta[]>([]);
   const [boardId, setBoardId] = useState<string | null>(null);
@@ -265,8 +266,11 @@ export const WhiteboardPage = () => {
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [exportMenu, setExportMenu] = useState(false);
+  const [exportScale, setExportScale] = useState(2);
+  const [exportTransparent, setExportTransparent] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [touchHint, setTouchHint] = useState(() => COARSE && localStorage.getItem('wb-touch-hint') !== '0');
 
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -282,8 +286,11 @@ export const WhiteboardPage = () => {
   const paintRef = useRef(paint); paintRef.current = paint;
   const opRef = useRef<any>(null);
   const loadedRef = useRef(false);
-  const skipSaveRef = useRef(false);
+  // Identity of the last elements array applied from a remote op / load — used to
+  // skip autosaving changes we didn't originate (robust replacement for a boolean flag).
+  const lastRemoteRef = useRef<El[] | null>(null);
   const dirtyRef = useRef(false);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const undoRef = useRef<El[][]>([]);
   const redoRef = useRef<El[][]>([]);
   const clipRef = useRef<El[]>([]);
@@ -297,6 +304,11 @@ export const WhiteboardPage = () => {
   const snapRef = useRef(snap); snapRef.current = snap;
   const modRef = useRef({ shift: false, alt: false });
   const guidesRef = useRef('[]');
+  const announceRef = useRef(0);
+  const longPressRef = useRef<{ t: ReturnType<typeof setTimeout>; sx: number; sy: number } | null>(null);
+  const clearLongPress = () => { if (longPressRef.current) { clearTimeout(longPressRef.current.t); longPressRef.current = null; } };
+  // Announce an action to screen readers via the polite aria-live region.
+  const announce = (m: string) => setLiveMsg(m + (announceRef.current++ % 2 ? ' ' : ''));
 
   // ── Live ops ───────────────────────────────────────────────────────────────
   const emitOp = (op: any) => { if (activeTeam) getSocket()?.emit('whiteboard:op', { teamId: activeTeam._id, boardId: boardIdRef.current, op }); };
@@ -340,38 +352,61 @@ export const WhiteboardPage = () => {
     const socket = getSocket(); if (!socket) return;
     // True if the local user is actively manipulating this element right now.
     const isBusy = (id: string) => editingIdRef.current === id || (opRef.current && (opRef.current.id === id || (opRef.current.orig && opRef.current.orig[id])));
+    // Apply a remote change and remember the resulting array so autosave skips it.
+    const applyRemote = (updater: (prev: El[]) => El[]) => setElements((prev) => { const next = updater(prev); lastRemoteRef.current = next; return next; });
     const apply = (data: any) => {
       const op = data?.op ?? data;
       if (data?.boardId && data.boardId !== boardIdRef.current) return;
       // Don't let a teammate's incoming change clobber an element you're mid-drag/edit on.
       if (op.kind === 'upsert' && isBusy(op.el?.id)) return;
-      skipSaveRef.current = true;
-      if (op.kind === 'replace') setElements((Array.isArray(op.elements) ? op.elements : []).map(migrate));
-      else if (op.kind === 'upsert') setElements((prev) => { const i = prev.findIndex((e) => e.id === op.el.id); if (i >= 0) { const c = [...prev]; c[i] = op.el; return c; } return [...prev, op.el]; });
-      else if (op.kind === 'delete') setElements((prev) => prev.filter((e) => e.id !== op.id && !(e.type === 'connector' && (e.from === op.id || e.to === op.id))));
-      else if (op.kind === 'clear') setElements([]);
-      else if (op.kind === 'order') setElements((prev) => { const m = new Map(prev.map((e) => [e.id, e])); const ordered = op.ids.map((id: string) => m.get(id)).filter(Boolean); for (const e of prev) if (!op.ids.includes(e.id)) ordered.push(e); return ordered as El[]; });
+      if (op.kind === 'replace') applyRemote(() => (Array.isArray(op.elements) ? op.elements : []).map(migrate));
+      else if (op.kind === 'upsert') applyRemote((prev) => { const i = prev.findIndex((e) => e.id === op.el.id); if (i >= 0) { const c = [...prev]; c[i] = op.el; return c; } return [...prev, op.el]; });
+      else if (op.kind === 'delete') applyRemote((prev) => prev.filter((e) => e.id !== op.id && !(e.type === 'connector' && (e.from === op.id || e.to === op.id))));
+      else if (op.kind === 'clear') applyRemote(() => []);
+      else if (op.kind === 'order') applyRemote((prev) => { const m = new Map(prev.map((e) => [e.id, e])); const ordered = op.ids.map((id: string) => m.get(id)).filter(Boolean); for (const e of prev) if (!op.ids.includes(e.id)) ordered.push(e); return ordered as El[]; });
     };
     socket.on('whiteboard:op', apply);
     return () => { socket.off('whiteboard:op', apply); };
   }, []);
 
-  // ── Autosave ───────────────────────────────────────────────────────────────
+  // ── Autosave with offline-safe mirror + retry ──────────────────────────────
+  const attemptSave = async (id: string) => {
+    if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
+    try {
+      const preview = computePreview();
+      await whiteboardService.saveBoard(id, elsRef.current, preview);
+      dirtyRef.current = false; try { localStorage.removeItem(`wb-pending-${id}`); } catch { /* ignore */ }
+      setSaving('saved'); setTimeout(() => setSaving((s) => (s === 'saved' ? 'idle' : s)), 1200);
+      setBoards((list) => list.map((b) => b._id === id ? { ...b, preview, elementCount: elsRef.current.length, updatedAt: new Date().toISOString() } : b));
+    } catch {
+      setSaving('error'); // keep dirty + localStorage mirror; retry shortly
+      retryRef.current = setTimeout(() => { if (dirtyRef.current && boardIdRef.current === id && canEdit) attemptSave(id); }, 5000);
+    }
+  };
   useEffect(() => {
     if (!loadedRef.current || !activeTeam || !canEdit || !boardIdRef.current) return;
-    if (skipSaveRef.current) { skipSaveRef.current = false; return; }
+    if (elements === lastRemoteRef.current) return; // remote-applied / freshly loaded — not a local edit
+    const id = boardIdRef.current;
     dirtyRef.current = true; setSaving('saving');
-    const h = setTimeout(async () => {
-      const id = boardIdRef.current; if (!id) return;
-      try {
-        const preview = computePreview();
-        await whiteboardService.saveBoard(id, elsRef.current, preview); dirtyRef.current = false; setSaving('saved'); setTimeout(() => setSaving('idle'), 1200);
-        setBoards((list) => list.map((b) => b._id === id ? { ...b, preview, elementCount: elsRef.current.length, updatedAt: new Date().toISOString() } : b));
-      } catch { setSaving('idle'); }
-    }, 700);
+    try { localStorage.setItem(`wb-pending-${id}`, JSON.stringify({ elements: elsRef.current, ts: Date.now() })); } catch { /* quota */ }
+    const h = setTimeout(() => { void attemptSave(id); }, 700);
     return () => clearTimeout(h);
   }, [elements, activeTeam?._id, canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Flush on unmount, and retry the moment the network returns.
   useEffect(() => () => { if (dirtyRef.current && boardIdRef.current && canEdit) whiteboardService.saveBoard(boardIdRef.current, elsRef.current, computePreview()).catch(() => {}); }, [activeTeam?._id, canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const onOnline = () => { if (dirtyRef.current && boardIdRef.current && canEdit) attemptSave(boardIdRef.current); }; window.addEventListener('online', onOnline); return () => window.removeEventListener('online', onOnline); }, [canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Paste an image from the clipboard onto the board (desktop + mobile).
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!canEdit || !activeTeam || editingIdRef.current) return;
+      const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || (a as HTMLElement).isContentEditable)) return;
+      const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/'));
+      const file = item?.getAsFile(); if (!file) return;
+      e.preventDefault(); void placeImageFile(file);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [canEdit, activeTeam?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const ptc = (cx: number, cy: number) => { const r = svgRef.current!.getBoundingClientRect(); const z = scaleRef.current; return { x: (cx - r.left - offsetRef.current.x) / z, y: (cy - r.top - offsetRef.current.y) / z }; };
@@ -461,9 +496,18 @@ export const WhiteboardPage = () => {
   const computePreview = () => previewFrom(elsRef.current);
   const loadContents = async (id: string) => {
     const d = await whiteboardService.getBoard(id);
-    skipSaveRef.current = true;
-    setElements((Array.isArray(d.elements) ? d.elements : []).map(migrate));
+    let els = Array.isArray(d.elements) ? d.elements : [];
+    // Recover unsaved edits from a previous session if they're newer than the server copy.
+    let restored = false;
+    try {
+      const raw = localStorage.getItem(`wb-pending-${id}`);
+      if (raw) { const p = JSON.parse(raw); if (p && Array.isArray(p.elements) && (!d.updatedAt || p.ts > new Date(d.updatedAt).getTime())) { els = p.elements; restored = true; } else localStorage.removeItem(`wb-pending-${id}`); }
+    } catch { /* ignore */ }
+    const migrated = els.map(migrate);
+    lastRemoteRef.current = restored ? null : migrated; // null → autosave will re-persist recovered work
+    setElements(migrated);
     setBoardName(d.name); undoRef.current = []; redoRef.current = []; setSelectedIds([]); setEditingId(null); loadedRef.current = true;
+    if (restored) announce('Recovered unsaved changes from your last session');
   };
   const switchBoard = async (id: string) => {
     if (id === boardIdRef.current) { setBoardMenu(false); return; }
@@ -481,7 +525,7 @@ export const WhiteboardPage = () => {
       setBoards((b) => [board, ...b]); setTemplateOpen(false); setBoardMenu(false);
       localStorage.setItem(`wb-board-${activeTeam._id}`, board._id);
       setBoardId(board._id); boardIdRef.current = board._id; setBoardName(board.name);
-      skipSaveRef.current = true; setElements(elements.map(migrate)); undoRef.current = []; redoRef.current = []; setSelectedIds([]); loadedRef.current = true;
+      const migrated = elements.map(migrate); lastRemoteRef.current = migrated; setElements(migrated); undoRef.current = []; redoRef.current = []; setSelectedIds([]); loadedRef.current = true;
     } catch { addToast({ type: 'error', title: 'Could not create board' }); }
   };
   const doRename = async (id: string, name: string) => {
@@ -498,7 +542,7 @@ export const WhiteboardPage = () => {
       const rest = boards.filter((b) => b._id !== id); setBoards(rest);
       if (id === boardIdRef.current) {
         if (rest.length) switchBoard(rest[0]._id);
-        else { const nb = await whiteboardService.createBoard(activeTeam._id, { name: 'Main board' }); setBoards([nb]); setBoardId(nb._id); boardIdRef.current = nb._id; setBoardName(nb.name); skipSaveRef.current = true; setElements([]); localStorage.setItem(`wb-board-${activeTeam._id}`, nb._id); }
+        else { const nb = await whiteboardService.createBoard(activeTeam._id, { name: 'Main board' }); setBoards([nb]); setBoardId(nb._id); boardIdRef.current = nb._id; setBoardName(nb.name); const empty: El[] = []; lastRemoteRef.current = empty; setElements(empty); localStorage.setItem(`wb-board-${activeTeam._id}`, nb._id); }
       }
     } catch { addToast({ type: 'error', title: 'Could not delete board' }); }
   };
@@ -529,11 +573,13 @@ export const WhiteboardPage = () => {
   const runExport = async (kind: 'png' | 'svg' | 'pdf' | 'copy') => {
     setExportMenu(false);
     if (!elsRef.current.length) { addToast({ type: 'info', title: 'Nothing to export', message: 'This board is empty.' }); return; }
+    const only = selRef.current.length ? new Set(selRef.current) : undefined;
+    const opts = { scale: exportScale, transparent: exportTransparent, only };
     try {
-      if (kind === 'png') await exportPNG(elsRef.current, boardName);
-      else if (kind === 'svg') exportSVG(elsRef.current, boardName);
-      else if (kind === 'pdf') await exportPDF(elsRef.current, boardName);
-      else { await copyPNGToClipboard(elsRef.current); addToast({ type: 'success', title: 'Copied image to clipboard' }); }
+      if (kind === 'png') await exportPNG(elsRef.current, boardName, opts);
+      else if (kind === 'svg') await exportSVG(elsRef.current, boardName, opts);
+      else if (kind === 'pdf') await exportPDF(elsRef.current, boardName, opts);
+      else { await copyPNGToClipboard(elsRef.current, opts); addToast({ type: 'success', title: 'Copied image to clipboard' }); }
     } catch { addToast({ type: 'error', title: kind === 'copy' ? 'Copy failed' : 'Export failed', message: kind === 'copy' ? 'Your browser may not allow clipboard images.' : 'Could not generate the file.' }); }
   };
   const currentBoard = boards.find((b) => b._id === boardId);
@@ -642,6 +688,7 @@ export const WhiteboardPage = () => {
   const flushMove = () => { rafRef.current = null; const pm = pendingRef.current; if (pm) applyMove(pm.cx, pm.cy); };
   const onPointerMove = (e: React.PointerEvent) => {
     modRef.current = { shift: e.shiftKey, alt: e.altKey };
+    if (longPressRef.current && (Math.abs(e.clientX - longPressRef.current.sx) > 8 || Math.abs(e.clientY - longPressRef.current.sy) > 8)) clearLongPress();
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = ptc(e.clientX, e.clientY); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, boardId: boardIdRef.current, x: c.x, y: c.y }); } }
     if (gestureRef.current) { handlePinch(); return; }
@@ -651,6 +698,7 @@ export const WhiteboardPage = () => {
   };
 
   const endOp = () => {
+    clearLongPress();
     if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (pendingRef.current && opRef.current) applyMove(pendingRef.current.cx, pendingRef.current.cy);
     pendingRef.current = null;
@@ -701,6 +749,8 @@ export const WhiteboardPage = () => {
     if (e.shiftKey) ids = ids.includes(el.id) ? ids.filter((i) => i !== el.id) : [...ids, el.id];
     else if (!ids.includes(el.id)) ids = [el.id];
     setSelectedIds(ids);
+    // Touch long-press opens the context menu (no right-click on touch devices).
+    if (e.pointerType === 'touch' && canEdit) { const cx = e.clientX, cy = e.clientY, id = el.id; clearLongPress(); longPressRef.current = { sx: cx, sy: cy, t: setTimeout(() => { setSelectedIds([id]); setCtxMenu({ x: cx, y: cy }); opRef.current = null; longPressRef.current = null; }, 500) }; }
     if (el.locked || el.type === 'connector') return;
     // Build the movable set; frames drag their contained elements too.
     const map = byId();
@@ -737,8 +787,8 @@ export const WhiteboardPage = () => {
   const commitHtml = (id: string, html: string) => { patch(id, { html: sanitizeHtml(html) }); setEditingId(null); setTimeout(() => emitUpsert(id), 0); };
 
   // ── Selection actions ──────────────────────────────────────────────────────
-  const deleteSelected = () => { if (!selectedIds.length || !canEdit) return; pushHistory(); const set = new Set(selectedIds); for (const id of selectedIds) emitOp({ kind: 'delete', id }); setElements((els) => els.filter((el) => !set.has(el.id) && !(el.type === 'connector' && (set.has(el.from) || set.has(el.to))))); setSelectedIds([]); setCtxMenu(null); };
-  const duplicateSelected = () => { if (!selectedIds.length || !canEdit) return; pushHistory(); const copies = elsRef.current.filter((e) => selectedIds.includes(e.id) && e.type !== 'connector').map((e) => ({ ...translateEl(clone(e), 16, 16), id: uid() })); setElements((els) => [...els, ...copies]); setSelectedIds(copies.map((c) => c.id)); setCtxMenu(null); setTimeout(() => copies.forEach((c) => emitOp({ kind: 'upsert', el: c })), 0); };
+  const deleteSelected = () => { if (!selectedIds.length || !canEdit) return; pushHistory(); const n = selectedIds.length; const set = new Set(selectedIds); for (const id of selectedIds) emitOp({ kind: 'delete', id }); setElements((els) => els.filter((el) => !set.has(el.id) && !(el.type === 'connector' && (set.has(el.from) || set.has(el.to))))); setSelectedIds([]); setCtxMenu(null); announce(`Deleted ${n} element${n > 1 ? 's' : ''}`); };
+  const duplicateSelected = () => { if (!selectedIds.length || !canEdit) return; pushHistory(); const copies = elsRef.current.filter((e) => selectedIds.includes(e.id) && e.type !== 'connector').map((e) => ({ ...translateEl(clone(e), 16, 16), id: uid() })); setElements((els) => [...els, ...copies]); setSelectedIds(copies.map((c) => c.id)); setCtxMenu(null); setTimeout(() => copies.forEach((c) => emitOp({ kind: 'upsert', el: c })), 0); announce(`Duplicated ${copies.length} element${copies.length > 1 ? 's' : ''}`); };
   const reorder = (toFront: boolean) => { if (!selectedIds.length || !canEdit) return; pushHistory(); const sel = elsRef.current.filter((e) => selectedIds.includes(e.id)); const rest = elsRef.current.filter((e) => !selectedIds.includes(e.id)); const next = toFront ? [...rest, ...sel] : [...sel, ...rest]; setElements(next); setCtxMenu(null); setTimeout(() => emitOp({ kind: 'order', ids: next.map((e) => e.id) }), 0); };
   const toggleLock = () => { if (!selectedIds.length || !canEdit) return; pushHistory(); const anyUnlocked = elsRef.current.some((e) => selectedIds.includes(e.id) && !e.locked); setElements((els) => els.map((el) => selectedIds.includes(el.id) ? ({ ...el, locked: anyUnlocked } as El) : el)); setCtxMenu(null); setTimeout(() => selectedIds.forEach((id) => emitUpsert(id)), 0); };
   const nudge = (dx: number, dy: number) => { if (!selectedIds.length || !canEdit) return; const set = new Set(selectedIds); setElements((els) => els.map((el) => set.has(el.id) && !el.locked ? translateEl(el, dx, dy) : el)); setTimeout(() => selectedIds.forEach((id) => emitUpsert(id)), 0); };
@@ -756,7 +806,7 @@ export const WhiteboardPage = () => {
       return [el.id, { dx, dy }];
     }));
     setElements((els) => els.map((el) => target.has(el.id) ? translateEl(el, target.get(el.id)!.dx, target.get(el.id)!.dy) : el));
-    setTimeout(() => target.forEach((_, id) => emitUpsert(id)), 0);
+    setTimeout(() => target.forEach((_, id) => emitUpsert(id)), 0); announce(`Aligned ${mode}`);
   };
   const distributeSelected = (axis: 'h' | 'v') => {
     if (!canEdit) return; const m = byId();
@@ -769,9 +819,28 @@ export const WhiteboardPage = () => {
     const target = new Map<string, { dx: number; dy: number }>();
     items.forEach((it, i) => { if (i === 0 || i === items.length - 1) return; const cur = axis === 'h' ? it.b.x + it.b.w / 2 : it.b.y + it.b.h / 2; const d = c0 + step * i - cur; target.set(it.el.id, axis === 'h' ? { dx: d, dy: 0 } : { dx: 0, dy: d }); });
     setElements((els) => els.map((el) => target.has(el.id) ? translateEl(el, target.get(el.id)!.dx, target.get(el.id)!.dy) : el));
-    setTimeout(() => target.forEach((_, id) => emitUpsert(id)), 0);
+    setTimeout(() => target.forEach((_, id) => emitUpsert(id)), 0); announce(`Distributed ${axis === 'h' ? 'horizontally' : 'vertically'}`);
   };
-  const selectAll = () => { if (!canEdit) return; setSelectedIds(elsRef.current.filter((el) => !el.locked).map((el) => el.id)); };
+  const selectAll = () => { if (!canEdit) return; const ids = elsRef.current.filter((el) => !el.locked).map((el) => el.id); setSelectedIds(ids); announce(`Selected ${ids.length} element${ids.length === 1 ? '' : 's'}`); };
+  // Keyboard a11y: cycle selection through elements (Tab / Shift+Tab) and create at viewport center.
+  const cycleSelection = (dir: 1 | -1) => {
+    const els = elsRef.current; if (!els.length) return;
+    const cur = selRef.current[0]; const idx = els.findIndex((e) => e.id === cur);
+    const next = els[(idx + dir + els.length) % els.length] || els[0];
+    setSelectedIds([next.id]);
+    const b = elBBox(next, byId()); const r = svgRef.current?.getBoundingClientRect();
+    if (r) { const c = center(b); setOffset({ x: r.width / 2 - c.x * scaleRef.current, y: r.height / 2 - c.y * scaleRef.current }); }
+    announce(`${next.type} selected`);
+  };
+  const createAtCenter = () => {
+    if (!canEdit) return; const t = toolRef.current; const pnt = paintRef.current; const c = centerPt();
+    if (!['note', 'text', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame'].includes(t)) return;
+    pushHistory();
+    if (t === 'note') { const el: Shape = { id: uid(), type: 'note', x: c.x - 84, y: c.y - 60, w: 168, h: 120, fill: NOTE_FILL, stroke: '#00000018', strokeWidth: 1, opacity: 1, fontSize: 14, align: 'left', html: '' }; setElements((els) => [...els, el]); setSelectedIds([el.id]); emitOp({ kind: 'upsert', el }); setEditingId(el.id); }
+    else if (t === 'text') { const el: Txt = { id: uid(), type: 'text', x: c.x - 20, y: c.y, text: 'Text', size: 18, align: 'left', stroke: pnt.stroke, opacity: 1 }; setElements((els) => [...els, el]); setSelectedIds([el.id]); emitOp({ kind: 'upsert', el }); setEditingId(el.id); }
+    else { const isFrame = t === 'frame'; const el: Shape = { id: uid(), type: t as ShapeType, x: c.x - 70, y: c.y - 45, w: 140, h: 90, fill: isFrame ? hexA('#94a3b8', 0.06) : pnt.fill, stroke: isFrame ? '#94a3b8' : pnt.stroke, strokeWidth: isFrame ? 1.5 : pnt.strokeWidth, dash: isFrame ? true : pnt.dash, opacity: pnt.opacity, fontSize: 14, align: 'center', text: isFrame ? 'Frame' : '' }; setElements((els) => isFrame ? [el, ...els] : [...els, el]); setSelectedIds([el.id]); emitOp({ kind: 'upsert', el }); }
+    announce(`Added ${t} at center`);
+  };
   const clearAll = async () => { if (!elements.length || !canEdit) return; const ok = await showConfirm({ title: 'Clear the whiteboard?', message: 'This removes every element for the whole team.', confirmLabel: 'Clear', variant: 'danger' }); if (ok) { pushHistory(); emitOp({ kind: 'clear' }); setElements([]); setSelectedIds([]); } };
 
   // ── Style ──────────────────────────────────────────────────────────────────
@@ -782,8 +851,7 @@ export const WhiteboardPage = () => {
   const exec = (cmd: string) => { document.execCommand(cmd, false); };
 
   // ── Image upload ───────────────────────────────────────────────────────────
-  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; e.target.value = '';
+  const placeImageFile = async (file: File) => {
     if (!file || !activeTeam || !canEdit) return;
     setUploading(true);
     try {
@@ -792,16 +860,17 @@ export const WhiteboardPage = () => {
       const s = Math.min(1, 320 / Math.max(dim.w, dim.h)); const w = dim.w * s, h = dim.h * s; const c = centerPt();
       pushHistory();
       const el: ImageEl = { id: uid(), type: 'image', x: c.x - w / 2, y: c.y - h / 2, w, h, url, opacity: 1 };
-      setElements((els) => [...els, el]); setSelectedIds([el.id]); emitOp({ kind: 'upsert', el });
+      setElements((els) => [...els, el]); setSelectedIds([el.id]); emitOp({ kind: 'upsert', el }); announce('Image added');
     } catch { addToast({ type: 'error', title: 'Upload failed', message: 'The image could not be uploaded.' }); }
     finally { setUploading(false); }
   };
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) await placeImageFile(file); };
 
   // ── Task card ──────────────────────────────────────────────────────────────
   const addTaskCard = (t: any) => {
     if (!canEdit) return; pushHistory(); const c = centerPt();
     const el: TaskEl = { id: uid(), type: 'task', x: c.x - 110, y: c.y - 42, w: 220, h: 84, taskId: t._id, title: t.title, identifier: t.identifier, status: t.status, priority: t.priority };
-    setElements((els) => [...els, el]); setSelectedIds([el.id]); setTaskPicker(false); setTaskQuery(''); emitOp({ kind: 'upsert', el });
+    setElements((els) => [...els, el]); setSelectedIds([el.id]); setTaskPicker(false); setTaskQuery(''); emitOp({ kind: 'upsert', el }); announce(`Added task card ${t.title}`);
   };
 
   // ── Keyboard ───────────────────────────────────────────────────────────────
@@ -822,6 +891,12 @@ export const WhiteboardPage = () => {
       if (meta && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
       if (meta && e.key.toLowerCase() === 'c') { clipRef.current = clone(elsRef.current.filter((x) => selRef.current.includes(x.id) && x.type !== 'connector')); return; }
       if (meta && e.key.toLowerCase() === 'v') { if (!clipRef.current.length) return; e.preventDefault(); pushHistory(); const copies = clipRef.current.map((e2) => ({ ...translateEl(clone(e2), 24, 24), id: uid() })); setElements((els) => [...els, ...copies]); setSelectedIds(copies.map((c) => c.id)); setTimeout(() => copies.forEach((c) => emitOp({ kind: 'upsert', el: c })), 0); return; }
+      if (e.key === 'Tab') { e.preventDefault(); cycleSelection(e.shiftKey ? -1 : 1); return; }
+      if (e.key === 'Enter') {
+        const sel = selRef.current; const el = sel.length === 1 ? elsRef.current.find((x) => x.id === sel[0]) : null;
+        if (el && (el.type === 'note' || el.type === 'text' || (el.type !== 'image' && el.type !== 'task' && el.type !== 'connector' && el.type !== 'path' && el.type !== 'line' && el.type !== 'arrow' && el.type !== 'frame'))) { e.preventDefault(); setEditingId(el.id); return; }
+        if (['note', 'text', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame'].includes(toolRef.current)) { e.preventDefault(); createAtCenter(); return; }
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selRef.current.length) { e.preventDefault(); deleteSelected(); return; }
       const step = e.shiftKey ? 10 : 1;
       if (e.key === 'ArrowUp') { e.preventDefault(); if (!e.repeat) pushHistory(); nudge(0, -step); }
@@ -906,7 +981,7 @@ export const WhiteboardPage = () => {
         {el.type === 'note' ? (
           editing ? (
             <foreignObject x={b.x} y={b.y} width={b.w} height={b.h}>
-              <div contentEditable suppressContentEditableWarning autoFocus ref={(n) => { if (n && !n.dataset.init) { n.dataset.init = '1'; n.innerHTML = el.html || ''; n.focus(); } }}
+              <div contentEditable suppressContentEditableWarning autoFocus autoCapitalize="sentences" spellCheck ref={(n) => { if (n && !n.dataset.init) { n.dataset.init = '1'; n.innerHTML = el.html || ''; n.focus(); } }}
                 onBlur={(e) => commitHtml(el.id, e.currentTarget.innerHTML)}
                 className="h-full w-full overflow-auto p-2 text-slate-800 outline-none"
                 style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'left' }} />
@@ -918,7 +993,7 @@ export const WhiteboardPage = () => {
           )
         ) : el.type !== 'frame' && (editing ? (
           <foreignObject x={b.x} y={b.y} width={b.w} height={b.h}>
-            <input autoFocus defaultValue={el.text} onBlur={(e) => commitText(el.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} className="h-full w-full bg-transparent text-center outline-none" style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'center', color: el.stroke }} />
+            <input autoFocus defaultValue={el.text} autoCapitalize="sentences" spellCheck enterKeyHint="done" onBlur={(e) => commitText(el.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} className="h-full w-full bg-transparent text-center outline-none" style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'center', color: el.stroke }} />
           </foreignObject>
         ) : el.text ? (
           <foreignObject x={b.x} y={b.y} width={b.w} height={b.h} style={{ pointerEvents: 'none' }}>
@@ -936,6 +1011,7 @@ export const WhiteboardPage = () => {
     <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-slate-50 dark:bg-slate-950">
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickImage} />
       <div className="sr-only" role="status" aria-live="polite">{srSummary}</div>
+      <div className="sr-only" role="status" aria-live="polite">{liveMsg}</div>
       {/* Toolbar */}
       <div className="z-10 flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white/80 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
         <div className="relative">
@@ -999,7 +1075,14 @@ export const WhiteboardPage = () => {
           {exportMenu && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setExportMenu(false)} />
-              <div className="absolute left-0 top-full z-30 mt-1.5 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-800">
+              <div className="absolute left-0 top-full z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                {selectedIds.length > 0 && <div className="px-3 py-1.5 text-[11px] font-medium text-brand-600 dark:text-brand-400">Exporting {selectedIds.length} selected</div>}
+                <div className="flex items-center gap-1 px-3 py-1.5">
+                  <span className="text-[11px] text-slate-400">Scale</span>
+                  {[1, 2, 3].map((s) => <button key={s} onClick={() => setExportScale(s)} className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium', exportScale === s ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700')}>{s}×</button>)}
+                  <button onClick={() => setExportTransparent((v) => !v)} title="Transparent background (PNG)" className={cn('ml-auto rounded px-1.5 py-0.5 text-[11px] font-medium', exportTransparent ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700')}>Transparent</button>
+                </div>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
                 <button onClick={() => runExport('png')} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"><ImageIcon className="h-3.5 w-3.5" /> PNG image</button>
                 <button onClick={() => runExport('svg')} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"><FileCode className="h-3.5 w-3.5" /> SVG vector</button>
                 <button onClick={() => runExport('pdf')} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"><FileText className="h-3.5 w-3.5" /> PDF document</button>
@@ -1022,7 +1105,7 @@ export const WhiteboardPage = () => {
           {connectFrom && <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">Pick target…</span>}
           {selectedIds.length > 1 && <span className="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">{selectedIds.length} selected</span>}
           {!canEdit && <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-500 dark:bg-slate-800"><Eye className="h-3.5 w-3.5" /> View only</span>}
-          {saving === 'saving' ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</span> : saving === 'saved' ? <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-500" /> Saved</span> : null}
+          {saving === 'saving' ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</span> : saving === 'saved' ? <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-500" /> Saved</span> : saving === 'error' ? <span className="flex items-center gap-1.5 font-medium text-amber-600" title="Your changes are kept locally and will retry automatically"><Clock className="h-3.5 w-3.5" /> Offline — will retry</span> : null}
         </div>
       </div>
 
@@ -1069,7 +1152,7 @@ export const WhiteboardPage = () => {
               }
               if (el.type === 'text') {
                 return editingId === el.id ? (
-                  <foreignObject key={el.id} x={el.x} y={el.y - el.size} width={280} height={el.size + 16}><input autoFocus defaultValue={el.text} onBlur={(e) => commitText(el.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} className="w-full bg-transparent font-medium outline-none" style={{ color: el.stroke, fontSize: el.size, textAlign: el.align ?? 'left' }} /></foreignObject>
+                  <foreignObject key={el.id} x={el.x} y={el.y - el.size} width={280} height={el.size + 16}><input autoFocus defaultValue={el.text} autoCapitalize="sentences" spellCheck enterKeyHint="done" onBlur={(e) => commitText(el.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} className="w-full bg-transparent font-medium outline-none" style={{ color: el.stroke, fontSize: el.size, textAlign: el.align ?? 'left' }} /></foreignObject>
                 ) : (
                   <text key={el.id} x={el.x} y={el.y} fill={el.stroke} fontSize={el.size} fontWeight={600} opacity={el.opacity ?? 1} textAnchor={el.align === 'center' ? 'middle' : el.align === 'right' ? 'end' : 'start'} onPointerDown={(e) => onElPointerDown(e, el)} onDoubleClick={() => canEdit && !el.locked && setEditingId(el.id)} onContextMenu={(e) => openCtx(e, el)} className="select-none" style={{ cursor: moveCursor, textDecoration: selected ? 'underline' : undefined }}>{el.text}</text>
                 );
@@ -1118,6 +1201,14 @@ export const WhiteboardPage = () => {
             <Presentation className="mb-3 h-10 w-10 text-slate-200 dark:text-slate-700" />
             <p className="text-sm font-medium text-slate-400">{canEdit ? 'Pick a tool and start building your diagram' : 'This whiteboard is empty'}</p>
             {canEdit && <p className="mt-1 text-xs text-slate-300 dark:text-slate-600">Shapes · connectors · images · task cards — everything syncs for your team</p>}
+          </div>
+        )}
+
+        {/* Touch gesture hint (coarse pointers, dismissible) */}
+        {touchHint && (
+          <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-md backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300">
+            Two fingers to pan &amp; zoom · long-press for menu
+            <button onClick={() => { setTouchHint(false); localStorage.setItem('wb-touch-hint', '0'); }} aria-label="Dismiss" className="rounded-full p-0.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-3.5 w-3.5" /></button>
           </div>
         )}
 
@@ -1322,7 +1413,8 @@ export const WhiteboardPage = () => {
             {canEdit && <button onClick={saveVersion} className="flex items-center justify-center gap-1.5 border-b border-slate-100 px-3 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50/50 dark:border-slate-800 dark:text-brand-400 dark:hover:bg-brand-500/5"><Clock className="h-4 w-4" /> Save current version</button>}
             <div className="flex-1 overflow-y-auto p-1.5">
               {snapshots.length === 0 ? <p className="px-3 py-6 text-center text-xs text-slate-400">No versions yet. Snapshots are captured automatically as you work, or save one manually.</p> : snapshots.map((s) => (
-                <div key={s._id} className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <div key={s._id} className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <div className="shrink-0 overflow-hidden rounded-md ring-1 ring-slate-100 dark:ring-slate-800"><BoardThumb preview={s.preview} w={56} h={38} /></div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{s.label}</div>
                     <div className="text-[11px] text-slate-400">{s.createdBy?.name ? `${s.createdBy.name} · ` : ''}{relTime(s.createdAt)} · {s.elementCount} items</div>

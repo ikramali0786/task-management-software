@@ -10,6 +10,7 @@ export interface IWhiteboardSnapshot extends Document {
   board: mongoose.Types.ObjectId;
   team: mongoose.Types.ObjectId;
   elements: any[];
+  preview: any[];
   label: string;
   createdBy: mongoose.Types.ObjectId | null;
   createdAt: Date;
@@ -20,6 +21,7 @@ const WhiteboardSnapshotSchema = new Schema<IWhiteboardSnapshot>(
     board: { type: Schema.Types.ObjectId, ref: 'Whiteboard', required: true, index: true },
     team: { type: Schema.Types.ObjectId, ref: 'Team', required: true },
     elements: { type: Schema.Types.Mixed, default: [] },
+    preview: { type: Schema.Types.Mixed, default: [] },
     label: { type: String, default: 'Snapshot', maxlength: 80 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },

@@ -1,10 +1,12 @@
 // Dependency-free whiteboard export: serialize elements to a clean, standalone
 // SVG (pure primitives — no foreignObject — so it rasterizes reliably), then
-// to PNG / PDF / clipboard. Mirrors the on-canvas look closely enough for a
-// faithful export without pulling in jsPDF or html2canvas.
+// to PNG / PDF / clipboard. Text wrapping uses real canvas measurement, note
+// rich text keeps its line/list structure, and the brand font is embedded so
+// exports look identical wherever they're opened.
 import { TASK_STATUSES, PRIORITY_CONFIG } from '@/types';
 
 type E = Record<string, any>;
+const FONT = "'Hanken Grotesk', system-ui, sans-serif";
 const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 const num = (n: number) => Math.round(n * 100) / 100;
 
@@ -25,7 +27,50 @@ const polyDiamond = (b: any) => `${b.x + b.w / 2},${b.y} ${b.x + b.w},${b.y + b.
 const polyTriangle = (b: any) => `${b.x + b.w / 2},${b.y} ${b.x + b.w},${b.y + b.h} ${b.x},${b.y + b.h}`;
 const polyStar = (b: any) => { const cx = b.x + b.w / 2, cy = b.y + b.h / 2, R = Math.min(b.w, b.h) / 2, r = R * 0.42, mn = Math.min(b.w, b.h); return Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, rad = i % 2 ? r : R; return `${num(cx + rad * Math.cos(a) * (b.w / mn))},${num(cy + rad * Math.sin(a) * (b.h / mn))}`; }).join(' '); };
 const arrowHead = (p: { x: number; y: number }, ang: number, size = 9) => { const a1 = ang + Math.PI - 0.42, a2 = ang + Math.PI + 0.42; return `${num(p.x)},${num(p.y)} ${num(p.x + size * Math.cos(a1))},${num(p.y + size * Math.sin(a1))} ${num(p.x + size * Math.cos(a2))},${num(p.y + size * Math.sin(a2))}`; };
-const stripHtml = (html: string) => { const d = document.createElement('div'); d.innerHTML = html || ''; return (d.textContent || '').trim(); };
+
+// ── Real text measurement & wrapping ─────────────────────────────────────────
+let measureCtx: CanvasRenderingContext2D | null = null;
+const wrapByWidth = (text: string, fontSize: number, weight: number, maxW: number): string[] => {
+  if (!text) return [];
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  const ctx = measureCtx; if (ctx) ctx.font = `${weight} ${fontSize}px ${FONT}`;
+  const measure = (s: string) => (ctx ? ctx.measureText(s).width : s.length * fontSize * 0.55);
+  const lines: string[] = [];
+  for (const para of text.split('\n')) {
+    if (!para) { lines.push(''); continue; }
+    let line = '';
+    for (const word of para.split(/(\s+)/)) {
+      if (measure(line + word) > maxW && line.trim()) { lines.push(line.trimEnd()); line = word.trimStart(); }
+      else line += word;
+    }
+    if (line.trim() || para === '') lines.push(line.trimEnd());
+  }
+  return lines;
+};
+const wrapText = (s: string, x: number, y: number, fontSize: number, maxW: number, color: string, anchor: string, weight = 400) => {
+  const lines = wrapByWidth(s, fontSize, weight, maxW); if (!lines.length) return '';
+  const tspans = lines.slice(0, 40).map((ln, i) => `<tspan x="${num(x)}" dy="${i === 0 ? 0 : fontSize * 1.3}">${esc(ln) || ' '}</tspan>`).join('');
+  return `<text x="${num(x)}" y="${num(y + fontSize)}" font-family="${FONT}" font-size="${fontSize}" font-weight="${weight}" fill="${color}" text-anchor="${anchor}">${tspans}</text>`;
+};
+// Flatten a note's rich-text HTML into lines, preserving paragraphs and "• " for lists.
+const noteText = (html: string): string => {
+  const root = document.createElement('div'); root.innerHTML = html || '';
+  const out: string[] = [];
+  const walk = (node: Node, bullet: boolean) => {
+    node.childNodes.forEach((c) => {
+      if (c.nodeType === 3) { if (out.length === 0) out.push(''); out[out.length - 1] += (c.textContent || ''); }
+      else if (c.nodeType === 1) {
+        const tag = (c as Element).tagName;
+        if (tag === 'BR') out.push('');
+        else if (tag === 'LI') { out.push('• '); walk(c, true); }
+        else if (/^(DIV|P|UL|OL)$/.test(tag)) { if (out.length && out[out.length - 1] !== '') out.push(''); walk(c, bullet); }
+        else walk(c, bullet);
+      }
+    });
+  };
+  walk(root, false);
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+};
 
 const bboxOf = (el: E, map: Map<string, E>): { x: number; y: number; w: number; h: number } => {
   if (el.type === 'text') return { x: el.x, y: el.y - el.size, w: Math.max(40, (el.text || '').length * el.size * 0.6), h: el.size + 6 };
@@ -33,16 +78,6 @@ const bboxOf = (el: E, map: Map<string, E>): { x: number; y: number; w: number; 
   if (el.type === 'line' || el.type === 'arrow') return { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), w: Math.abs(el.x2 - el.x1), h: Math.abs(el.y2 - el.y1) };
   if (el.type === 'connector') { const a = map.get(el.from), b = map.get(el.to); if (!a || !b) return { x: 0, y: 0, w: 0, h: 0 }; const ca = center(bboxOf(a, map)), cb = center(bboxOf(b, map)); return { x: Math.min(ca.x, cb.x), y: Math.min(ca.y, cb.y), w: Math.abs(cb.x - ca.x), h: Math.abs(cb.y - ca.y) }; }
   return { x: el.x, y: el.y, w: el.w, h: el.h };
-};
-
-const wrapText = (s: string, x: number, y: number, fontSize: number, maxW: number, color: string, anchor: string, weight = 400) => {
-  const words = (s || '').split(/\s+/).filter(Boolean); if (!words.length) return '';
-  const maxChars = Math.max(4, Math.floor(maxW / (fontSize * 0.55)));
-  const lines: string[] = []; let line = '';
-  for (const w of words) { if ((line + ' ' + w).trim().length > maxChars && line) { lines.push(line); line = w; } else line = (line + ' ' + w).trim(); }
-  if (line) lines.push(line);
-  const tspans = lines.slice(0, 12).map((ln, i) => `<tspan x="${num(x)}" dy="${i === 0 ? 0 : fontSize * 1.25}">${esc(ln)}</tspan>`).join('');
-  return `<text x="${num(x)}" y="${num(y + fontSize)}" font-family="'Hanken Grotesk', sans-serif" font-size="${fontSize}" font-weight="${weight}" fill="${color}" text-anchor="${anchor}">${tspans}</text>`;
 };
 
 const renderEl = (el: E, map: Map<string, E>, imageData: Map<string, string>): string => {
@@ -65,14 +100,13 @@ const renderEl = (el: E, map: Map<string, E>, imageData: Map<string, string>): s
     return wrap(`<line x1="${num(el.x1)}" y1="${num(el.y1)}" x2="${num(el.x2)}" y2="${num(el.y2)}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"${dash}/>${el.type === 'arrow' ? `<polygon points="${arrowHead({ x: el.x2, y: el.y2 }, ang)}" fill="${stroke}"/>` : ''}`);
   }
   if (el.type === 'path') return wrap(`<path d="${smoothPathD(el.points || [])}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`);
-  if (el.type === 'text') { const anchor = el.align === 'center' ? 'middle' : el.align === 'right' ? 'end' : 'start'; return wrap(`<text x="${num(el.x)}" y="${num(el.y)}" font-family="'Hanken Grotesk', sans-serif" font-size="${el.size}" font-weight="600" fill="${stroke}" text-anchor="${anchor}">${esc(el.text || '')}</text>`); }
+  if (el.type === 'text') { const anchor = el.align === 'center' ? 'middle' : el.align === 'right' ? 'end' : 'start'; return wrap(`<text x="${num(el.x)}" y="${num(el.y)}" font-family="${FONT}" font-size="${el.size}" font-weight="600" fill="${stroke}" text-anchor="${anchor}">${esc(el.text || '')}</text>`); }
   if (el.type === 'image') { const href = imageData.get(el.url) || el.url; return wrap(`<clipPath id="cl${el.id}"><rect x="${num(el.x)}" y="${num(el.y)}" width="${num(el.w)}" height="${num(el.h)}" rx="4"/></clipPath><image href="${esc(href)}" x="${num(el.x)}" y="${num(el.y)}" width="${num(el.w)}" height="${num(el.h)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#cl${el.id})"/>`); }
   if (el.type === 'task') {
     const st = TASK_STATUSES.find((s) => s.id === el.status); const pr = el.priority ? (PRIORITY_CONFIG as any)[el.priority] : null;
-    const head = `${pr ? `<circle cx="${num(el.x + 12)}" cy="${num(el.y + 16)}" r="3" fill="${pr.color}"/>` : ''}<text x="${num(el.x + (pr ? 22 : 12))}" y="${num(el.y + 20)}" font-family="'Hanken Grotesk', sans-serif" font-size="10" fill="#94a3b8">#${esc(String(el.identifier ?? ''))}</text>${st ? `<rect x="${num(el.x + el.w - 70)}" y="${num(el.y + 9)}" width="60" height="15" rx="7.5" fill="${st.color}"/><text x="${num(el.x + el.w - 40)}" y="${num(el.y + 20)}" font-family="'Hanken Grotesk', sans-serif" font-size="9" fill="#fff" text-anchor="middle">${esc(st.label)}</text>` : ''}`;
+    const head = `${pr ? `<circle cx="${num(el.x + 12)}" cy="${num(el.y + 16)}" r="3" fill="${pr.color}"/>` : ''}<text x="${num(el.x + (pr ? 22 : 12))}" y="${num(el.y + 20)}" font-family="${FONT}" font-size="10" fill="#94a3b8">#${esc(String(el.identifier ?? ''))}</text>${st ? `<rect x="${num(el.x + el.w - 70)}" y="${num(el.y + 9)}" width="60" height="15" rx="7.5" fill="${st.color}"/><text x="${num(el.x + el.w - 40)}" y="${num(el.y + 20)}" font-family="${FONT}" font-size="9" fill="#fff" text-anchor="middle">${esc(st.label)}</text>` : ''}`;
     return wrap(`<rect x="${num(el.x)}" y="${num(el.y)}" width="${num(el.w)}" height="${num(el.h)}" rx="12" fill="#ffffff" stroke="#e2e8f0"/>${head}${wrapText(el.title || '', el.x + 12, el.y + 30, 12, el.w - 24, '#334155', 'start', 600)}`);
   }
-  // shapes
   const b = { x: el.x, y: el.y, w: el.w, h: el.h };
   let shape = '';
   if (el.type === 'ellipse') shape = `<ellipse cx="${num(b.x + b.w / 2)}" cy="${num(b.y + b.h / 2)}" rx="${num(b.w / 2)}" ry="${num(b.h / 2)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${dash}/>`;
@@ -81,37 +115,48 @@ const renderEl = (el: E, map: Map<string, E>, imageData: Map<string, string>): s
   else if (el.type === 'star') shape = `<polygon points="${polyStar(b)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${dash}/>`;
   else shape = `<rect x="${num(b.x)}" y="${num(b.y)}" width="${num(b.w)}" height="${num(b.h)}" rx="${el.type === 'note' ? 8 : el.type === 'frame' ? 4 : 6}" fill="${el.type === 'note' ? (el.fill || '#fde68a') : fill}" stroke="${stroke}" stroke-width="${sw}"${dash}/>`;
   let label = '';
-  if (el.type === 'frame') label = `<text x="${num(b.x + 8)}" y="${num(b.y - 6)}" font-family="'Hanken Grotesk', sans-serif" font-size="12" font-weight="600" fill="#64748b">${esc(el.text || 'Frame')}</text>`;
-  else if (el.type === 'note') { const t = el.html ? stripHtml(el.html) : (el.text || ''); if (t) label = wrapText(t, b.x + 8, b.y + 6, el.fontSize || 14, b.w - 16, '#1e293b', 'start'); }
-  else if (el.text) label = `<text x="${num(b.x + b.w / 2)}" y="${num(b.y + b.h / 2 + (el.fontSize || 14) / 3)}" font-family="'Hanken Grotesk', sans-serif" font-size="${el.fontSize || 14}" font-weight="500" fill="${stroke}" text-anchor="middle">${esc(el.text)}</text>`;
+  if (el.type === 'frame') label = `<text x="${num(b.x + 8)}" y="${num(b.y - 6)}" font-family="${FONT}" font-size="12" font-weight="600" fill="#64748b">${esc(el.text || 'Frame')}</text>`;
+  else if (el.type === 'note') { const t = el.html ? noteText(el.html) : (el.text || ''); if (t) label = wrapText(t, b.x + 8, b.y + 6, el.fontSize || 14, b.w - 16, '#1e293b', 'start'); }
+  else if (el.text) { const anchor = el.align === 'right' ? 'end' : el.align === 'left' ? 'start' : 'middle'; const tx = el.align === 'right' ? b.x + b.w - 6 : el.align === 'left' ? b.x + 6 : b.x + b.w / 2; label = `<text x="${num(tx)}" y="${num(b.y + b.h / 2 + (el.fontSize || 14) / 3)}" font-family="${FONT}" font-size="${el.fontSize || 14}" font-weight="500" fill="${stroke}" text-anchor="${anchor}">${esc(el.text)}</text>`; }
   return wrap(shape + label);
 };
 
-export const boardToSVG = (elements: E[], opts: { pad?: number; background?: string; imageData?: Map<string, string> } = {}): { svg: string; width: number; height: number } => {
+export const boardToSVG = (elements: E[], opts: { pad?: number; background?: string; imageData?: Map<string, string>; fontCSS?: string; only?: Set<string> } = {}): { svg: string; width: number; height: number } => {
   const pad = opts.pad ?? 48; const bg = opts.background ?? '#ffffff';
-  const map = new Map(elements.map((e) => [e.id, e]));
-  const visible = elements.filter((e) => !(e.type === 'connector' && (!map.get(e.from) || !map.get(e.to))));
+  const full = new Map(elements.map((e) => [e.id, e]));
+  let elx = elements;
+  if (opts.only && opts.only.size) elx = elements.filter((e) => opts.only!.has(e.id) || (e.type === 'connector' && opts.only!.has(e.from) && opts.only!.has(e.to)));
+  const map = new Map(elx.map((e) => [e.id, e]));
+  const visible = elx.filter((e) => !(e.type === 'connector' && (!map.get(e.from) || !map.get(e.to))));
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const el of visible) { const b = bboxOf(el, map); if (!b.w && !b.h && el.type === 'connector') continue; minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
+  for (const el of visible) { const b = bboxOf(el, full); if (!b.w && !b.h && el.type === 'connector') continue; minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
   if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 400; maxY = 300; }
   const W = Math.max(1, maxX - minX + pad * 2), H = Math.max(1, maxY - minY + pad * 2);
-  const body = visible.map((el) => renderEl(el, map, opts.imageData ?? new Map())).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${num(W)}" height="${num(H)}" viewBox="0 0 ${num(W)} ${num(H)}"><rect width="${num(W)}" height="${num(H)}" fill="${bg}"/><g transform="translate(${num(pad - minX)} ${num(pad - minY)})">${body}</g></svg>`;
+  const body = visible.map((el) => renderEl(el, full, opts.imageData ?? new Map())).join('');
+  const defs = opts.fontCSS ? `<defs><style type="text/css">${opts.fontCSS}</style></defs>` : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${num(W)}" height="${num(H)}" viewBox="0 0 ${num(W)} ${num(H)}">${defs}<rect width="${num(W)}" height="${num(H)}" fill="${bg}"/><g transform="translate(${num(pad - minX)} ${num(pad - minY)})">${body}</g></svg>`;
   return { svg, width: W, height: H };
 };
 
-// Fetch each unique image as a data URL so PNG/PDF rasterization isn't tainted.
-export const collectImageData = async (elements: E[]): Promise<Map<string, string>> => {
-  const urls = Array.from(new Set(elements.filter((e) => e.type === 'image' && e.url).map((e) => e.url as string)));
-  const out = new Map<string, string>();
-  await Promise.all(urls.map(async (url) => {
-    try {
-      const res = await fetch(url, { mode: 'cors' }); const blob = await res.blob();
-      const data = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(blob); });
-      out.set(url, data);
-    } catch { /* leave out; renders as remote href in SVG, placeholder in raster */ }
-  }));
-  return out;
+// ── Font embedding (so exports match the on-canvas brand font everywhere) ─────
+let fontCSSCache: string | null = null;
+const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(blob); });
+const getFontCSS = async (): Promise<string> => {
+  if (fontCSSCache !== null) return fontCSSCache;
+  try {
+    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap')).text();
+    const blocks = css.split('@font-face').slice(1);
+    const faces: string[] = [];
+    for (const b of blocks) {
+      const weight = (b.match(/font-weight:\s*(\d+)/) || [])[1] || '400';
+      const url = (b.match(/url\((https:\/\/[^)]+\.woff2)\)/) || [])[1];
+      if (!url) continue;
+      const data = await blobToDataUrl(await (await fetch(url)).blob());
+      faces.push(`@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:${weight};src:url(${data}) format('woff2');}`);
+    }
+    fontCSSCache = faces.join('');
+  } catch { fontCSSCache = ''; }
+  return fontCSSCache;
 };
 
 const svgToImage = (svg: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
@@ -121,34 +166,46 @@ const svgToImage = (svg: string): Promise<HTMLImageElement> => new Promise((reso
   img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
   img.src = url;
 });
-
-const rasterize = async (svg: string, width: number, height: number, background: string): Promise<HTMLCanvasElement> => {
-  const scale = Math.min(2, 4000 / Math.max(width, height));
+const rasterize = async (svg: string, width: number, height: number, background: string | null, scale: number): Promise<HTMLCanvasElement> => {
+  const s = Math.min(scale, 4000 / Math.max(width, height));
   const img = await svgToImage(svg);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(width * scale); canvas.height = Math.round(height * scale);
-  const ctx = canvas.getContext('2d')!; ctx.fillStyle = background; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  canvas.width = Math.max(1, Math.round(width * s)); canvas.height = Math.max(1, Math.round(height * s));
+  const ctx = canvas.getContext('2d')!; if (background) { ctx.fillStyle = background; ctx.fillRect(0, 0, canvas.width, canvas.height); }
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   return canvas;
+};
+
+export const collectImageData = async (elements: E[]): Promise<Map<string, string>> => {
+  const urls = Array.from(new Set(elements.filter((e) => e.type === 'image' && e.url).map((e) => e.url as string)));
+  const out = new Map<string, string>();
+  await Promise.all(urls.map(async (url) => {
+    try { out.set(url, await blobToDataUrl(await (await fetch(url, { mode: 'cors' })).blob())); } catch { /* placeholder */ }
+  }));
+  return out;
 };
 
 const download = (blob: Blob, filename: string) => { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
 const safeName = (name: string) => (name || 'whiteboard').replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'whiteboard';
 
-export const exportSVG = (elements: E[], name: string) => { const { svg } = boardToSVG(elements); download(new Blob([svg], { type: 'image/svg+xml' }), `${safeName(name)}.svg`); };
+export interface ExportOpts { scale?: number; transparent?: boolean; only?: Set<string> }
 
-export const exportPNG = async (elements: E[], name: string) => {
-  const imageData = await collectImageData(elements);
-  const { svg, width, height } = boardToSVG(elements, { imageData });
-  const canvas = await rasterize(svg, width, height, '#ffffff');
+export const exportSVG = async (elements: E[], name: string, opts: ExportOpts = {}) => {
+  const [fontCSS, imageData] = await Promise.all([getFontCSS(), collectImageData(elements)]);
+  const { svg } = boardToSVG(elements, { fontCSS, imageData, only: opts.only, background: opts.transparent ? 'transparent' : '#ffffff' });
+  download(new Blob([svg], { type: 'image/svg+xml' }), `${safeName(name)}.svg`);
+};
+export const exportPNG = async (elements: E[], name: string, opts: ExportOpts = {}) => {
+  const [fontCSS, imageData] = await Promise.all([getFontCSS(), collectImageData(elements)]);
+  const { svg, width, height } = boardToSVG(elements, { fontCSS, imageData, only: opts.only, background: 'transparent' });
+  const canvas = await rasterize(svg, width, height, opts.transparent ? null : '#ffffff', opts.scale ?? 2);
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
   if (blob) download(blob, `${safeName(name)}.png`);
 };
-
-export const copyPNGToClipboard = async (elements: E[]) => {
-  const imageData = await collectImageData(elements);
-  const { svg, width, height } = boardToSVG(elements, { imageData });
-  const canvas = await rasterize(svg, width, height, '#ffffff');
+export const copyPNGToClipboard = async (elements: E[], opts: ExportOpts = {}) => {
+  const [fontCSS, imageData] = await Promise.all([getFontCSS(), collectImageData(elements)]);
+  const { svg, width, height } = boardToSVG(elements, { fontCSS, imageData, only: opts.only, background: 'transparent' });
+  const canvas = await rasterize(svg, width, height, opts.transparent ? null : '#ffffff', opts.scale ?? 2);
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
   if (!blob) throw new Error('render failed');
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
@@ -174,11 +231,10 @@ const jpegToPdf = (jpeg: Uint8Array, w: number, h: number): Blob => {
   push(enc(`${x}trailer\n<< /Size ${xref.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`));
   return new Blob([concat(parts)], { type: 'application/pdf' });
 };
-
-export const exportPDF = async (elements: E[], name: string) => {
-  const imageData = await collectImageData(elements);
-  const { svg, width, height } = boardToSVG(elements, { imageData });
-  const canvas = await rasterize(svg, width, height, '#ffffff');
+export const exportPDF = async (elements: E[], name: string, opts: ExportOpts = {}) => {
+  const [fontCSS, imageData] = await Promise.all([getFontCSS(), collectImageData(elements)]);
+  const { svg, width, height } = boardToSVG(elements, { fontCSS, imageData, only: opts.only, background: '#ffffff' });
+  const canvas = await rasterize(svg, width, height, '#ffffff', opts.scale ?? 2);
   const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
   const bin = atob(dataUrl.split(',')[1]); const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
