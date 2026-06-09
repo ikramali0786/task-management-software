@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Whiteboard } from '../models/Whiteboard.model';
+import { WhiteboardSnapshot } from '../models/WhiteboardSnapshot.model';
 import { Team } from '../models/Team.model';
 import { env } from '../config/env';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -18,6 +19,8 @@ const r2 = new S3Client({
 });
 const IMG_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/avif']);
 const IMG_MAX = 10 * 1024 * 1024; // 10 MB
+const MAX_SNAPSHOTS = 30;
+const AUTO_SNAPSHOT_MS = 10 * 60 * 1000;
 
 const verifyMember = async (teamId: string, userId: string) => {
   const team = await Team.findById(teamId);
@@ -27,41 +30,155 @@ const verifyMember = async (teamId: string, userId: string) => {
   return team;
 };
 
-/* GET /whiteboard?teamId=… — load (creating an empty board on first access). */
-export const getWhiteboard = asyncHandler(async (req: Request, res: Response) => {
-  const { teamId } = req.query as Record<string, string>;
-  if (!teamId) throw new ApiError(400, 'teamId is required.');
-  await verifyMember(teamId, req.user!._id.toString());
+// One-time: drop the legacy unique index on `team` so a team can own >1 board.
+let indexFixed = false;
+const ensureIndexes = async () => {
+  if (indexFixed) return; indexFixed = true;
+  try { await Whiteboard.collection.dropIndex('team_1'); } catch { /* already gone */ }
+};
 
-  const board = await Whiteboard.findOne({ team: teamId }).select('elements updatedAt');
-  sendSuccess(res, { elements: board?.elements ?? [], updatedAt: board?.updatedAt ?? null });
-});
-
-/* PUT /whiteboard?teamId=… — save the whole board (last-writer-wins). */
-export const saveWhiteboard = asyncHandler(async (req: Request, res: Response) => {
-  const { teamId } = req.query as Record<string, string>;
-  if (!teamId) throw new ApiError(400, 'teamId is required.');
-
-  const schema = z.object({ elements: z.array(z.any()).max(5000) });
-  const parsed = schema.safeParse(req.body ?? {});
-  if (!parsed.success) throw new ApiError(400, 'Invalid board payload.');
-
-  const userId = req.user!._id.toString();
-  const team = await verifyMember(teamId, userId);
-  // Read-only members (viewers / guests) can view but not persist changes.
+const canWrite = (team: any, userId: string) => {
   if (!hasPermission(team, userId, 'commentOnTasks')) {
     throw new ApiError(403, 'You have read-only access to this whiteboard.', { code: 'PERMISSION_DENIED' });
   }
+};
 
-  const board = await Whiteboard.findOneAndUpdate(
-    { team: teamId },
-    { $set: { elements: parsed.data.elements, updatedBy: req.user!._id } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+const boardMeta = (b: any) => ({
+  _id: b._id, name: b.name || 'Main board', preview: b.preview ?? [], elementCount: Array.isArray(b.elements) ? b.elements.length : (b.preview?.length ?? 0),
+  createdBy: b.createdBy, updatedAt: b.updatedAt, createdAt: b.createdAt,
+});
 
-  // Live propagation happens via socket `whiteboard:op` events (element-level);
-  // this endpoint only persists the merged result for fresh loads.
+const loadBoard = async (boardId: string, userId: string) => {
+  const board = await Whiteboard.findById(boardId);
+  if (!board) throw new ApiError(404, 'Board not found.');
+  const team = await verifyMember(board.team.toString(), userId);
+  return { board, team };
+};
+
+/* GET /whiteboard/boards?teamId=… — list a team's boards (auto-creates one). */
+export const getBoards = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+  const userId = req.user!._id.toString();
+  await verifyMember(teamId, userId);
+  await ensureIndexes();
+
+  let boards = await Whiteboard.find({ team: teamId }).select('name preview createdBy updatedAt createdAt').sort({ updatedAt: -1 });
+  if (boards.length === 0) {
+    const created = await Whiteboard.create({ team: teamId, name: 'Main board', createdBy: req.user!._id, updatedBy: req.user!._id });
+    boards = [created];
+  }
+  sendSuccess(res, { boards: boards.map(boardMeta) });
+});
+
+/* POST /whiteboard/boards?teamId=… — create a board (optionally from a template). */
+export const createBoard = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+  const userId = req.user!._id.toString();
+  const team = await verifyMember(teamId, userId);
+  canWrite(team, userId);
+  await ensureIndexes();
+
+  const schema = z.object({ name: z.string().trim().min(1).max(80).optional(), elements: z.array(z.any()).max(5000).optional(), preview: z.array(z.any()).max(2000).optional() });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, 'Invalid board payload.');
+
+  const board = await Whiteboard.create({
+    team: teamId, name: parsed.data.name || 'Untitled board',
+    elements: parsed.data.elements ?? [], preview: parsed.data.preview ?? [],
+    createdBy: req.user!._id, updatedBy: req.user!._id,
+  });
+  sendSuccess(res, { board: boardMeta(board) }, 'Board created.', 201);
+});
+
+/* PATCH /whiteboard/boards/:boardId — rename. */
+export const renameBoard = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(req.params.boardId, userId);
+  canWrite(team, userId);
+  const schema = z.object({ name: z.string().trim().min(1).max(80) });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, 'A board name is required.');
+  board.name = parsed.data.name; board.updatedBy = req.user!._id; await board.save();
+  sendSuccess(res, { board: boardMeta(board) }, 'Renamed.');
+});
+
+/* DELETE /whiteboard/boards/:boardId — delete a board and its snapshots. */
+export const deleteBoard = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(req.params.boardId, userId);
+  canWrite(team, userId);
+  await WhiteboardSnapshot.deleteMany({ board: board._id });
+  await board.deleteOne();
+  sendSuccess(res, { deleted: true }, 'Board deleted.');
+});
+
+/* GET /whiteboard?boardId=… — load one board's elements. */
+export const getWhiteboard = asyncHandler(async (req: Request, res: Response) => {
+  const { boardId } = req.query as Record<string, string>;
+  if (!boardId) throw new ApiError(400, 'boardId is required.');
+  const { board } = await loadBoard(boardId, req.user!._id.toString());
+  sendSuccess(res, { elements: board.elements ?? [], name: board.name || 'Main board', updatedAt: board.updatedAt });
+});
+
+/* PUT /whiteboard?boardId=… — save a board (last-writer-wins) + auto-snapshot. */
+export const saveWhiteboard = asyncHandler(async (req: Request, res: Response) => {
+  const { boardId } = req.query as Record<string, string>;
+  if (!boardId) throw new ApiError(400, 'boardId is required.');
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(boardId, userId);
+  canWrite(team, userId);
+
+  const schema = z.object({ elements: z.array(z.any()).max(5000), preview: z.array(z.any()).max(2000).optional() });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) throw new ApiError(400, 'Invalid board payload.');
+
+  board.elements = parsed.data.elements;
+  if (parsed.data.preview) board.preview = parsed.data.preview as any;
+  board.updatedBy = req.user!._id;
+  await board.save();
+
+  // Auto-snapshot at most once per ~10 min so history has restore points.
+  const last = await WhiteboardSnapshot.findOne({ board: board._id }).sort({ createdAt: -1 }).select('createdAt');
+  if (!last || Date.now() - new Date(last.createdAt).getTime() > AUTO_SNAPSHOT_MS) {
+    await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label: 'Auto-save', createdBy: req.user!._id });
+    const extra = await WhiteboardSnapshot.find({ board: board._id }).sort({ createdAt: -1 }).skip(MAX_SNAPSHOTS).select('_id');
+    if (extra.length) await WhiteboardSnapshot.deleteMany({ _id: { $in: extra.map((e) => e._id) } });
+  }
   sendSuccess(res, { updatedAt: board.updatedAt }, 'Saved.');
+});
+
+/* GET /whiteboard/boards/:boardId/snapshots — list version history. */
+export const listSnapshots = asyncHandler(async (req: Request, res: Response) => {
+  const { board } = await loadBoard(req.params.boardId, req.user!._id.toString());
+  const snaps = await WhiteboardSnapshot.find({ board: board._id }).select('label createdBy createdAt elements').sort({ createdAt: -1 }).populate('createdBy', 'name avatar');
+  sendSuccess(res, { snapshots: snaps.map((s) => ({ _id: s._id, label: s.label, createdBy: s.createdBy, createdAt: s.createdAt, elementCount: Array.isArray(s.elements) ? s.elements.length : 0 })) });
+});
+
+/* POST /whiteboard/boards/:boardId/snapshots — manual "save version". */
+export const createSnapshot = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(req.params.boardId, userId);
+  canWrite(team, userId);
+  const label = (typeof req.body?.label === 'string' && req.body.label.trim().slice(0, 80)) || 'Saved version';
+  const snap = await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label, createdBy: req.user!._id });
+  const extra = await WhiteboardSnapshot.find({ board: board._id }).sort({ createdAt: -1 }).skip(MAX_SNAPSHOTS).select('_id');
+  if (extra.length) await WhiteboardSnapshot.deleteMany({ _id: { $in: extra.map((e) => e._id) } });
+  sendSuccess(res, { snapshot: { _id: snap._id, label: snap.label, createdAt: snap.createdAt } }, 'Version saved.', 201);
+});
+
+/* POST /whiteboard/boards/:boardId/snapshots/:snapshotId/restore — restore. */
+export const restoreSnapshot = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(req.params.boardId, userId);
+  canWrite(team, userId);
+  const snap = await WhiteboardSnapshot.findOne({ _id: req.params.snapshotId, board: board._id });
+  if (!snap) throw new ApiError(404, 'Snapshot not found.');
+  // Keep the pre-restore state as its own snapshot so a restore is reversible.
+  await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label: 'Before restore', createdBy: req.user!._id });
+  board.elements = snap.elements; board.updatedBy = req.user!._id; await board.save();
+  sendSuccess(res, { elements: board.elements }, 'Restored.');
 });
 
 /* POST /whiteboard/image?teamId=… — pre-signed PUT URL for a board image. */
@@ -69,11 +186,7 @@ export const presignBoardImage = asyncHandler(async (req: Request, res: Response
   const { teamId } = req.query as Record<string, string>;
   if (!teamId) throw new ApiError(400, 'teamId is required.');
 
-  const schema = z.object({
-    filename: z.string().min(1),
-    contentType: z.string().min(1),
-    size: z.number().int().positive(),
-  });
+  const schema = z.object({ filename: z.string().min(1), contentType: z.string().min(1), size: z.number().int().positive() });
   const parsed = schema.safeParse(req.body ?? {});
   if (!parsed.success) throw new ApiError(400, 'Invalid upload payload.');
   const { filename, contentType, size } = parsed.data;
@@ -83,9 +196,7 @@ export const presignBoardImage = asyncHandler(async (req: Request, res: Response
 
   const userId = req.user!._id.toString();
   const team = await verifyMember(teamId, userId);
-  if (!hasPermission(team, userId, 'commentOnTasks')) {
-    throw new ApiError(403, 'You have read-only access to this whiteboard.', { code: 'PERMISSION_DENIED' });
-  }
+  canWrite(team, userId);
 
   const missing = [
     !env.R2_ACCOUNT_ID && 'R2_ACCOUNT_ID', !env.R2_ACCESS_KEY_ID && 'R2_ACCESS_KEY_ID',

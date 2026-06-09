@@ -51,21 +51,22 @@ export const initSocket = (httpServer: HTTPServer): SocketServer => {
 
     // Relay live whiteboard operations to the rest of the team (element-level
     // last-writer-wins, so concurrent edits to different elements don't clobber).
-    socket.on('whiteboard:op', (data: { teamId: string; op: unknown }) => {
+    socket.on('whiteboard:op', (data: { teamId: string; boardId?: string; op: unknown }) => {
       if (!data?.teamId) return;
-      socket.to(`team:${data.teamId}`).emit('whiteboard:op', data.op);
+      socket.to(`team:${data.teamId}`).emit('whiteboard:op', { boardId: data.boardId, op: data.op });
     });
 
     // ── Live collaboration: cursors, selection awareness, presence ──────────
     // Server stamps identity so clients can't spoof other users' names.
+    // boardId is relayed so clients can ignore activity on other boards.
     const wbUid = (user._id as any).toString();
-    socket.on('whiteboard:cursor', (data: { teamId: string; x: number; y: number }) => {
+    socket.on('whiteboard:cursor', (data: { teamId: string; boardId?: string; x: number; y: number }) => {
       if (!data?.teamId) return;
-      socket.to(`team:${data.teamId}`).emit('whiteboard:cursor', { userId: wbUid, name: user.name, x: data.x, y: data.y });
+      socket.to(`team:${data.teamId}`).emit('whiteboard:cursor', { userId: wbUid, name: user.name, boardId: data.boardId, x: data.x, y: data.y });
     });
-    socket.on('whiteboard:selection', (data: { teamId: string; ids: string[] }) => {
+    socket.on('whiteboard:selection', (data: { teamId: string; boardId?: string; ids: string[] }) => {
       if (!data?.teamId) return;
-      socket.to(`team:${data.teamId}`).emit('whiteboard:selection', { userId: wbUid, name: user.name, ids: Array.isArray(data.ids) ? data.ids : [] });
+      socket.to(`team:${data.teamId}`).emit('whiteboard:selection', { userId: wbUid, name: user.name, boardId: data.boardId, ids: Array.isArray(data.ids) ? data.ids : [] });
     });
     socket.on('whiteboard:leave', (data: { teamId: string }) => {
       if (!data?.teamId) return;

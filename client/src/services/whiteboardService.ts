@@ -1,23 +1,63 @@
 import api from './api';
 
-export interface WhiteboardData { elements: any[]; updatedAt: string | null }
+export interface BoardPreviewRect { x: number; y: number; w: number; h: number; c: string }
+export interface BoardMeta {
+  _id: string;
+  name: string;
+  preview: BoardPreviewRect[];
+  elementCount: number;
+  createdBy?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+export interface SnapshotMeta {
+  _id: string;
+  label: string;
+  createdBy?: { _id: string; name: string; avatar: string | null } | null;
+  createdAt: string;
+  elementCount: number;
+}
 
 export const whiteboardService = {
-  get: async (teamId: string): Promise<WhiteboardData> => {
-    const res = await api.get('/whiteboard', { params: { teamId } });
-    return res.data?.data as WhiteboardData;
+  // ── Boards ────────────────────────────────────────────────────────────────
+  getBoards: async (teamId: string): Promise<BoardMeta[]> => {
+    const res = await api.get('/whiteboard/boards', { params: { teamId } });
+    return res.data?.data?.boards as BoardMeta[];
   },
-  save: async (teamId: string, elements: any[]): Promise<{ updatedAt: string }> => {
-    const res = await api.put('/whiteboard', { elements }, { params: { teamId } });
+  createBoard: async (teamId: string, payload: { name?: string; elements?: any[]; preview?: BoardPreviewRect[] }): Promise<BoardMeta> => {
+    const res = await api.post('/whiteboard/boards', payload, { params: { teamId } });
+    return res.data?.data?.board as BoardMeta;
+  },
+  renameBoard: async (boardId: string, name: string): Promise<BoardMeta> => {
+    const res = await api.patch(`/whiteboard/boards/${boardId}`, { name });
+    return res.data?.data?.board as BoardMeta;
+  },
+  deleteBoard: async (boardId: string): Promise<void> => { await api.delete(`/whiteboard/boards/${boardId}`); },
+
+  // ── Board contents ──────────────────────────────────────────────────────────
+  getBoard: async (boardId: string): Promise<{ elements: any[]; name: string; updatedAt: string }> => {
+    const res = await api.get('/whiteboard', { params: { boardId } });
     return res.data?.data;
   },
-  // Upload an image to R2 via a short-lived pre-signed PUT, returns its public URL.
+  saveBoard: async (boardId: string, elements: any[], preview?: BoardPreviewRect[]): Promise<{ updatedAt: string }> => {
+    const res = await api.put('/whiteboard', { elements, preview }, { params: { boardId } });
+    return res.data?.data;
+  },
+
+  // ── Version history ─────────────────────────────────────────────────────────
+  listSnapshots: async (boardId: string): Promise<SnapshotMeta[]> => {
+    const res = await api.get(`/whiteboard/boards/${boardId}/snapshots`);
+    return res.data?.data?.snapshots as SnapshotMeta[];
+  },
+  createSnapshot: async (boardId: string, label?: string): Promise<void> => { await api.post(`/whiteboard/boards/${boardId}/snapshots`, { label }); },
+  restoreSnapshot: async (boardId: string, snapshotId: string): Promise<any[]> => {
+    const res = await api.post(`/whiteboard/boards/${boardId}/snapshots/${snapshotId}/restore`);
+    return res.data?.data?.elements as any[];
+  },
+
+  // ── Images ────────────────────────────────────────────────────────────────
   uploadImage: async (teamId: string, file: File): Promise<string> => {
-    const res = await api.post(
-      '/whiteboard/image',
-      { filename: file.name, contentType: file.type, size: file.size },
-      { params: { teamId } }
-    );
+    const res = await api.post('/whiteboard/image', { filename: file.name, contentType: file.type, size: file.size }, { params: { teamId } });
     const { uploadUrl, publicUrl } = res.data?.data as { uploadUrl: string; publicUrl: string };
     await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
     return publicUrl;

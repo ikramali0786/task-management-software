@@ -6,6 +6,7 @@ import {
   Copy, ArrowUpToLine, ArrowDownToLine, Lock, Unlock, Bold, Italic, Underline,
   List, AlignLeft, AlignCenter, AlignRight, Plus, Search, X,
   ZoomIn, ZoomOut, Maximize2, Grid3x3, Map as MapIcon, LocateFixed,
+  ChevronDown, FolderOpen, History, Clock, RotateCcw, LayoutTemplate,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -13,7 +14,8 @@ import { useUIStore } from '@/store/uiStore';
 import { useTaskStore } from '@/store/taskStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getSocket } from '@/lib/socket';
-import { whiteboardService } from '@/services/whiteboardService';
+import { whiteboardService, type BoardMeta, type SnapshotMeta, type BoardPreviewRect } from '@/services/whiteboardService';
+import { WHITEBOARD_TEMPLATES } from '@/lib/whiteboardTemplates';
 import { TASK_STATUSES, PRIORITY_CONFIG } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +47,25 @@ type GridMode = 'dots' | 'lines' | 'off';
 type Peer = { name: string; x: number; y: number; ids: string[]; lastSeen: number };
 const peerColor = (id: string) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360; return `hsl(${h} 65% 45%)`; };
 const PEER_TTL = 12000;
+const relTime = (iso: string) => {
+  const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return 'just now'; const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`; const d = Math.floor(h / 24);
+  return d < 7 ? `${d}d ago` : new Date(iso).toLocaleDateString();
+};
+// Tiny SVG thumbnail rendered from a board's preview rects.
+const BoardThumb = ({ preview, w = 132, h = 84 }: { preview: BoardPreviewRect[]; w?: number; h?: number }) => {
+  if (!preview?.length) return <div className="flex items-center justify-center rounded-md bg-slate-50 text-[10px] text-slate-300 dark:bg-slate-800" style={{ width: w, height: h }}>empty</div>;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of preview) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.h); }
+  const pad = 16; const bw = Math.max(maxX - minX + pad * 2, 1), bh = Math.max(maxY - minY + pad * 2, 1);
+  const s = Math.min(w / bw, h / bh); const ox = (w - bw * s) / 2, oy = (h - bh * s) / 2;
+  return (
+    <svg width={w} height={h} className="rounded-md bg-slate-50 dark:bg-slate-800">
+      {preview.map((p, i) => <rect key={i} x={ox + (p.x - minX + pad) * s} y={oy + (p.y - minY + pad) * s} width={Math.max(2, p.w * s)} height={Math.max(2, p.h * s)} rx={1} fill={p.c} fillOpacity={0.6} />)}
+    </svg>
+  );
+};
 const hexA = (hex: string, a: number) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex); if (!m) return hex;
   const n = parseInt(m[1], 16);
@@ -179,12 +200,21 @@ export const WhiteboardPage = () => {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [loading, setLoading] = useState(true);
+  const [boards, setBoards] = useState<BoardMeta[]>([]);
+  const [boardId, setBoardId] = useState<string | null>(null);
+  const [boardName, setBoardName] = useState('');
+  const [boardMenu, setBoardMenu] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const offsetRef = useRef(offset); offsetRef.current = offset;
   const scaleRef = useRef(scale); scaleRef.current = scale;
+  const boardIdRef = useRef<string | null>(null); boardIdRef.current = boardId;
   const spaceRef = useRef(false);
   const elsRef = useRef(elements); elsRef.current = elements;
   const selRef = useRef(selectedIds); selRef.current = selectedIds;
@@ -206,7 +236,7 @@ export const WhiteboardPage = () => {
   const pendingRef = useRef<{ cx: number; cy: number } | null>(null);
 
   // ── Live ops ───────────────────────────────────────────────────────────────
-  const emitOp = (op: any) => { if (activeTeam) getSocket()?.emit('whiteboard:op', { teamId: activeTeam._id, op }); };
+  const emitOp = (op: any) => { if (activeTeam) getSocket()?.emit('whiteboard:op', { teamId: activeTeam._id, boardId: boardIdRef.current, op }); };
   const emitUpsert = (id: string) => { const el = elsRef.current.find((e) => e.id === id); if (el) emitOp({ kind: 'upsert', el }); };
   // Throttled broadcast of in-progress edits so teammates see drawing/moving live.
   const liveEmit = (ids: string[]) => { const now = Date.now(); if (now - liveTickRef.current < 55) return; liveTickRef.current = now; for (const id of ids) emitUpsert(id); };
@@ -222,24 +252,35 @@ export const WhiteboardPage = () => {
   const undo = () => { if (!undoRef.current.length) return; const prev = elsRef.current; const r = undoRef.current.pop()!; redoRef.current.push(clone(prev)); setElements(r); setSelectedIds([]); broadcastDiff(prev, r); };
   const redo = () => { if (!redoRef.current.length) return; const prev = elsRef.current; const r = redoRef.current.pop()!; undoRef.current.push(clone(prev)); setElements(r); setSelectedIds([]); broadcastDiff(prev, r); };
 
-  // ── Load + migrate ─────────────────────────────────────────────────────────
+  // ── Load board list, then the active board's contents ──────────────────────
   useEffect(() => {
     if (!activeTeam) { setLoading(false); return; }
     let active = true; loadedRef.current = false; setLoading(true);
     fetchTasks(activeTeam._id).catch(() => {});
-    whiteboardService.get(activeTeam._id)
-      .then((d) => { if (active) setElements((Array.isArray(d.elements) ? d.elements : []).map(migrate)); })
-      .catch(() => {})
-      .finally(() => { if (active) { loadedRef.current = true; setLoading(false); } });
+    (async () => {
+      try {
+        const list = await whiteboardService.getBoards(activeTeam._id);
+        if (!active) return;
+        setBoards(list);
+        const saved = localStorage.getItem(`wb-board-${activeTeam._id}`);
+        const pick = list.find((b) => b._id === saved) || list[0];
+        if (pick) { setBoardId(pick._id); boardIdRef.current = pick._id; setBoardName(pick.name); await loadContents(pick._id); }
+        else { setBoardId(null); setElements([]); }
+      } catch { /* surfaced via empty board */ }
+      finally { if (active) setLoading(false); }
+    })();
     return () => { active = false; };
   }, [activeTeam?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Receive live ops ───────────────────────────────────────────────────────
   useEffect(() => {
     const socket = getSocket(); if (!socket) return;
-    const apply = (op: any) => {
+    const apply = (data: any) => {
+      const op = data?.op ?? data;
+      if (data?.boardId && data.boardId !== boardIdRef.current) return;
       skipSaveRef.current = true;
-      if (op.kind === 'upsert') setElements((prev) => { const i = prev.findIndex((e) => e.id === op.el.id); if (i >= 0) { const c = [...prev]; c[i] = op.el; return c; } return [...prev, op.el]; });
+      if (op.kind === 'replace') setElements((Array.isArray(op.elements) ? op.elements : []).map(migrate));
+      else if (op.kind === 'upsert') setElements((prev) => { const i = prev.findIndex((e) => e.id === op.el.id); if (i >= 0) { const c = [...prev]; c[i] = op.el; return c; } return [...prev, op.el]; });
       else if (op.kind === 'delete') setElements((prev) => prev.filter((e) => e.id !== op.id && !(e.type === 'connector' && (e.from === op.id || e.to === op.id))));
       else if (op.kind === 'clear') setElements([]);
       else if (op.kind === 'order') setElements((prev) => { const m = new Map(prev.map((e) => [e.id, e])); const ordered = op.ids.map((id: string) => m.get(id)).filter(Boolean); for (const e of prev) if (!op.ids.includes(e.id)) ordered.push(e); return ordered as El[]; });
@@ -250,16 +291,20 @@ export const WhiteboardPage = () => {
 
   // ── Autosave ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!loadedRef.current || !activeTeam || !canEdit) return;
+    if (!loadedRef.current || !activeTeam || !canEdit || !boardIdRef.current) return;
     if (skipSaveRef.current) { skipSaveRef.current = false; return; }
     dirtyRef.current = true; setSaving('saving');
     const h = setTimeout(async () => {
-      try { await whiteboardService.save(activeTeam._id, elsRef.current); dirtyRef.current = false; setSaving('saved'); setTimeout(() => setSaving('idle'), 1200); }
-      catch { setSaving('idle'); }
+      const id = boardIdRef.current; if (!id) return;
+      try {
+        const preview = computePreview();
+        await whiteboardService.saveBoard(id, elsRef.current, preview); dirtyRef.current = false; setSaving('saved'); setTimeout(() => setSaving('idle'), 1200);
+        setBoards((list) => list.map((b) => b._id === id ? { ...b, preview, elementCount: elsRef.current.length, updatedAt: new Date().toISOString() } : b));
+      } catch { setSaving('idle'); }
     }, 700);
     return () => clearTimeout(h);
-  }, [elements, activeTeam?._id, canEdit]);
-  useEffect(() => () => { if (dirtyRef.current && activeTeam && canEdit) whiteboardService.save(activeTeam._id, elsRef.current).catch(() => {}); }, [activeTeam?._id, canEdit]);
+  }, [elements, activeTeam?._id, canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (dirtyRef.current && boardIdRef.current && canEdit) whiteboardService.saveBoard(boardIdRef.current, elsRef.current, computePreview()).catch(() => {}); }, [activeTeam?._id, canEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const ptc = (cx: number, cy: number) => { const r = svgRef.current!.getBoundingClientRect(); const z = scaleRef.current; return { x: (cx - r.left - offsetRef.current.x) / z, y: (cy - r.top - offsetRef.current.y) / z }; };
@@ -343,6 +388,77 @@ export const WhiteboardPage = () => {
     return { s: edgePoint(ba, center(bb)), e: edgePoint(bb, center(ba)) };
   };
 
+  // ── Boards: thumbnails, load, switch, CRUD, history ────────────────────────
+  const previewColor = (el: El) => el.type === 'note' ? '#f59e0b' : el.type === 'task' ? '#0ea5e9' : el.type === 'image' ? '#22c55e' : el.type === 'text' ? '#64748b' : (el.type === 'connector' || el.type === 'line' || el.type === 'arrow') ? '#94a3b8' : '#cbd5e1';
+  const previewFrom = (els: El[]): BoardPreviewRect[] => { const m = new Map(els.map((e) => [e.id, e])); return els.slice(0, 400).map((el) => { const b = elBBox(el, m); return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h), c: previewColor(el) }; }); };
+  const computePreview = () => previewFrom(elsRef.current);
+  const loadContents = async (id: string) => {
+    const d = await whiteboardService.getBoard(id);
+    skipSaveRef.current = true;
+    setElements((Array.isArray(d.elements) ? d.elements : []).map(migrate));
+    setBoardName(d.name); undoRef.current = []; redoRef.current = []; setSelectedIds([]); setEditingId(null); loadedRef.current = true;
+  };
+  const switchBoard = async (id: string) => {
+    if (id === boardIdRef.current) { setBoardMenu(false); return; }
+    if (dirtyRef.current && boardIdRef.current && canEdit) { try { await whiteboardService.saveBoard(boardIdRef.current, elsRef.current, computePreview()); } catch { /* keep going */ } dirtyRef.current = false; }
+    setBoardMenu(false); setHistoryOpen(false); setPeers({});
+    if (activeTeam) localStorage.setItem(`wb-board-${activeTeam._id}`, id);
+    setBoardId(id); boardIdRef.current = id; setLoading(true);
+    try { await loadContents(id); } catch { addToast({ type: 'error', title: 'Could not open board' }); } finally { setLoading(false); }
+  };
+  const createFromTemplate = async (tpl: typeof WHITEBOARD_TEMPLATES[number]) => {
+    if (!activeTeam || !canEdit) return;
+    const elements = tpl.build();
+    try {
+      const board = await whiteboardService.createBoard(activeTeam._id, { name: tpl.id === 'blank' ? 'Untitled board' : tpl.name, elements, preview: previewFrom(elements as El[]) });
+      setBoards((b) => [board, ...b]); setTemplateOpen(false); setBoardMenu(false);
+      localStorage.setItem(`wb-board-${activeTeam._id}`, board._id);
+      setBoardId(board._id); boardIdRef.current = board._id; setBoardName(board.name);
+      skipSaveRef.current = true; setElements(elements.map(migrate)); undoRef.current = []; redoRef.current = []; setSelectedIds([]); loadedRef.current = true;
+    } catch { addToast({ type: 'error', title: 'Could not create board' }); }
+  };
+  const doRename = async (id: string, name: string) => {
+    if (!name.trim()) { setRenamingId(null); return; }
+    try { const b = await whiteboardService.renameBoard(id, name.trim()); setBoards((list) => list.map((x) => x._id === id ? { ...x, name: b.name } : x)); if (id === boardIdRef.current) setBoardName(b.name); } catch { /* noop */ }
+    setRenamingId(null);
+  };
+  const doDeleteBoard = async (id: string) => {
+    if (!activeTeam) return;
+    const ok = await showConfirm({ title: 'Delete this board?', message: 'This permanently removes the board and its version history for the whole team.', confirmLabel: 'Delete', variant: 'danger' });
+    if (!ok) return;
+    try {
+      await whiteboardService.deleteBoard(id);
+      const rest = boards.filter((b) => b._id !== id); setBoards(rest);
+      if (id === boardIdRef.current) {
+        if (rest.length) switchBoard(rest[0]._id);
+        else { const nb = await whiteboardService.createBoard(activeTeam._id, { name: 'Main board' }); setBoards([nb]); setBoardId(nb._id); boardIdRef.current = nb._id; setBoardName(nb.name); skipSaveRef.current = true; setElements([]); localStorage.setItem(`wb-board-${activeTeam._id}`, nb._id); }
+      }
+    } catch { addToast({ type: 'error', title: 'Could not delete board' }); }
+  };
+  const openHistory = async () => {
+    if (!boardId) return; setHistoryOpen(true); setBoardMenu(false);
+    try { setSnapshots(await whiteboardService.listSnapshots(boardId)); } catch { /* noop */ }
+  };
+  const saveVersion = async () => {
+    if (!boardId || !canEdit) return;
+    try {
+      if (dirtyRef.current) { await whiteboardService.saveBoard(boardId, elsRef.current, computePreview()); dirtyRef.current = false; }
+      await whiteboardService.createSnapshot(boardId, 'Saved version');
+      setSnapshots(await whiteboardService.listSnapshots(boardId)); addToast({ type: 'success', title: 'Version saved' });
+    } catch { addToast({ type: 'error', title: 'Could not save version' }); }
+  };
+  const restoreVersion = async (snapId: string) => {
+    if (!boardId || !canEdit) return;
+    const ok = await showConfirm({ title: 'Restore this version?', message: 'The board will be replaced with this version. A backup of the current state is saved first.', confirmLabel: 'Restore' });
+    if (!ok) return;
+    try {
+      const els = await whiteboardService.restoreSnapshot(boardId, snapId);
+      pushHistory(); const migrated = els.map(migrate); setElements(migrated); setSelectedIds([]);
+      emitOp({ kind: 'replace', elements: migrated });
+      setSnapshots(await whiteboardService.listSnapshots(boardId)); addToast({ type: 'success', title: 'Restored' });
+    } catch { addToast({ type: 'error', title: 'Could not restore' }); }
+  };
+
   // ── Canvas pointer ─────────────────────────────────────────────────────────
   const onBgPointerDown = (e: React.PointerEvent) => {
     if (editingId) return;
@@ -389,7 +505,7 @@ export const WhiteboardPage = () => {
   const flushMove = () => { rafRef.current = null; const pm = pendingRef.current; if (pm) applyMove(pm.cx, pm.cy); };
   const onPointerMove = (e: React.PointerEvent) => {
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = ptc(e.clientX, e.clientY); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, x: c.x, y: c.y }); } }
+    if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = ptc(e.clientX, e.clientY); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, boardId: boardIdRef.current, x: c.x, y: c.y }); } }
     if (gestureRef.current) { handlePinch(); return; }
     if (!opRef.current) return;
     pendingRef.current = { cx: e.clientX, cy: e.clientY };
@@ -562,8 +678,8 @@ export const WhiteboardPage = () => {
   // ── Live collaboration: receive cursors / selection / presence ─────────────
   useEffect(() => {
     const socket = getSocket(); if (!socket || !activeTeam) return;
-    const onCursor = (d: { userId: string; name: string; x: number; y: number }) => setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: d.x, y: d.y, ids: p[d.userId]?.ids ?? [], lastSeen: Date.now() } }));
-    const onSelection = (d: { userId: string; name: string; ids: string[] }) => setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: p[d.userId]?.x ?? 0, y: p[d.userId]?.y ?? 0, ids: d.ids, lastSeen: Date.now() } }));
+    const onCursor = (d: { userId: string; name: string; boardId?: string; x: number; y: number }) => { if (d.boardId && d.boardId !== boardIdRef.current) return; setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: d.x, y: d.y, ids: p[d.userId]?.ids ?? [], lastSeen: Date.now() } })); };
+    const onSelection = (d: { userId: string; name: string; boardId?: string; ids: string[] }) => { if (d.boardId && d.boardId !== boardIdRef.current) return; setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: p[d.userId]?.x ?? 0, y: p[d.userId]?.y ?? 0, ids: d.ids, lastSeen: Date.now() } })); };
     const onLeave = (d: { userId: string }) => setPeers((p) => { const n = { ...p }; delete n[d.userId]; return n; });
     socket.on('whiteboard:cursor', onCursor);
     socket.on('whiteboard:selection', onSelection);
@@ -573,7 +689,7 @@ export const WhiteboardPage = () => {
   }, [activeTeam?._id]);
 
   // Broadcast our selection so teammates see what we have highlighted.
-  useEffect(() => { if (activeTeam) getSocket()?.emit('whiteboard:selection', { teamId: activeTeam._id, ids: selectedIds }); }, [selectedIds, activeTeam?._id]);
+  useEffect(() => { if (activeTeam && boardIdRef.current) getSocket()?.emit('whiteboard:selection', { teamId: activeTeam._id, boardId: boardIdRef.current, ids: selectedIds }); }, [selectedIds, activeTeam?._id]);
 
   if (!activeTeam) return <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center text-sm text-slate-500">Select a team to open the whiteboard.</div>;
 
@@ -643,7 +759,46 @@ export const WhiteboardPage = () => {
       <div className="sr-only" role="status" aria-live="polite">{srSummary}</div>
       {/* Toolbar */}
       <div className="z-10 flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white/80 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200"><Presentation className="h-4 w-4 text-brand-500" /> Whiteboard</div>
+        <div className="relative">
+          <button onClick={() => setBoardMenu((v) => !v)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">
+            <Presentation className="h-4 w-4 text-brand-500" />
+            <span className="max-w-[150px] truncate">{boardName || 'Whiteboard'}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+          </button>
+          {boardMenu && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setBoardMenu(false)} />
+              <div className="absolute left-0 top-full z-30 mt-1.5 flex max-h-[70vh] w-80 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200"><FolderOpen className="h-4 w-4 text-slate-400" /> Boards <span className="text-xs font-normal text-slate-400">({boards.length})</span></span>
+                  <button onClick={openHistory} title="Version history" className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"><History className="h-3.5 w-3.5" /> History</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                  {boards.map((b) => (
+                    <div key={b._id} className={cn('group mb-1 flex items-center gap-2.5 rounded-xl border p-2 transition-colors', b._id === boardId ? 'border-brand-300 bg-brand-50/50 dark:border-brand-500/40 dark:bg-brand-500/5' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800')}>
+                      <button onClick={() => switchBoard(b._id)} className="shrink-0"><BoardThumb preview={b.preview} w={64} h={44} /></button>
+                      <button onClick={() => switchBoard(b._id)} className="min-w-0 flex-1 text-left">
+                        {renamingId === b._id ? (
+                          <input autoFocus defaultValue={b.name} onClick={(e) => e.stopPropagation()} onBlur={(e) => doRename(b._id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenamingId(null); }} className="w-full rounded border border-brand-300 bg-white px-1.5 py-0.5 text-sm outline-none dark:bg-slate-800" />
+                        ) : <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{b.name}</span>}
+                        <span className="text-[11px] text-slate-400">{b.elementCount} item{b.elementCount === 1 ? '' : 's'} · {relTime(b.updatedAt)}</span>
+                      </button>
+                      {canEdit && renamingId !== b._id && (
+                        <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                          <button onClick={(e) => { e.stopPropagation(); setRenamingId(b._id); }} title="Rename" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); doDeleteBoard(b._id); }} title="Delete" className="rounded-md p-1.5 text-slate-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {canEdit && (
+                  <button onClick={() => { setTemplateOpen(true); setBoardMenu(false); }} className="flex items-center justify-center gap-1.5 border-t border-slate-100 px-3 py-2.5 text-sm font-medium text-brand-600 hover:bg-brand-50/50 dark:border-slate-800 dark:text-brand-400 dark:hover:bg-brand-500/5"><Plus className="h-4 w-4" /> New board</button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <div className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
         {TOOLS.filter((t) => canEdit || t.id === 'select' || t.id === 'pan').map((t) => (
           <button key={t.id} onClick={() => { setTool(t.id); setConnectFrom(null); }} title={t.label} aria-label={t.label} aria-pressed={tool === t.id} className={cn('rounded-lg p-2 transition-colors', tool === t.id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')}><t.icon className="h-4 w-4" /></button>
@@ -887,6 +1042,51 @@ export const WhiteboardPage = () => {
           <button onClick={() => setShowMinimap((v) => !v)} title="Toggle minimap" className={cn('rounded-lg p-1.5', showMinimap ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><MapIcon className="h-4 w-4" /></button>
         </div>
       </div>
+
+      {/* Template picker */}
+      {templateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setTemplateOpen(false)}>
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-800">
+              <span className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100"><LayoutTemplate className="h-5 w-5 text-brand-500" /> New board</span>
+              <button onClick={() => setTemplateOpen(false)} aria-label="Close" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="grid max-h-[70vh] grid-cols-2 gap-3 overflow-y-auto p-5 sm:grid-cols-3">
+              {WHITEBOARD_TEMPLATES.map((t) => (
+                <button key={t.id} onClick={() => createFromTemplate(t)} className="group flex flex-col gap-2 rounded-xl border border-slate-200 p-3 text-left transition-all hover:border-brand-300 hover:shadow-md dark:border-slate-700 dark:hover:border-brand-500/50">
+                  <div className="flex justify-center overflow-hidden rounded-lg ring-1 ring-slate-100 dark:ring-slate-800"><BoardThumb preview={previewFrom(t.build() as El[])} w={190} h={104} /></div>
+                  <div><div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t.name}</div><div className="text-[11px] leading-tight text-slate-400">{t.description}</div></div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version history */}
+      {historyOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
+          <div className="fixed right-4 top-16 z-50 flex max-h-[75vh] w-80 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200"><History className="h-4 w-4 text-slate-400" /> Version history</span>
+              <button onClick={() => setHistoryOpen(false)} aria-label="Close" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
+            </div>
+            {canEdit && <button onClick={saveVersion} className="flex items-center justify-center gap-1.5 border-b border-slate-100 px-3 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50/50 dark:border-slate-800 dark:text-brand-400 dark:hover:bg-brand-500/5"><Clock className="h-4 w-4" /> Save current version</button>}
+            <div className="flex-1 overflow-y-auto p-1.5">
+              {snapshots.length === 0 ? <p className="px-3 py-6 text-center text-xs text-slate-400">No versions yet. Snapshots are captured automatically as you work, or save one manually.</p> : snapshots.map((s) => (
+                <div key={s._id} className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{s.label}</div>
+                    <div className="text-[11px] text-slate-400">{s.createdBy?.name ? `${s.createdBy.name} · ` : ''}{relTime(s.createdAt)} · {s.elementCount} items</div>
+                  </div>
+                  {canEdit && <button onClick={() => restoreVersion(s._id)} title="Restore this version" className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 opacity-0 transition-opacity hover:bg-slate-200 group-hover:opacity-100 dark:hover:bg-slate-700"><RotateCcw className="h-3 w-3" /> Restore</button>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Context menu */}
       {ctxMenu && (
