@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   MousePointer2, Hand, StickyNote, Square, Circle, Diamond, Triangle, Star,
   Minus, ArrowUpRight, Spline, Pencil, Type, Frame as FrameIcon, Image as ImageIcon,
@@ -40,7 +40,6 @@ type El = Shape | Txt | PathEl | LineEl | ImageEl | TaskEl | Connector;
 const STROKES = ['#211e19', '#e8502e', '#f59e0b', '#22c55e', '#0ea5e9', '#8b5cf6'];
 const FILLS = ['none', '#ffffff', '#fde68a', '#fecaca', '#bbf7d0', '#bfdbfe', '#e9d5ff'];
 const NOTE_FILL = '#fde68a';
-const SHAPE_TYPES: ShapeType[] = ['note', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame'];
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
@@ -173,6 +172,56 @@ const TOOLS: { id: Tool; icon: React.ElementType; label: string }[] = [
   { id: 'eraser', icon: Eraser, label: 'Eraser' },
 ];
 
+/**
+ * Live-collaboration overlay (cursors + teammate selection highlights). Owns its
+ * own peer state and socket listeners so high-frequency cursor traffic re-renders
+ * ONLY this layer — never the elements layer or the parent. Reports the set of
+ * present teammates up to the parent (for the toolbar avatars) only when someone
+ * joins or leaves, not on every cursor move. Remounted per board via `key`.
+ */
+const CollabLayer = ({ teamId, boardIdRef, scale, getBBox, onPresence }: {
+  teamId: string;
+  boardIdRef: React.MutableRefObject<string | null>;
+  scale: number;
+  getBBox: (id: string) => { x: number; y: number; w: number; h: number } | null;
+  onPresence: (list: { id: string; name: string }[]) => void;
+}) => {
+  const [peers, setPeers] = useState<Record<string, Peer>>({});
+  const lastIdsRef = useRef('');
+
+  useEffect(() => {
+    const socket = getSocket(); if (!socket) return;
+    const onCursor = (d: { userId: string; name: string; boardId?: string; x: number; y: number }) => { if (d.boardId && d.boardId !== boardIdRef.current) return; setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: d.x, y: d.y, ids: p[d.userId]?.ids ?? [], lastSeen: Date.now() } })); };
+    const onSelection = (d: { userId: string; name: string; boardId?: string; ids: string[] }) => { if (d.boardId && d.boardId !== boardIdRef.current) return; setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: p[d.userId]?.x ?? 0, y: p[d.userId]?.y ?? 0, ids: d.ids, lastSeen: Date.now() } })); };
+    const onLeave = (d: { userId: string }) => setPeers((p) => { if (!p[d.userId]) return p; const n = { ...p }; delete n[d.userId]; return n; });
+    socket.on('whiteboard:cursor', onCursor); socket.on('whiteboard:selection', onSelection); socket.on('whiteboard:leave', onLeave);
+    const sweep = setInterval(() => setPeers((p) => { const now = Date.now(); let changed = false; const n: Record<string, Peer> = {}; for (const k in p) { if (now - p[k].lastSeen < PEER_TTL) n[k] = p[k]; else changed = true; } return changed ? n : p; }), 4000);
+    return () => { socket.off('whiteboard:cursor', onCursor); socket.off('whiteboard:selection', onSelection); socket.off('whiteboard:leave', onLeave); clearInterval(sweep); socket.emit('whiteboard:leave', { teamId }); onPresence([]); };
+  }, [teamId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tell the parent who's here only when the roster changes (not on cursor moves).
+  useEffect(() => {
+    const ids = Object.keys(peers).sort().join(',');
+    if (ids !== lastIdsRef.current) { lastIdsRef.current = ids; onPresence(Object.entries(peers).map(([id, v]) => ({ id, name: v.name }))); }
+  }, [peers, onPresence]);
+
+  const hz = 1 / scale;
+  return (
+    <>{Object.entries(peers).map(([k, pr]) => {
+      const col = peerColor(k);
+      return (<g key={k} pointerEvents="none">
+        {pr.ids.map((id) => { const b = getBBox(id); if (!b) return null; return <rect key={id} x={b.x - 2 * hz} y={b.y - 2 * hz} width={b.w + 4 * hz} height={b.h + 4 * hz} rx={6 * hz} fill="none" stroke={col} strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} />; })}
+        {(pr.x !== 0 || pr.y !== 0) && (
+          <g transform={`translate(${pr.x} ${pr.y}) scale(${hz})`}>
+            <path d="M0 0 L0 17 L4.6 12.6 L7.7 18.6 L10.2 17.4 L7.1 11.5 L13.4 11.5 Z" fill={col} stroke="#fff" strokeWidth={1} />
+            <g transform="translate(13 11)"><rect rx={4} ry={4} height={17} width={(pr.name || '?').length * 6.4 + 12} fill={col} /><text x={6} y={12.5} fill="#fff" fontSize={11} fontWeight={600}>{pr.name}</text></g>
+          </g>
+        )}
+      </g>);
+    })}</>
+  );
+};
+
 export const WhiteboardPage = () => {
   const { activeTeam } = useTeamStore();
   const { user } = useAuthStore();
@@ -193,7 +242,7 @@ export const WhiteboardPage = () => {
   const [grid, setGrid] = useState<GridMode>(() => (localStorage.getItem('wb-grid') as GridMode) || 'dots');
   const [showMinimap, setShowMinimap] = useState(() => localStorage.getItem('wb-minimap') !== '0');
   const [spaceHeld, setSpaceHeld] = useState(false);
-  const [peers, setPeers] = useState<Record<string, Peer>>({});
+  const [presence, setPresence] = useState<{ id: string; name: string }[]>([]);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
@@ -220,6 +269,7 @@ export const WhiteboardPage = () => {
   const offsetRef = useRef(offset); offsetRef.current = offset;
   const scaleRef = useRef(scale); scaleRef.current = scale;
   const boardIdRef = useRef<string | null>(null); boardIdRef.current = boardId;
+  const editingIdRef = useRef<string | null>(null); editingIdRef.current = editingId;
   const spaceRef = useRef(false);
   const elsRef = useRef(elements); elsRef.current = elements;
   const selRef = useRef(selectedIds); selRef.current = selectedIds;
@@ -280,9 +330,13 @@ export const WhiteboardPage = () => {
   // ── Receive live ops ───────────────────────────────────────────────────────
   useEffect(() => {
     const socket = getSocket(); if (!socket) return;
+    // True if the local user is actively manipulating this element right now.
+    const isBusy = (id: string) => editingIdRef.current === id || (opRef.current && (opRef.current.id === id || (opRef.current.orig && opRef.current.orig[id])));
     const apply = (data: any) => {
       const op = data?.op ?? data;
       if (data?.boardId && data.boardId !== boardIdRef.current) return;
+      // Don't let a teammate's incoming change clobber an element you're mid-drag/edit on.
+      if (op.kind === 'upsert' && isBusy(op.el?.id)) return;
       skipSaveRef.current = true;
       if (op.kind === 'replace') setElements((Array.isArray(op.elements) ? op.elements : []).map(migrate));
       else if (op.kind === 'upsert') setElements((prev) => { const i = prev.findIndex((e) => e.id === op.el.id); if (i >= 0) { const c = [...prev]; c[i] = op.el; return c; } return [...prev, op.el]; });
@@ -406,7 +460,7 @@ export const WhiteboardPage = () => {
   const switchBoard = async (id: string) => {
     if (id === boardIdRef.current) { setBoardMenu(false); return; }
     if (dirtyRef.current && boardIdRef.current && canEdit) { try { await whiteboardService.saveBoard(boardIdRef.current, elsRef.current, computePreview()); } catch { /* keep going */ } dirtyRef.current = false; }
-    setBoardMenu(false); setHistoryOpen(false); setPeers({});
+    setBoardMenu(false); setHistoryOpen(false);
     if (activeTeam) localStorage.setItem(`wb-board-${activeTeam._id}`, id);
     setBoardId(id); boardIdRef.current = id; setLoading(true);
     try { await loadContents(id); } catch { addToast({ type: 'error', title: 'Could not open board' }); } finally { setLoading(false); }
@@ -629,7 +683,7 @@ export const WhiteboardPage = () => {
     if (!file || !activeTeam || !canEdit) return;
     setUploading(true);
     try {
-      const url = await whiteboardService.uploadImage(activeTeam._id, file);
+      const url = await whiteboardService.uploadImage(activeTeam._id, file, boardIdRef.current || undefined);
       const dim = await new Promise<{ w: number; h: number }>((res) => { const im = new Image(); im.onload = () => res({ w: im.naturalWidth || 240, h: im.naturalHeight || 180 }); im.onerror = () => res({ w: 240, h: 180 }); im.src = url; });
       const s = Math.min(1, 320 / Math.max(dim.w, dim.h)); const w = dim.w * s, h = dim.h * s; const c = centerPt();
       pushHistory();
@@ -702,18 +756,11 @@ export const WhiteboardPage = () => {
 
   useEffect(() => { localStorage.setItem('wb-minimap', showMinimap ? '1' : '0'); }, [showMinimap]);
 
-  // ── Live collaboration: receive cursors / selection / presence ─────────────
-  useEffect(() => {
-    const socket = getSocket(); if (!socket || !activeTeam) return;
-    const onCursor = (d: { userId: string; name: string; boardId?: string; x: number; y: number }) => { if (d.boardId && d.boardId !== boardIdRef.current) return; setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: d.x, y: d.y, ids: p[d.userId]?.ids ?? [], lastSeen: Date.now() } })); };
-    const onSelection = (d: { userId: string; name: string; boardId?: string; ids: string[] }) => { if (d.boardId && d.boardId !== boardIdRef.current) return; setPeers((p) => ({ ...p, [d.userId]: { name: d.name, x: p[d.userId]?.x ?? 0, y: p[d.userId]?.y ?? 0, ids: d.ids, lastSeen: Date.now() } })); };
-    const onLeave = (d: { userId: string }) => setPeers((p) => { const n = { ...p }; delete n[d.userId]; return n; });
-    socket.on('whiteboard:cursor', onCursor);
-    socket.on('whiteboard:selection', onSelection);
-    socket.on('whiteboard:leave', onLeave);
-    const sweep = setInterval(() => setPeers((p) => { const now = Date.now(); let changed = false; const n: Record<string, Peer> = {}; for (const k in p) { if (now - p[k].lastSeen < PEER_TTL) n[k] = p[k]; else changed = true; } return changed ? n : p; }), 4000);
-    return () => { socket.off('whiteboard:cursor', onCursor); socket.off('whiteboard:selection', onSelection); socket.off('whiteboard:leave', onLeave); clearInterval(sweep); socket.emit('whiteboard:leave', { teamId: activeTeam._id }); setPeers({}); };
-  }, [activeTeam?._id]);
+  // Live cursors/selection are owned by <CollabLayer> so their high-frequency
+  // updates never re-render the elements layer. These stable callbacks feed it
+  // element geometry (for teammate selection outlines) and the presence roster.
+  const getBBox = useCallback((id: string) => { const m = new Map(elsRef.current.map((e) => [e.id, e])); const el = m.get(id); return el ? elBBox(el, m) : null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const handlePresence = useCallback((list: { id: string; name: string }[]) => setPresence(list), []);
 
   // Broadcast our selection so teammates see what we have highlighted.
   useEffect(() => { if (activeTeam && boardIdRef.current) getSocket()?.emit('whiteboard:selection', { teamId: activeTeam._id, boardId: boardIdRef.current, ids: selectedIds }); }, [selectedIds, activeTeam?._id]);
@@ -732,7 +779,7 @@ export const WhiteboardPage = () => {
   const showStyle = canEdit && (selectedIds.some((id) => map.get(id)?.type !== 'connector') || ['note', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame', 'line', 'arrow', 'pen', 'text'].includes(tool));
   const filteredTasks = Object.values(tasks).filter((t) => (t.title + ' ' + (t.identifier ?? '')).toLowerCase().includes(taskQuery.toLowerCase())).slice(0, 40);
   const typeCounts = elements.reduce((acc, el) => { const k = el.type === 'note' ? 'notes' : el.type === 'text' ? 'text labels' : el.type === 'connector' ? 'connectors' : el.type === 'image' ? 'images' : el.type === 'task' ? 'task cards' : el.type === 'path' ? 'pen strokes' : el.type === 'line' || el.type === 'arrow' ? 'lines & arrows' : 'shapes'; acc[k] = (acc[k] || 0) + 1; return acc; }, {} as Record<string, number>);
-  const srSummary = elements.length === 0 ? 'Empty whiteboard.' : `Whiteboard with ${elements.length} elements: ${Object.entries(typeCounts).map(([k, v]) => `${v} ${k}`).join(', ')}.${selectedIds.length ? ` ${selectedIds.length} selected.` : ''}${Object.keys(peers).length ? ` ${Object.keys(peers).length} teammate${Object.keys(peers).length > 1 ? 's' : ''} present.` : ''}`;
+  const srSummary = elements.length === 0 ? 'Empty whiteboard.' : `Whiteboard with ${elements.length} elements: ${Object.entries(typeCounts).map(([k, v]) => `${v} ${k}`).join(', ')}.${selectedIds.length ? ` ${selectedIds.length} selected.` : ''}${presence.length ? ` ${presence.length} teammate${presence.length > 1 ? 's' : ''} present.` : ''}`;
   const openCtx = (e: React.MouseEvent, el: El) => { if (!canEdit) return; e.preventDefault(); if (!selectedIds.includes(el.id)) setSelectedIds([el.id]); setCtxMenu({ x: e.clientX, y: e.clientY }); };
   const sw = (n: number | undefined) => n ?? 2;
   const dashOf = (el: El) => (el as any).dash ? '6 5' : undefined;
@@ -859,12 +906,12 @@ export const WhiteboardPage = () => {
         </div>
         {canEdit && <button onClick={() => setShareOpen(true)} title="Share board" aria-label="Share board" className={cn('rounded-lg p-2 transition-colors', currentBoard?.isPublic ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')}><Share2 className="h-4 w-4" /></button>}
         <div className="ml-auto flex items-center gap-3 text-xs text-slate-400">
-          {Object.keys(peers).length > 0 && (
-            <div className="flex items-center -space-x-1.5" title={`${Object.keys(peers).length} here now`}>
-              {Object.entries(peers).slice(0, 5).map(([k, pr]) => (
-                <span key={k} title={pr.name} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white dark:border-slate-900" style={{ background: peerColor(k) }}>{(pr.name || '?').slice(0, 1).toUpperCase()}</span>
+          {presence.length > 0 && (
+            <div className="flex items-center -space-x-1.5" title={`${presence.length} here now`}>
+              {presence.slice(0, 5).map((pr) => (
+                <span key={pr.id} title={pr.name} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[10px] font-semibold text-white dark:border-slate-900" style={{ background: peerColor(pr.id) }}>{(pr.name || '?').slice(0, 1).toUpperCase()}</span>
               ))}
-              {Object.keys(peers).length > 5 && <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-400 text-[10px] font-semibold text-white dark:border-slate-900">+{Object.keys(peers).length - 5}</span>}
+              {presence.length > 5 && <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-400 text-[10px] font-semibold text-white dark:border-slate-900">+{presence.length - 5}</span>}
             </div>
           )}
           {connectFrom && <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">Pick target…</span>}
@@ -953,22 +1000,8 @@ export const WhiteboardPage = () => {
             })}
             {marquee && <rect x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} fill="#e8502e10" stroke="#e8502e" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />}
             {connectFrom && (() => { const f = map.get(connectFrom); if (!f) return null; const b = elBBox(f, map); return <rect x={b.x - 4} y={b.y - 4} width={b.w + 8} height={b.h + 8} rx={8} fill="none" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="5 4" pointerEvents="none" />; })()}
-            {/* Teammate selection highlights + live cursors */}
-            {Object.entries(peers).map(([k, pr]) => {
-              const col = peerColor(k);
-              return (<g key={k} pointerEvents="none">
-                {pr.ids.map((id) => { const el = map.get(id); if (!el) return null; const b = elBBox(el, map); return <rect key={id} x={b.x - 2 * hz} y={b.y - 2 * hz} width={b.w + 4 * hz} height={b.h + 4 * hz} rx={6 * hz} fill="none" stroke={col} strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} />; })}
-                {(pr.x !== 0 || pr.y !== 0) && (
-                  <g transform={`translate(${pr.x} ${pr.y}) scale(${hz})`}>
-                    <path d="M0 0 L0 17 L4.6 12.6 L7.7 18.6 L10.2 17.4 L7.1 11.5 L13.4 11.5 Z" fill={col} stroke="#fff" strokeWidth={1} />
-                    <g transform="translate(13 11)">
-                      <rect rx={4} ry={4} height={17} width={(pr.name || '?').length * 6.4 + 12} fill={col} />
-                      <text x={6} y={12.5} fill="#fff" fontSize={11} fontWeight={600}>{pr.name}</text>
-                    </g>
-                  </g>
-                )}
-              </g>);
-            })}
+            {/* Teammate cursors + selection — isolated so cursor traffic never re-renders elements. */}
+            {boardId && <CollabLayer key={boardId} teamId={activeTeam._id} boardIdRef={boardIdRef} scale={scale} getBBox={getBBox} onPresence={handlePresence} />}
           </g>
         </svg>
 

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Whiteboard } from '../models/Whiteboard.model';
 import { WhiteboardSnapshot } from '../models/WhiteboardSnapshot.model';
@@ -45,6 +45,21 @@ const canWrite = (team: any, userId: string) => {
 };
 
 const genToken = () => crypto.randomBytes(9).toString('base64url');
+
+// Best-effort: delete every R2 object stored under a board's image prefix.
+const deleteBoardImages = async (teamId: string, boardId: string) => {
+  if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID) return;
+  const Prefix = `boards/${teamId}/${boardId}/`;
+  try {
+    let token: string | undefined;
+    do {
+      const listed = await r2.send(new ListObjectsV2Command({ Bucket: env.R2_BUCKET_NAME, Prefix, ContinuationToken: token }));
+      const keys = (listed.Contents ?? []).map((o) => ({ Key: o.Key! })).filter((k) => k.Key);
+      if (keys.length) await r2.send(new DeleteObjectsCommand({ Bucket: env.R2_BUCKET_NAME, Delete: { Objects: keys, Quiet: true } }));
+      token = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+    } while (token);
+  } catch (err) { console.error('[R2] board image cleanup failed:', err); }
+};
 
 const boardMeta = (b: any) => ({
   _id: b._id, name: b.name || 'Main board', preview: b.preview ?? [], elementCount: Array.isArray(b.elements) ? b.elements.length : (b.preview?.length ?? 0),
@@ -114,6 +129,7 @@ export const deleteBoard = asyncHandler(async (req: Request, res: Response) => {
   const { board, team } = await loadBoard(req.params.boardId, userId);
   canWrite(team, userId);
   await WhiteboardSnapshot.deleteMany({ board: board._id });
+  await deleteBoardImages(board.team.toString(), board._id.toString());
   await board.deleteOne();
   sendSuccess(res, { deleted: true }, 'Board deleted.');
 });
@@ -209,10 +225,10 @@ export const presignBoardImage = asyncHandler(async (req: Request, res: Response
   const { teamId } = req.query as Record<string, string>;
   if (!teamId) throw new ApiError(400, 'teamId is required.');
 
-  const schema = z.object({ filename: z.string().min(1), contentType: z.string().min(1), size: z.number().int().positive() });
+  const schema = z.object({ filename: z.string().min(1), contentType: z.string().min(1), size: z.number().int().positive(), boardId: z.string().optional() });
   const parsed = schema.safeParse(req.body ?? {});
   if (!parsed.success) throw new ApiError(400, 'Invalid upload payload.');
-  const { filename, contentType, size } = parsed.data;
+  const { filename, contentType, size, boardId } = parsed.data;
 
   if (!IMG_MIME.has(contentType)) throw new ApiError(400, `Image type "${contentType}" is not allowed.`);
   if (size > IMG_MAX) throw new ApiError(400, 'Image exceeds the 10 MB limit.');
@@ -228,7 +244,9 @@ export const presignBoardImage = asyncHandler(async (req: Request, res: Response
   if (missing.length) throw new ApiError(503, `Image storage is not configured. Missing: ${missing.join(', ')}`);
 
   const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-  const fileKey = `boards/${teamId}/${crypto.randomUUID()}-${safe}`;
+  // Board-scoped key so a board's images can be cleaned up when the board is deleted.
+  const safeBoard = boardId && /^[a-f0-9]{24}$/i.test(boardId) ? `${boardId}/` : '';
+  const fileKey = `boards/${teamId}/${safeBoard}${crypto.randomUUID()}-${safe}`;
   const command = new PutObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: fileKey, ContentType: contentType, ContentLength: size });
   const uploadUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
   const publicUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${fileKey}`;

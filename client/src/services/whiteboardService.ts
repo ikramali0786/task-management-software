@@ -68,8 +68,8 @@ export const whiteboardService = {
   },
 
   // ── Images ────────────────────────────────────────────────────────────────
-  uploadImage: async (teamId: string, file: File): Promise<string> => {
-    const res = await api.post('/whiteboard/image', { filename: file.name, contentType: file.type, size: file.size }, { params: { teamId } });
+  uploadImage: async (teamId: string, file: File, boardId?: string): Promise<string> => {
+    const res = await api.post('/whiteboard/image', { filename: file.name, contentType: file.type, size: file.size, boardId }, { params: { teamId } });
     const { uploadUrl, publicUrl } = res.data?.data as { uploadUrl: string; publicUrl: string };
     await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
     return publicUrl;
