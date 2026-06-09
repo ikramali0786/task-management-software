@@ -4,15 +4,15 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   FileText, Plus, ChevronRight, ChevronDown, Trash2, Eye, Pencil,
-  Loader2, Check, Smile, BookText, Clock,
+  Loader2, Check, BookText, Clock, Search, X, Share2, Link2, LayoutTemplate, GripVertical,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getSocket } from '@/lib/socket';
-import { docService, type DocNode, type DocFull } from '@/services/docService';
-import { Avatar } from '@/components/ui/Avatar';
+import { docService, type DocNode, type DocFull, type DocSearchResult } from '@/services/docService';
+import { DOC_TEMPLATES, type DocTemplate } from '@/lib/docTemplates';
 import { formatRelative, cn } from '@/lib/utils';
 
 const EMOJIS = ['📄', '📝', '📚', '📋', '📌', '🗂️', '🧭', '💡', '🚀', '🎯', '🛠️', '🐛', '✅', '⭐', '🔒', '📊', '🧪', '🎨', '🤝', '🔔'];
@@ -62,6 +62,13 @@ export const DocsPage = () => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [iconPicker, setIconPicker] = useState(false);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<DocSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [newMenu, setNewMenu] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [drag, setDrag] = useState<{ id: string; over: string | null; zone: 'before' | 'inside' | 'after' | null }>({ id: '', over: null, zone: null });
 
   const skipSaveRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -125,6 +132,18 @@ export const DocsPage = () => {
     return () => { socket.off('doc:changed', onChange); };
   }, [activeTeam?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Search (debounced) ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeTeam) return;
+    const q = query.trim();
+    if (!q) { setResults([]); setSearching(false); return; }
+    setSearching(true);
+    const h = setTimeout(() => {
+      docService.search(activeTeam._id, q).then(setResults).catch(() => setResults([])).finally(() => setSearching(false));
+    }, 250);
+    return () => clearTimeout(h);
+  }, [query, activeTeam?._id]);
+
   // ── Tree helpers ───────────────────────────────────────────────────────────
   const childrenOf = useMemo(() => {
     const m = new Map<string, DocNode[]>();
@@ -141,15 +160,56 @@ export const DocsPage = () => {
     return chain;
   }, [active, docs]);
 
-  const createDoc = async (parent: string | null) => {
+  const createDoc = async (parent: string | null, tpl?: DocTemplate) => {
     if (!activeTeam || !canEdit) return;
+    setNewMenu(false);
     try {
-      const d = await docService.create(activeTeam._id, { parent });
+      const d = await docService.create(activeTeam._id, tpl ? { parent, title: tpl.title, icon: tpl.icon, content: tpl.content } : { parent });
       setDocs((ds) => [...ds, d]);
       if (parent) setExpanded((e) => new Set(e).add(parent));
       navigate(`/app/docs/${d._id}`);
     } catch { addToast({ type: 'error', title: 'Could not create page' }); }
   };
+
+  // ── Drag to reorder / move (native HTML5 DnD) ──────────────────────────────
+  const isAncestor = (ancestorId: string, nodeId: string) => {
+    const byId = new Map(docs.map((d) => [d._id, d]));
+    let cur = byId.get(nodeId);
+    while (cur?.parent) { if (cur.parent === ancestorId) return true; cur = byId.get(cur.parent); }
+    return false;
+  };
+  const onDropNode = async (target: DocNode, zone: 'before' | 'inside' | 'after') => {
+    const id = drag.id; setDrag({ id: '', over: null, zone: null });
+    if (!id || !canEdit || id === target._id || isAncestor(id, target._id)) return;
+    let parent: string | null; let position: number;
+    if (zone === 'inside') {
+      parent = target._id;
+      const kids = childrenOf.get(target._id) || [];
+      position = kids.length ? kids[kids.length - 1].position + 1 : 0;
+      setExpanded((e) => new Set(e).add(target._id));
+    } else {
+      parent = target.parent;
+      const sibs = (childrenOf.get(target.parent || 'root') || []).filter((s) => s._id !== id);
+      const ti = sibs.findIndex((s) => s._id === target._id);
+      const at = zone === 'before' ? ti : ti + 1;
+      const prev = sibs[at - 1]; const next = sibs[at];
+      position = prev && next ? (prev.position + next.position) / 2 : prev ? prev.position + 1 : next ? next.position - 1 : 0;
+    }
+    setDocs((ds) => ds.map((d) => (d._id === id ? { ...d, parent, position } : d)));
+    try { await docService.update(id, { parent, position }); } catch { if (activeTeam) loadTree(activeTeam._id); }
+  };
+
+  // ── Share ──────────────────────────────────────────────────────────────────
+  const shareUrl = active?.publicToken ? `${window.location.origin}/d/${active.publicToken}` : '';
+  const toggleShare = async () => {
+    if (!active) return; setShareBusy(true);
+    try {
+      const r = active.isPublic ? await docService.disableShare(active._id) : await docService.enableShare(active._id);
+      setActive((a) => (a ? { ...a, isPublic: r.isPublic, publicToken: r.publicToken } : a));
+    } catch { addToast({ type: 'error', title: 'Could not update sharing' }); }
+    finally { setShareBusy(false); }
+  };
+  const copyText = (text: string, title: string) => { navigator.clipboard.writeText(text).then(() => addToast({ type: 'success', title })).catch(() => {}); };
 
   const deleteDoc = async (id: string) => {
     if (!canEdit) return;
@@ -173,12 +233,21 @@ export const DocsPage = () => {
     const kids = childrenOf.get(nodeDoc._id) || [];
     const isOpen = expanded.has(nodeDoc._id);
     const isActive = active?._id === nodeDoc._id;
+    const isOver = drag.over === nodeDoc._id;
     return (
       <div key={nodeDoc._id}>
         <div
-          className={cn('group flex items-center gap-1 rounded-lg pr-1 transition-colors', isActive ? 'bg-brand-50 dark:bg-brand-500/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800')}
+          draggable={canEdit}
+          onDragStart={(e) => { if (!canEdit) return; setDrag({ id: nodeDoc._id, over: null, zone: null }); e.dataTransfer.effectAllowed = 'move'; }}
+          onDragOver={(e) => { if (!canEdit || !drag.id || drag.id === nodeDoc._id) return; e.preventDefault(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); const y = e.clientY - r.top; const zone = y < r.height * 0.28 ? 'before' : y > r.height * 0.72 ? 'after' : 'inside'; if (drag.over !== nodeDoc._id || drag.zone !== zone) setDrag((d) => ({ ...d, over: nodeDoc._id, zone })); }}
+          onDragLeave={() => { if (drag.over === nodeDoc._id) setDrag((d) => ({ ...d, over: null, zone: null })); }}
+          onDrop={(e) => { e.preventDefault(); if (drag.zone) onDropNode(nodeDoc, drag.zone); }}
+          onDragEnd={() => setDrag({ id: '', over: null, zone: null })}
+          className={cn('group relative flex items-center gap-1 rounded-lg pr-1 transition-colors', isActive ? 'bg-brand-50 dark:bg-brand-500/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800', isOver && drag.zone === 'inside' && 'ring-2 ring-inset ring-brand-400')}
           style={{ paddingLeft: depth * 12 + 4 }}
         >
+          {isOver && drag.zone === 'before' && <div className="pointer-events-none absolute inset-x-1 -top-px h-0.5 rounded bg-brand-400" />}
+          {isOver && drag.zone === 'after' && <div className="pointer-events-none absolute inset-x-1 -bottom-px h-0.5 rounded bg-brand-400" />}
           <button onClick={() => setExpanded((e) => { const n = new Set(e); n.has(nodeDoc._id) ? n.delete(nodeDoc._id) : n.add(nodeDoc._id); return n; })} className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200', !kids.length && 'invisible')} aria-label={isOpen ? 'Collapse' : 'Expand'}>
             {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
@@ -190,6 +259,7 @@ export const DocsPage = () => {
             <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100">
               <button onClick={() => createDoc(nodeDoc._id)} title="Add sub-page" className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"><Plus className="h-3.5 w-3.5" /></button>
               <button onClick={() => deleteDoc(nodeDoc._id)} title="Delete" className="rounded p-1 text-slate-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
+              <GripVertical className="h-3.5 w-3.5 cursor-grab text-slate-300 dark:text-slate-600" />
             </div>
           )}
         </div>
@@ -206,10 +276,44 @@ export const DocsPage = () => {
       <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-3 dark:border-slate-800">
           <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200"><BookText className="h-4 w-4 text-brand-500" /> Docs</span>
-          {canEdit && <button onClick={() => createDoc(null)} title="New page" className="flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400"><Plus className="h-3.5 w-3.5" /> New</button>}
+          {canEdit && (
+            <div className="relative">
+              <button onClick={() => setNewMenu((v) => !v)} title="New page" className="flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400"><Plus className="h-3.5 w-3.5" /> New</button>
+              {newMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setNewMenu(false)} />
+                  <div className="absolute right-0 top-full z-30 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                    <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400"><LayoutTemplate className="h-3 w-3" /> Templates</div>
+                    {DOC_TEMPLATES.map((t) => (
+                      <button key={t.id} onClick={() => createDoc(null, t)} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700">
+                        <span className="text-base leading-none">{t.icon}</span> {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        {/* Search */}
+        <div className="relative border-b border-slate-100 px-2 py-2 dark:border-slate-800">
+          <Search className="absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pages…" className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-7 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-800" />
+          {query && <button onClick={() => setQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-3.5 w-3.5" /></button>}
         </div>
         <div className="flex-1 overflow-y-auto p-2">
-          {treeLoading ? (
+          {query.trim() ? (
+            searching ? (
+              <div className="flex items-center justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-slate-400" /></div>
+            ) : results.length === 0 ? (
+              <p className="px-2 py-6 text-center text-xs text-slate-400">No pages match “{query.trim()}”.</p>
+            ) : results.map((r) => (
+              <button key={r._id} onClick={() => navigate(`/app/docs/${r._id}`)} className={cn('mb-0.5 flex w-full flex-col rounded-lg px-2 py-1.5 text-left transition-colors', active?._id === r._id ? 'bg-brand-50 dark:bg-brand-500/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800')}>
+                <span className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-200"><span className="shrink-0 leading-none">{r.icon || '📄'}</span><span className="truncate">{r.title || 'Untitled'}</span></span>
+                {r.snippet && <span className="mt-0.5 line-clamp-2 pl-5 text-[11px] text-slate-400">{r.snippet}</span>}
+              </button>
+            ))
+          ) : treeLoading ? (
             <div className="space-y-1.5">{[1, 2, 3, 4].map((i) => <div key={i} className="h-7 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />)}</div>
           ) : roots.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
@@ -253,6 +357,7 @@ export const DocsPage = () => {
                   </div>
                 )}
                 {!canEdit && <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 dark:bg-slate-800"><Eye className="h-3 w-3" /> View only</span>}
+                {canEdit && <button onClick={() => setShareOpen(true)} title="Share page" className={cn('rounded-lg p-1.5 transition-colors', active.isPublic ? 'text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800')}><Share2 className="h-4 w-4" /></button>}
                 {canEdit && <button onClick={() => deleteDoc(active._id)} title="Delete page" className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>}
               </div>
             </div>
@@ -308,6 +413,37 @@ export const DocsPage = () => {
           </>
         )}
       </main>
+
+      {/* Share dialog */}
+      {shareOpen && active && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShareOpen(false)}>
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-800">
+              <span className="flex items-center gap-2 truncate text-base font-semibold text-slate-800 dark:text-slate-100"><Share2 className="h-5 w-5 text-brand-500" /> Share “{title || 'Untitled'}”</span>
+              <button onClick={() => setShareOpen(false)} aria-label="Close" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-slate-700 dark:text-slate-200">Public read-only link</div>
+                  <div className="text-xs text-slate-400">Anyone with the link can read this page — no account needed.</div>
+                </div>
+                <button onClick={toggleShare} disabled={shareBusy} role="switch" aria-checked={!!active.isPublic} className={cn('relative h-6 w-11 shrink-0 rounded-full transition-colors', active.isPublic ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600', shareBusy && 'opacity-60')}>
+                  <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform', active.isPublic ? 'translate-x-5' : 'translate-x-0.5')} />
+                </button>
+              </div>
+              {active.isPublic && shareUrl ? (
+                <div className="flex gap-2">
+                  <input readOnly value={shareUrl} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300" />
+                  <button onClick={() => copyText(shareUrl, 'Link copied')} className="flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-600"><Link2 className="h-3.5 w-3.5" /> Copy</button>
+                </div>
+              ) : (
+                <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-400 dark:bg-slate-800">Turn on the public link to get a shareable, read-only URL for this page.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

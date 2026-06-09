@@ -12,9 +12,12 @@ export interface DocNode {
 }
 export interface DocFull extends DocNode {
   content: string;
+  isPublic: boolean;
+  publicToken: string | null;
   createdBy?: DocUser | null;
   createdAt: string;
 }
+export interface DocSearchResult extends DocNode { snippet: string }
 export interface DocPayload { title?: string; icon?: string; content?: string; parent?: string | null; position?: number }
 
 export const docService = {
@@ -35,4 +38,16 @@ export const docService = {
     return res.data?.data?.doc as DocFull;
   },
   remove: async (docId: string): Promise<void> => { await api.delete(`/docs/${docId}`); },
+  search: async (teamId: string, q: string): Promise<DocSearchResult[]> => {
+    const res = await api.get('/docs/search', { params: { teamId, q } });
+    return res.data?.data?.results as DocSearchResult[];
+  },
+  enableShare: async (docId: string): Promise<{ isPublic: boolean; publicToken: string }> => {
+    const res = await api.post(`/docs/${docId}/share`);
+    return res.data?.data;
+  },
+  disableShare: async (docId: string): Promise<{ isPublic: boolean; publicToken: string | null }> => {
+    const res = await api.delete(`/docs/${docId}/share`);
+    return res.data?.data;
+  },
 };

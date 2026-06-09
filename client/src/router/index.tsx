@@ -43,6 +43,7 @@ const ContactPage     = lazy(() => import('@/pages/marketing/ContactPage').then(
 const IntakeFormPage  = lazy(() => import('@/pages/public/IntakeFormPage').then(m => ({ default: m.IntakeFormPage })));
 const PublicBoardPage = lazy(() => import('@/pages/public/PublicBoardPage').then(m => ({ default: m.PublicBoardPage })));
 const PublicWhiteboardPage = lazy(() => import('@/pages/public/PublicWhiteboardPage').then(m => ({ default: m.PublicWhiteboardPage })));
+const PublicDocPage = lazy(() => import('@/pages/public/PublicDocPage').then(m => ({ default: m.PublicDocPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
   { path: '/f/:token', element: <IntakeFormPage /> },
   { path: '/b/:token', element: <PublicBoardPage /> },
   { path: '/wb/:token', element: <PublicWhiteboardPage /> },
+  { path: '/d/:token', element: <PublicDocPage /> },
 
   // Public marketing site
   {

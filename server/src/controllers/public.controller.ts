@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { IntakeForm } from '../models/IntakeForm.model';
 import { PublicBoard } from '../models/PublicBoard.model';
 import { Whiteboard } from '../models/Whiteboard.model';
+import { Doc } from '../models/Doc.model';
 import { Task, TaskStatus } from '../models/Task.model';
 import { Team } from '../models/Team.model';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -123,5 +124,19 @@ export const getPublicWhiteboard = asyncHandler(async (req: Request, res: Respon
     team: (board.team as any)?.name || 'Team',
     elements: Array.isArray(board.elements) ? board.elements : [],
     updatedAt: board.updatedAt,
+  });
+});
+
+/* ── GET /public/docs/:token ────────────────────────────────────────────────
+ * Read-only render of a shared wiki page. */
+export const getPublicDoc = asyncHandler(async (req: Request, res: Response) => {
+  const doc = await Doc.findOne({ publicToken: req.params.token, isPublic: true, isArchived: false }).populate('team', 'name').lean();
+  if (!doc) throw new ApiError(404, 'This page is not available.');
+  sendSuccess(res, {
+    title: doc.title || 'Untitled',
+    icon: doc.icon || '📄',
+    content: doc.content || '',
+    team: (doc.team as any)?.name || 'Team',
+    updatedAt: doc.updatedAt,
   });
 });

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Doc } from '../models/Doc.model';
@@ -27,7 +28,9 @@ const node = (d: any) => ({
   _id: d._id, title: d.title, icon: d.icon, parent: d.parent, position: d.position,
   updatedAt: d.updatedAt, updatedBy: d.updatedBy,
 });
-const full = (d: any) => ({ ...node(d), content: d.content, createdBy: d.createdBy, createdAt: d.createdAt });
+const full = (d: any) => ({ ...node(d), content: d.content, createdBy: d.createdBy, createdAt: d.createdAt, isPublic: !!d.isPublic, publicToken: d.publicToken ?? null });
+const genToken = () => crypto.randomBytes(9).toString('base64url');
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const broadcast = (teamId: string, event: string, payload: unknown) => {
   const io = getIO();
@@ -44,6 +47,30 @@ export const listDocs = asyncHandler(async (req: Request, res: Response) => {
     .populate('updatedBy', 'name avatar')
     .sort({ position: 1, createdAt: 1 });
   sendSuccess(res, { docs: docs.map(node) });
+});
+
+/* GET /docs/search?teamId=&q=… — full-text search over titles + content. */
+export const searchDocs = asyncHandler(async (req: Request, res: Response) => {
+  const { teamId, q } = req.query as Record<string, string>;
+  if (!teamId) throw new ApiError(400, 'teamId is required.');
+  await verifyMember(teamId, req.user!._id.toString());
+  const query = (q || '').trim();
+  if (!query) { sendSuccess(res, { results: [] }); return; }
+  const rx = new RegExp(escapeRegex(query), 'i');
+  const docs = await Doc.find({ team: teamId, isArchived: false, $or: [{ title: rx }, { content: rx }] })
+    .select('title icon content parent position updatedAt updatedBy')
+    .populate('updatedBy', 'name avatar')
+    .sort({ updatedAt: -1 })
+    .limit(30);
+  const results = docs.map((d: any) => {
+    const c: string = d.content || '';
+    const idx = c.toLowerCase().indexOf(query.toLowerCase());
+    let snippet = '';
+    if (idx >= 0) { const start = Math.max(0, idx - 40); const end = Math.min(c.length, idx + query.length + 60); snippet = (start > 0 ? '…' : '') + c.slice(start, end).replace(/\s+/g, ' ').trim() + (end < c.length ? '…' : ''); }
+    else snippet = c.replace(/\s+/g, ' ').trim().slice(0, 100);
+    return { ...node(d), snippet };
+  });
+  sendSuccess(res, { results });
 });
 
 /* GET /docs/:docId — one page with content. */
@@ -135,4 +162,27 @@ export const deleteDoc = asyncHandler(async (req: Request, res: Response) => {
   await Doc.updateMany({ _id: { $in: toArchive } }, { $set: { isArchived: true } });
   broadcast(doc.team.toString(), 'doc:changed', { teamId: doc.team.toString() });
   sendSuccess(res, { deleted: toArchive.length }, 'Doc deleted.');
+});
+
+/* POST /docs/:docId/share — enable a public read-only link. */
+export const enableDocShare = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const doc = await Doc.findById(req.params.docId);
+  if (!doc || doc.isArchived) throw new ApiError(404, 'Doc not found.');
+  const team = await verifyMember(doc.team.toString(), userId);
+  assertWrite(team, userId);
+  if (!doc.publicToken) doc.publicToken = genToken();
+  doc.isPublic = true; await doc.save();
+  sendSuccess(res, { isPublic: true, publicToken: doc.publicToken }, 'Public link enabled.');
+});
+
+/* DELETE /docs/:docId/share — disable the public link (token kept). */
+export const disableDocShare = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const doc = await Doc.findById(req.params.docId);
+  if (!doc || doc.isArchived) throw new ApiError(404, 'Doc not found.');
+  const team = await verifyMember(doc.team.toString(), userId);
+  assertWrite(team, userId);
+  doc.isPublic = false; await doc.save();
+  sendSuccess(res, { isPublic: false, publicToken: doc.publicToken }, 'Public link disabled.');
 });

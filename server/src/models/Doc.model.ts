@@ -14,6 +14,8 @@ export interface IDoc extends Document {
   parent: mongoose.Types.ObjectId | null;
   position: number;
   isArchived: boolean;
+  isPublic: boolean;
+  publicToken: string | null;
   createdBy: mongoose.Types.ObjectId | null;
   updatedBy: mongoose.Types.ObjectId | null;
   createdAt: Date;
@@ -29,6 +31,8 @@ const DocSchema = new Schema<IDoc>(
     parent: { type: Schema.Types.ObjectId, ref: 'Doc', default: null, index: true },
     position: { type: Number, default: 0 },
     isArchived: { type: Boolean, default: false },
+    isPublic: { type: Boolean, default: false },
+    publicToken: { type: String, default: null, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
