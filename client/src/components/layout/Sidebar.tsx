@@ -14,19 +14,39 @@ import { Avatar } from '@/components/ui/Avatar';
 import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 import { ProfilePanel } from '@/components/profile/ProfilePanel';
 
-const navItems = [
-  { to: '/app', icon: LayoutDashboard, i18nKey: 'nav.dashboard', end: true, shortcut: 'D' },
-  { to: '/app/my-tasks', icon: User, i18nKey: 'nav.myTasks', shortcut: 'M' },
-  { to: '/app/board', icon: Kanban, i18nKey: 'nav.board', shortcut: 'B' },
-  { to: '/app/calendar', icon: CalendarDays, i18nKey: 'nav.calendar', shortcut: 'L' },
-  { to: '/app/chatbots', icon: Bot, i18nKey: 'nav.chatbots', shortcut: 'C' },
-  { to: '/app/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
-  { to: '/app/workload', icon: BarChart2, i18nKey: 'nav.workload', shortcut: 'W' },
-  { to: '/app/timeline', icon: GanttChartSquare, i18nKey: 'nav.timeline' },
-  { to: '/app/whiteboard', icon: Presentation, i18nKey: 'nav.whiteboard' },
-  { to: '/app/goals', icon: Target, i18nKey: 'nav.goals' },
-  { to: '/app/activity', icon: Activity, i18nKey: 'nav.activity', shortcut: 'A' },
-  { to: '/app/settings', icon: Settings, i18nKey: 'nav.settings', shortcut: 'S' },
+interface NavItem { to: string; icon: typeof LayoutDashboard; i18nKey: string; end?: boolean; shortcut?: string }
+const navGroups: { label?: string; items: NavItem[] }[] = [
+  {
+    items: [
+      { to: '/app', icon: LayoutDashboard, i18nKey: 'nav.dashboard', end: true, shortcut: 'D' },
+      { to: '/app/my-tasks', icon: User, i18nKey: 'nav.myTasks', shortcut: 'M' },
+      { to: '/app/activity', icon: Activity, i18nKey: 'nav.activity', shortcut: 'A' },
+    ],
+  },
+  {
+    label: 'Plan & track',
+    items: [
+      { to: '/app/board', icon: Kanban, i18nKey: 'nav.board', shortcut: 'B' },
+      { to: '/app/timeline', icon: GanttChartSquare, i18nKey: 'nav.timeline' },
+      { to: '/app/calendar', icon: CalendarDays, i18nKey: 'nav.calendar', shortcut: 'L' },
+      { to: '/app/goals', icon: Target, i18nKey: 'nav.goals' },
+      { to: '/app/workload', icon: BarChart2, i18nKey: 'nav.workload', shortcut: 'W' },
+    ],
+  },
+  {
+    label: 'Collaborate',
+    items: [
+      { to: '/app/whiteboard', icon: Presentation, i18nKey: 'nav.whiteboard' },
+      { to: '/app/chatbots', icon: Bot, i18nKey: 'nav.chatbots', shortcut: 'C' },
+      { to: '/app/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
+    ],
+  },
+  {
+    label: 'Manage',
+    items: [
+      { to: '/app/settings', icon: Settings, i18nKey: 'nav.settings', shortcut: 'S' },
+    ],
+  },
 ];
 
 export const Sidebar = () => {
@@ -207,31 +227,49 @@ export const Sidebar = () => {
             </div>
 
             {/* Nav */}
-            <nav className={cn('mt-4 flex-1 space-y-0.5 px-3 overflow-y-auto', sidebarCollapsed && 'px-1.5')}>
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  title={sidebarCollapsed ? t(item.i18nKey) : undefined}
-                  className={({ isActive }) => cn(
-                    'sidebar-link group',
-                    isActive && 'active',
-                    sidebarCollapsed && 'justify-center px-0'
+            <nav className={cn('mt-4 flex-1 px-3 overflow-y-auto', sidebarCollapsed && 'px-1.5')}>
+              {navGroups.map((group, gi) => (
+                <div
+                  key={gi}
+                  className={cn(
+                    gi > 0 && (sidebarCollapsed
+                      ? 'mt-2 border-t border-slate-100 pt-2 dark:border-slate-800'
+                      : 'mt-4')
                   )}
                 >
-                  <item.icon className="h-4 w-4 flex-shrink-0" />
-                  {!sidebarCollapsed && (
-                    <>
-                      <span className="flex-1">{t(item.i18nKey)}</span>
-                      {item.shortcut && (
-                        <kbd className="ml-auto hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 lg:inline-flex dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
-                          {item.shortcut}
-                        </kbd>
-                      )}
-                    </>
+                  {group.label && !sidebarCollapsed && (
+                    <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      {group.label}
+                    </p>
                   )}
-                </NavLink>
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        title={sidebarCollapsed ? t(item.i18nKey) : undefined}
+                        className={({ isActive }) => cn(
+                          'sidebar-link group',
+                          isActive && 'active',
+                          sidebarCollapsed && 'justify-center px-0'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 flex-shrink-0" />
+                        {!sidebarCollapsed && (
+                          <>
+                            <span className="flex-1">{t(item.i18nKey)}</span>
+                            {item.shortcut && (
+                              <kbd className="ml-auto hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 lg:inline-flex dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
+                                {item.shortcut}
+                              </kbd>
+                            )}
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
               ))}
             </nav>
 

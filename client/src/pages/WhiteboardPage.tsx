@@ -1031,18 +1031,24 @@ export const WhiteboardPage = () => {
                 <div className="flex-1 overflow-y-auto p-2">
                   {boards.map((b) => (
                     <div key={b._id} className={cn('group mb-1 flex items-center gap-2.5 rounded-xl border p-2 transition-colors', b._id === boardId ? 'border-brand-300 bg-brand-50/50 dark:border-brand-500/40 dark:bg-brand-500/5' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800')}>
-                      <button onClick={() => switchBoard(b._id)} className="shrink-0"><BoardThumb preview={b.preview} w={64} h={44} /></button>
-                      <button onClick={() => switchBoard(b._id)} className="min-w-0 flex-1 text-left">
-                        {renamingId === b._id ? (
-                          <input autoFocus defaultValue={b.name} onClick={(e) => e.stopPropagation()} onBlur={(e) => doRename(b._id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenamingId(null); }} className="w-full rounded border border-brand-300 bg-white px-1.5 py-0.5 text-sm outline-none dark:bg-slate-800" />
-                        ) : <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{b.name}</span>}
-                        <span className="text-[11px] text-slate-400">{b.elementCount} item{b.elementCount === 1 ? '' : 's'} · {relTime(b.updatedAt)}</span>
-                      </button>
-                      {canEdit && renamingId !== b._id && (
-                        <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100">
-                          <button onClick={(e) => { e.stopPropagation(); setRenamingId(b._id); }} title="Rename" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"><Pencil className="h-3.5 w-3.5" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); doDeleteBoard(b._id); }} title="Delete" className="rounded-md p-1.5 text-slate-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
-                        </div>
+                      {renamingId === b._id ? (
+                        // Rendered as a direct child (NOT inside a <button>) so it focuses
+                        // properly and keystrokes don't leak to global shortcuts.
+                        <input autoFocus defaultValue={b.name} onBlur={(e) => doRename(b._id, e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); else if (e.key === 'Escape') setRenamingId(null); }} className="w-full rounded-lg border border-brand-300 bg-white px-2 py-1.5 text-sm outline-none dark:bg-slate-800" />
+                      ) : (
+                        <>
+                          <button onClick={() => switchBoard(b._id)} className="shrink-0"><BoardThumb preview={b.preview} w={64} h={44} /></button>
+                          <button onClick={() => switchBoard(b._id)} className="min-w-0 flex-1 text-left">
+                            <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{b.name}</span>
+                            <span className="text-[11px] text-slate-400">{b.elementCount} item{b.elementCount === 1 ? '' : 's'} · {relTime(b.updatedAt)}</span>
+                          </button>
+                          {canEdit && (
+                            <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                              <button onClick={(e) => { e.stopPropagation(); setRenamingId(b._id); }} title="Rename" className="rounded-md p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); doDeleteBoard(b._id); }} title="Delete" className="rounded-md p-1.5 text-slate-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   ))}
