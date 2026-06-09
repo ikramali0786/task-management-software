@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
-  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation,
+  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation, BookText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -37,6 +37,7 @@ const navGroups: { label?: string; items: NavItem[] }[] = [
     label: 'Collaborate',
     items: [
       { to: '/app/whiteboard', icon: Presentation, i18nKey: 'nav.whiteboard' },
+      { to: '/app/docs', icon: BookText, i18nKey: 'nav.docs' },
       { to: '/app/chatbots', icon: Bot, i18nKey: 'nav.chatbots', shortcut: 'C' },
       { to: '/app/team', icon: Users, i18nKey: 'nav.team', shortcut: 'T' },
     ],
