@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -14,6 +14,7 @@ import {
   CalendarClock,
   Inbox,
   Timer,
+  Check,
 } from 'lucide-react';
 import { useTeamStore } from '@/store/teamStore';
 import { useAuthStore } from '@/store/authStore';
@@ -25,10 +26,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { CountUp } from '@/components/ui/CountUp';
 import { formatRelative, formatLastSeen, cn } from '@/lib/utils';
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-  AreaChart, Area, XAxis,
-} from 'recharts';
+// Recharts is heavy — defer it so cards & tasks paint first.
+const DashboardCharts = lazy(() => import('@/components/dashboard/DashboardCharts'));
 
 /* ─── Motion variants ──────────────────────────────────────────────────── */
 const containerVariants = {
@@ -47,6 +46,18 @@ const STATUS_COLORS: Record<string, string> = {
   in_progress: '#0d9488',
   review: '#d97706',
   done: '#16a34a',
+};
+
+// Tiny dependency-free trend line for stat cards.
+const Sparkline = ({ values, color = '#22c55e' }: { values: number[]; color?: string }) => {
+  const w = 100, h = 22, max = Math.max(1, ...values);
+  const step = values.length > 1 ? w / (values.length - 1) : w;
+  const pts = values.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * (h - 2) - 1).toFixed(1)}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="mt-2 h-5 w-full" preserveAspectRatio="none" aria-hidden>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
 };
 
 const STATUS_CHIP: Record<string, string> = {
@@ -79,9 +90,11 @@ export const DashboardPage = () => {
   const [myTasksLoading, setMyTasksLoading] = useState(false);
   const [myTasksTab, setMyTasksTab] = useState<'all' | 'due_soon' | 'overdue'>('all');
   const [metrics, setMetrics] = useState<Awaited<ReturnType<typeof taskService.getDashboardMetrics>> | null>(null);
+  const [range, setRange] = useState<7 | 30 | 90>(30);
+  const [focus, setFocus] = useState<Awaited<ReturnType<typeof taskService.getSchedulingSuggestions>>>([]);
   const [error, setError] = useState(false);
 
-  // Monotonic token so a stale response from a previous team can't overwrite the current one.
+  // Monotonic tokens so a stale response from a previous team can't overwrite the current one.
   const reqRef = useRef(0);
   const load = useCallback(async () => {
     if (!activeTeam || !user) return;
@@ -91,27 +104,51 @@ export const DashboardPage = () => {
     const results = await Promise.allSettled([
       taskService.getStats(teamId),
       taskService.getTasks({ teamId, assignee: user._id, limit: '30' }),
-      taskService.getDashboardMetrics(teamId),
     ]);
     if (token !== reqRef.current) return; // a newer load started — discard
-    const [s, mt, m] = results;
+    const [s, mt] = results;
     if (s.status === 'fulfilled') setStats(s.value); else setError(true);
     if (mt.status === 'fulfilled') setMyTasks(mt.value.tasks.filter((t) => t.status !== 'done')); else setError(true);
-    if (m.status === 'fulfilled') setMetrics(m.value); else setMetrics(null);
     setStatsLoading(false); setMyTasksLoading(false);
   }, [activeTeam?._id, user?._id]);
 
-  useEffect(() => { void load(); }, [load]);
+  const metricsReqRef = useRef(0);
+  const loadMetrics = useCallback(async () => {
+    if (!activeTeam) return;
+    const token = ++metricsReqRef.current; const teamId = activeTeam._id;
+    try { const m = await taskService.getDashboardMetrics(teamId, range); if (token === metricsReqRef.current) setMetrics(m); }
+    catch { if (token === metricsReqRef.current) setMetrics(null); }
+  }, [activeTeam?._id, range]);
 
-  // Live refresh: when any task changes anywhere, debounce-refresh the dashboard.
+  const loadFocus = useCallback(async () => {
+    if (!activeTeam) return;
+    try { setFocus((await taskService.getSchedulingSuggestions(activeTeam._id)).slice(0, 4)); } catch { setFocus([]); }
+  }, [activeTeam?._id]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadMetrics(); }, [loadMetrics]);
+  useEffect(() => { void loadFocus(); }, [loadFocus]);
+
+  // Live refresh: when any task changes anywhere, debounce-refresh everything.
   useEffect(() => {
     const socket = getSocket(); if (!socket || !activeTeam) return;
     let t: ReturnType<typeof setTimeout> | null = null;
-    const bump = () => { if (t) clearTimeout(t); t = setTimeout(() => void load(), 800); };
+    const bump = () => { if (t) clearTimeout(t); t = setTimeout(() => { void load(); void loadMetrics(); void loadFocus(); }, 800); };
     const events = ['task:created', 'task:updated', 'task:deleted', 'task:moved'];
     events.forEach((e) => socket.on(e, bump));
     return () => { if (t) clearTimeout(t); events.forEach((e) => socket.off(e, bump)); };
-  }, [activeTeam?._id, load]);
+  }, [activeTeam?._id, load, loadMetrics, loadFocus]);
+
+  // Inline actions
+  const markDone = async (e: React.MouseEvent, task: Task) => {
+    e.stopPropagation();
+    setMyTasks((ts) => ts.filter((t) => t._id !== task._id));
+    try { await taskService.updateStatus(task._id, 'done'); void loadMetrics(); } catch { void load(); }
+  };
+  const scheduleTask = async (taskId: string, date: string) => {
+    setFocus((f) => f.filter((x) => x.taskId !== taskId));
+    try { await taskService.updateTask(taskId, { dueDate: date } as Partial<Task>); void load(); } catch { void loadFocus(); }
+  };
 
   /* derived */
   const totalTasks = stats ? Object.values(stats.byStatus).reduce((a, b) => a + b, 0) : 0;
@@ -192,6 +229,7 @@ export const DashboardPage = () => {
       sub: `${activeTeam?.members.length ?? 0} members in team`,
       href: '/app/board',
       delta: 0,
+      sparkline: [] as number[],
     },
     {
       label: 'In Progress',
@@ -201,8 +239,9 @@ export const DashboardPage = () => {
       bg: 'bg-brand-50 dark:bg-brand-500/10',
       accentColor: '#e8502e',
       sub: `${stats?.byStatus.review ?? 0} in review`,
-      href: '/app/board',
+      href: '/app/board?status=in_progress&view=list',
       delta: 0,
+      sparkline: [] as number[],
     },
     {
       label: 'Completed',
@@ -212,8 +251,9 @@ export const DashboardPage = () => {
       bg: 'bg-emerald-50 dark:bg-emerald-500/10',
       accentColor: '#22c55e',
       sub: `${completedPct}% completion rate`,
-      href: '/app/board',
+      href: '/app/board?status=done&view=list',
       delta: completedDelta,
+      sparkline: (metrics?.trend ?? []).map((t) => t.count),
     },
     {
       label: 'Overdue',
@@ -225,6 +265,7 @@ export const DashboardPage = () => {
       sub: 'need immediate attention',
       href: '/app/board?due=overdue',
       delta: 0,
+      sparkline: [] as number[],
     },
     {
       label: 'Avg Cycle Time',
@@ -236,6 +277,7 @@ export const DashboardPage = () => {
       sub: 'last 30 days',
       href: '/app/workload',
       delta: 0,
+      sparkline: [] as number[],
     },
   ];
 
@@ -340,6 +382,7 @@ export const DashboardPage = () => {
                 {card.label}
               </p>
               <p className="mt-0.5 text-xs text-slate-400">{card.sub}</p>
+              {card.sparkline.length > 1 && <Sparkline values={card.sparkline} color={card.accentColor} />}
             </div>
           </motion.div>
         ))}
@@ -435,11 +478,16 @@ export const DashboardPage = () => {
                     className="group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
                     onClick={() => navigate('/app/board')}
                   >
-                    {/* Status dot */}
-                    <div
-                      className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                      style={{ backgroundColor: statusInfo?.color ?? '#94a3b8' }}
-                    />
+                    {/* Mark complete (hover) */}
+                    <button
+                      onClick={(e) => markDone(e, task)}
+                      title="Mark complete"
+                      aria-label={`Mark "${task.title}" complete`}
+                      className="group/done flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors hover:border-emerald-500 hover:bg-emerald-500"
+                      style={{ borderColor: statusInfo?.color ?? '#94a3b8' }}
+                    >
+                      <Check className="h-3 w-3 text-white opacity-0 transition-opacity group-hover/done:opacity-100" />
+                    </button>
 
                     {/* Title + meta */}
                     <div className="min-w-0 flex-1">
@@ -494,168 +542,38 @@ export const DashboardPage = () => {
           )}
         </motion.div>
 
-        {/* Charts column – 2 / 5 */}
+        {/* Right column – 2 / 5: Focus + (lazy) charts */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          {/* 30-Day Completion Trend */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
-            className="card"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Completion Trend
-              </h3>
-              <span className="text-xs font-semibold text-brand-500">
-                {completionTrend.reduce((s, d) => s + d.count, 0)} done
-              </span>
-            </div>
-            <p className="mb-2 text-[10px] text-slate-400">Last 30 days</p>
-            <div role="img" aria-label={`Completion trend, last 30 days: ${completionTrend.reduce((s, d) => s + d.count, 0)} tasks completed`} />
-            <ResponsiveContainer width="100%" height={80}>
-              <AreaChart
-                data={completionTrend}
-                margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e8502e" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#e8502e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 9, fill: '#94a3b8' }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval={4}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: 'var(--bg-glass)',
-                    border: 'none',
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  formatter={(v: number) => [v, 'Completed']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#e8502e"
-                  strokeWidth={2}
-                  fill="url(#trendGrad)"
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </motion.div>
-          {/* Task Status donut */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="card"
-          >
-            <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Task Status
-            </h3>
-            {pieData.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={140}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={38}
-                      outerRadius={58}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={index} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: 'var(--bg-glass)',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="mt-1 space-y-1.5">
-                  {TASK_STATUSES.map(({ id, label }) => {
-                    const count = stats?.byStatus[id] ?? 0;
-                    const pct = totalTasks > 0 ? Math.round((count / totalTasks) * 100) : 0;
-                    return (
-                      <div key={id} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: STATUS_COLORS[id] }}
-                          />
-                          <span className="text-slate-500 dark:text-slate-400">{label}</span>
-                        </div>
-                        <span className="font-medium text-slate-700 dark:text-slate-300">
-                          {count}{' '}
-                          <span className="text-slate-400">({pct}%)</span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <div className="flex h-36 items-center justify-center text-sm text-slate-400">
-                No tasks yet
+          {focus.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }} className="card">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Suggested next</h3>
+                <span className="text-xs text-slate-400">needs a due date</span>
               </div>
-            )}
-          </motion.div>
-
-          {/* By Priority */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            className="card"
-          >
-            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
-              By Priority
-            </h3>
-            <div className="space-y-3">
-              {(['urgent', 'high', 'medium', 'low'] as const).map((p) => {
-                const config = PRIORITY_CONFIG[p];
-                const count = stats?.byPriority[p] ?? 0;
-                const pct = totalTasks > 0 ? (count / totalTasks) * 100 : 0;
-                return (
-                  <div key={p}>
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-600 dark:text-slate-400">
-                        {config.label}
-                      </span>
-                      <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {count}
-                      </span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ delay: 0.6, type: 'spring', stiffness: 200 }}
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: config.color }}
-                      />
-                    </div>
+              <div className="space-y-2">
+                {focus.map((s) => (
+                  <div key={s.taskId} className="flex items-center gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: PRIORITY_CONFIG[s.priority as keyof typeof PRIORITY_CONFIG]?.color ?? '#94a3b8' }} />
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-300">{s.title}</span>
+                    <button onClick={() => scheduleTask(s.taskId, s.suggestedDate)} className="shrink-0 rounded-md bg-brand-50 px-2 py-1 text-[11px] font-medium text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20">
+                      Schedule {new Date(s.suggestedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+          <Suspense fallback={<div className="card h-64 animate-pulse" />}>
+            <DashboardCharts
+              trend={completionTrend}
+              range={range}
+              onRangeChange={setRange}
+              pieData={pieData}
+              statusCounts={stats?.byStatus ?? {}}
+              priorityCounts={stats?.byPriority ?? {}}
+              totalTasks={totalTasks}
+            />
+          </Suspense>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ export interface TaskFilters {
   priorities: TaskPriority[];
   assigneeIds: string[];
   dueDateFilter: 'all' | 'overdue' | 'today' | 'week' | 'no-date';
+  status?: 'all' | 'todo' | 'in_progress' | 'review' | 'done';
 }
 
 export const DEFAULT_FILTERS: TaskFilters = {
@@ -22,6 +23,7 @@ export const DEFAULT_FILTERS: TaskFilters = {
   priorities: [],
   assigneeIds: [],
   dueDateFilter: 'all',
+  status: 'all',
 };
 
 export interface SavedView {

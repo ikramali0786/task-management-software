@@ -35,6 +35,7 @@ const applyFilters = (tasks: Task[], filters: TaskFilters): Task[] => {
   const search = filters.search.trim().toLowerCase();
   return tasks.filter((t) => {
     if (search && !t.title.toLowerCase().includes(search) && !t.description?.toLowerCase().includes(search)) return false;
+    if (filters.status && filters.status !== 'all' && t.status !== filters.status) return false;
     if (filters.priorities.length > 0 && !filters.priorities.includes(t.priority)) return false;
     if (filters.assigneeIds.length > 0 && !t.assignees.some((a) => filters.assigneeIds.includes(a._id))) return false;
     if (filters.dueDateFilter === 'overdue' && !isOverdueDate(t.dueDate)) return false;
@@ -69,10 +70,16 @@ export const KanbanPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     const due = searchParams.get('due');
-    if (!due) return;
-    if (['overdue', 'today', 'week', 'no-date'].includes(due)) {
+    const status = searchParams.get('status');
+    const wantList = searchParams.get('view') === 'list';
+    if (!due && !status && !wantList) return;
+    if (due && ['overdue', 'today', 'week', 'no-date'].includes(due)) {
       setFilters((f) => ({ ...f, dueDateFilter: due as TaskFilters['dueDateFilter'] }));
     }
+    if (status && ['todo', 'in_progress', 'review', 'done'].includes(status)) {
+      setFilters((f) => ({ ...f, status: status as TaskFilters['status'] }));
+    }
+    if (wantList) setView('list');
     setSearchParams({}, { replace: true });
   }, [activeTeam?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -86,7 +93,8 @@ export const KanbanPage = () => {
     filters.search.trim() !== '' ||
     filters.priorities.length > 0 ||
     filters.assigneeIds.length > 0 ||
-    filters.dueDateFilter !== 'all';
+    filters.dueDateFilter !== 'all' ||
+    (filters.status != null && filters.status !== 'all');
 
   if (!activeTeam) {
     return (
