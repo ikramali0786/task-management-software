@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -43,8 +44,11 @@ const canWrite = (team: any, userId: string) => {
   }
 };
 
+const genToken = () => crypto.randomBytes(9).toString('base64url');
+
 const boardMeta = (b: any) => ({
   _id: b._id, name: b.name || 'Main board', preview: b.preview ?? [], elementCount: Array.isArray(b.elements) ? b.elements.length : (b.preview?.length ?? 0),
+  isPublic: !!b.isPublic, publicToken: b.publicToken ?? null,
   createdBy: b.createdBy, updatedAt: b.updatedAt, createdAt: b.createdAt,
 });
 
@@ -63,7 +67,7 @@ export const getBoards = asyncHandler(async (req: Request, res: Response) => {
   await verifyMember(teamId, userId);
   await ensureIndexes();
 
-  let boards = await Whiteboard.find({ team: teamId }).select('name preview createdBy updatedAt createdAt').sort({ updatedAt: -1 });
+  let boards = await Whiteboard.find({ team: teamId }).select('name preview isPublic publicToken createdBy updatedAt createdAt').sort({ updatedAt: -1 });
   if (boards.length === 0) {
     const created = await Whiteboard.create({ team: teamId, name: 'Main board', createdBy: req.user!._id, updatedBy: req.user!._id });
     boards = [created];
@@ -179,6 +183,25 @@ export const restoreSnapshot = asyncHandler(async (req: Request, res: Response) 
   await WhiteboardSnapshot.create({ board: board._id, team: board.team, elements: board.elements, label: 'Before restore', createdBy: req.user!._id });
   board.elements = snap.elements; board.updatedBy = req.user!._id; await board.save();
   sendSuccess(res, { elements: board.elements }, 'Restored.');
+});
+
+/* POST /whiteboard/boards/:boardId/share — enable a public read-only link. */
+export const enableShare = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(req.params.boardId, userId);
+  canWrite(team, userId);
+  if (!board.publicToken) board.publicToken = genToken();
+  board.isPublic = true; await board.save();
+  sendSuccess(res, { isPublic: true, publicToken: board.publicToken }, 'Public link enabled.');
+});
+
+/* DELETE /whiteboard/boards/:boardId/share — disable the public link (token kept). */
+export const disableShare = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!._id.toString();
+  const { board, team } = await loadBoard(req.params.boardId, userId);
+  canWrite(team, userId);
+  board.isPublic = false; await board.save();
+  sendSuccess(res, { isPublic: false, publicToken: board.publicToken }, 'Public link disabled.');
 });
 
 /* POST /whiteboard/image?teamId=… — pre-signed PUT URL for a board image. */

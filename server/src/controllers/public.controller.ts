@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { IntakeForm } from '../models/IntakeForm.model';
 import { PublicBoard } from '../models/PublicBoard.model';
+import { Whiteboard } from '../models/Whiteboard.model';
 import { Task, TaskStatus } from '../models/Task.model';
 import { Team } from '../models/Team.model';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -110,4 +111,17 @@ export const getPublicBoard = asyncHandler(async (req: Request, res: Response) =
   }));
 
   sendSuccess(res, { board: { team: (board.team as any)?.name || 'Team', tasks: items } });
+});
+
+/* ── GET /public/whiteboard/:token ──────────────────────────────────────────
+ * Read-only snapshot of a shared whiteboard for the public/embed view. */
+export const getPublicWhiteboard = asyncHandler(async (req: Request, res: Response) => {
+  const board = await Whiteboard.findOne({ publicToken: req.params.token, isPublic: true }).populate('team', 'name').lean();
+  if (!board) throw new ApiError(404, 'This whiteboard is not available.');
+  sendSuccess(res, {
+    name: board.name || 'Whiteboard',
+    team: (board.team as any)?.name || 'Team',
+    elements: Array.isArray(board.elements) ? board.elements : [],
+    updatedAt: board.updatedAt,
+  });
 });

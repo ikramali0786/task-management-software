@@ -23,4 +23,10 @@ export const publicService = {
     const res = await api.get(`/public/boards/${token}`);
     return res.data?.data?.board;
   },
+  getWhiteboard: async (token: string): Promise<PublicWhiteboardData> => {
+    const res = await api.get(`/public/whiteboard/${token}`);
+    return res.data?.data;
+  },
 };
+
+export interface PublicWhiteboardData { name: string; team: string; elements: any[]; updatedAt: string }

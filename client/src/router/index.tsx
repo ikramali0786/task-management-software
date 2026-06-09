@@ -41,6 +41,7 @@ const ContactPage     = lazy(() => import('@/pages/marketing/ContactPage').then(
 // ── Public share pages (no auth, no layout) ──────────────────────────────────
 const IntakeFormPage  = lazy(() => import('@/pages/public/IntakeFormPage').then(m => ({ default: m.IntakeFormPage })));
 const PublicBoardPage = lazy(() => import('@/pages/public/PublicBoardPage').then(m => ({ default: m.PublicBoardPage })));
+const PublicWhiteboardPage = lazy(() => import('@/pages/public/PublicWhiteboardPage').then(m => ({ default: m.PublicWhiteboardPage })));
 
 // ── Router definition ─────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/f/:token', element: <IntakeFormPage /> },
   { path: '/b/:token', element: <PublicBoardPage /> },
+  { path: '/wb/:token', element: <PublicWhiteboardPage /> },
 
   // Public marketing site
   {

@@ -4,6 +4,7 @@ import {
   getBoards, createBoard, renameBoard, deleteBoard,
   getWhiteboard, saveWhiteboard, presignBoardImage,
   listSnapshots, createSnapshot, restoreSnapshot,
+  enableShare, disableShare,
 } from '../controllers/whiteboard.controller';
 
 const router = Router();
@@ -20,6 +21,10 @@ router.delete('/boards/:boardId', deleteBoard);
 router.get('/boards/:boardId/snapshots', listSnapshots);
 router.post('/boards/:boardId/snapshots', createSnapshot);
 router.post('/boards/:boardId/snapshots/:snapshotId/restore', restoreSnapshot);
+
+// Public share link
+router.post('/boards/:boardId/share', enableShare);
+router.delete('/boards/:boardId/share', disableShare);
 
 // Board contents
 router.get('/', getWhiteboard);

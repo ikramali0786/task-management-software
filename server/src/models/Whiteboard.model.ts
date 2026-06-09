@@ -22,6 +22,8 @@ export interface IWhiteboard extends Document {
   name: string;
   elements: any[];
   preview: IWhiteboardPreview[];
+  isPublic: boolean;
+  publicToken: string | null;
   createdBy: mongoose.Types.ObjectId | null;
   updatedBy: mongoose.Types.ObjectId | null;
   createdAt: Date;
@@ -34,6 +36,8 @@ const WhiteboardSchema = new Schema<IWhiteboard>(
     name: { type: String, default: 'Untitled board', trim: true, maxlength: 80 },
     elements: { type: Schema.Types.Mixed, default: [] },
     preview: { type: Schema.Types.Mixed, default: [] },
+    isPublic: { type: Boolean, default: false },
+    publicToken: { type: String, default: null, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },

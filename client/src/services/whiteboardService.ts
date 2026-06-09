@@ -6,6 +6,8 @@ export interface BoardMeta {
   name: string;
   preview: BoardPreviewRect[];
   elementCount: number;
+  isPublic: boolean;
+  publicToken: string | null;
   createdBy?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -53,6 +55,16 @@ export const whiteboardService = {
   restoreSnapshot: async (boardId: string, snapshotId: string): Promise<any[]> => {
     const res = await api.post(`/whiteboard/boards/${boardId}/snapshots/${snapshotId}/restore`);
     return res.data?.data?.elements as any[];
+  },
+
+  // ── Public share ────────────────────────────────────────────────────────────
+  enableShare: async (boardId: string): Promise<{ isPublic: boolean; publicToken: string }> => {
+    const res = await api.post(`/whiteboard/boards/${boardId}/share`);
+    return res.data?.data;
+  },
+  disableShare: async (boardId: string): Promise<{ isPublic: boolean; publicToken: string | null }> => {
+    const res = await api.delete(`/whiteboard/boards/${boardId}/share`);
+    return res.data?.data;
   },
 
   // ── Images ────────────────────────────────────────────────────────────────
