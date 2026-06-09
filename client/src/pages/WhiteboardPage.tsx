@@ -50,7 +50,38 @@ const hexA = (hex: string, a: number) => {
   const n = parseInt(m[1], 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
-const pathD = (pts: number[][]) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]} ${p[1]}`).join(' ');
+// Catmull-Rom → cubic bezier for smooth pen strokes.
+const smoothPathD = (pts: number[][]): string => {
+  if (pts.length < 2) return pts.length ? `M${pts[0][0]} ${pts[0][1]}` : '';
+  if (pts.length === 2) return `M${pts[0][0]} ${pts[0][1]} L${pts[1][0]} ${pts[1][1]}`;
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+};
+// Ramer–Douglas–Peucker point simplification to drop redundant points.
+const simplify = (pts: number[][], tol = 1.1): number[][] => {
+  if (pts.length <= 2) return pts;
+  const sqTol = tol * tol;
+  const sqSegDist = (p: number[], a: number[], b: number[]) => {
+    let x = a[0], y = a[1]; let dx = b[0] - x, dy = b[1] - y;
+    if (dx || dy) { const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy); if (t > 1) { x = b[0]; y = b[1]; } else if (t > 0) { x += dx * t; y += dy * t; } }
+    dx = p[0] - x; dy = p[1] - y; return dx * dx + dy * dy;
+  };
+  const out: number[][] = [pts[0]];
+  const rdp = (first: number, last: number) => {
+    let maxSq = sqTol, idx = -1;
+    for (let i = first + 1; i < last; i++) { const sq = sqSegDist(pts[i], pts[first], pts[last]); if (sq > maxSq) { idx = i; maxSq = sq; } }
+    if (idx !== -1) { if (idx - first > 1) rdp(first, idx); out.push(pts[idx]); if (last - idx > 1) rdp(idx, last); }
+  };
+  rdp(0, pts.length - 1); out.push(pts[pts.length - 1]);
+  return out.map((q) => [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10]);
+};
+const COARSE = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 const pathBounds = (pts: number[][]) => {
   const xs = pts.map((p) => p[0]); const ys = pts.map((p) => p[1]);
   return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
@@ -168,6 +199,11 @@ export const WhiteboardPage = () => {
   const clipRef = useRef<El[]>([]);
   const cursorTickRef = useRef(0);
   const liveTickRef = useRef(0);
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const gestureRef = useRef<{ d0: number; s0: number; c0x: number; c0y: number } | null>(null);
+  const penActiveRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ cx: number; cy: number } | null>(null);
 
   // ── Live ops ───────────────────────────────────────────────────────────────
   const emitOp = (op: any) => { if (activeTeam) getSocket()?.emit('whiteboard:op', { teamId: activeTeam._id, op }); };
@@ -226,7 +262,39 @@ export const WhiteboardPage = () => {
   useEffect(() => () => { if (dirtyRef.current && activeTeam && canEdit) whiteboardService.save(activeTeam._id, elsRef.current).catch(() => {}); }, [activeTeam?._id, canEdit]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const pt = (e: React.PointerEvent | PointerEvent) => { const r = svgRef.current!.getBoundingClientRect(); const z = scaleRef.current; return { x: (e.clientX - r.left - offsetRef.current.x) / z, y: (e.clientY - r.top - offsetRef.current.y) / z }; };
+  const ptc = (cx: number, cy: number) => { const r = svgRef.current!.getBoundingClientRect(); const z = scaleRef.current; return { x: (cx - r.left - offsetRef.current.x) / z, y: (cy - r.top - offsetRef.current.y) / z }; };
+  const pt = (e: React.PointerEvent | PointerEvent) => ptc(e.clientX, e.clientY);
+  // ── Touch: palm rejection + pinch-zoom / two-finger pan tracking ───────────
+  const isPalm = (e: React.PointerEvent) => e.pointerType === 'touch' && (penActiveRef.current || e.width > 45 || e.height > 45);
+  const startGesture = () => {
+    const r = svgRef.current?.getBoundingClientRect(); if (!r) return;
+    const pts = [...pointersRef.current.values()]; if (pts.length < 2) return;
+    const [a, b] = pts; const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+    const s0 = scaleRef.current, o0 = offsetRef.current;
+    gestureRef.current = { d0: d, s0, c0x: (mx - o0.x) / s0, c0y: (my - o0.y) / s0 };
+    // Discard any nascent single-finger element and cancel its op.
+    const op = opRef.current;
+    if (op?.id && ['draw', 'resize', 'lineDraw'].includes(op.kind)) setElements((els) => els.filter((e) => e.id !== op.id));
+    opRef.current = null; setMarquee(null);
+  };
+  const handlePinch = () => {
+    const r = svgRef.current?.getBoundingClientRect(); const g = gestureRef.current; if (!r || !g) return;
+    const pts = [...pointersRef.current.values()]; if (pts.length < 2) return;
+    const [a, b] = pts; const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+    const ns = clamp(g.s0 * (d / g.d0), MIN_ZOOM, MAX_ZOOM);
+    setScale(ns); setOffset({ x: mx - g.c0x * ns, y: my - g.c0y * ns });
+  };
+  // Register a pointer-down; returns 'palm' (reject), 'gesture' (multi-touch), or 'ok'.
+  const trackDown = (e: React.PointerEvent): 'palm' | 'gesture' | 'ok' => {
+    if (e.pointerType === 'pen') penActiveRef.current = true;
+    if (isPalm(e)) return 'palm';
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2) { startGesture(); return 'gesture'; }
+    if (pointersRef.current.size > 2) return 'gesture';
+    return 'ok';
+  };
   const centerPt = () => { const r = svgRef.current?.getBoundingClientRect(); const z = scaleRef.current; return { x: ((r?.width ?? 800) / 2 - offsetRef.current.x) / z, y: ((r?.height ?? 600) / 2 - offsetRef.current.y) / z }; };
   // Zoom toward a screen anchor point, keeping the canvas point under it fixed.
   const zoomTo = (next: number, ax: number, ay: number) => {
@@ -279,6 +347,7 @@ export const WhiteboardPage = () => {
   const onBgPointerDown = (e: React.PointerEvent) => {
     if (editingId) return;
     setCtxMenu(null);
+    const tr = trackDown(e); if (tr !== 'ok') return;
     if (spaceRef.current || tool === 'pan') { (e.target as Element).setPointerCapture?.(e.pointerId); opRef.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, ox: offset.x, oy: offset.y }; return; }
     if (tool === 'connector') { setConnectFrom(null); return; }
     (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -297,14 +366,13 @@ export const WhiteboardPage = () => {
     setElements((els) => isFrame ? [el, ...els] : [...els, el]); setSelectedIds([el.id]); opRef.current = { kind: 'resize', id: el.id, sx: p.x, sy: p.y };
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    // Broadcast our cursor (throttled) regardless of whether an op is active.
-    if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = pt(e); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, x: c.x, y: c.y }); } }
+  // Core op application, fed from a single rAF tick (coalesces multiple moves/frame).
+  const applyMove = (cx: number, cy: number) => {
     const op = opRef.current; if (!op) return;
-    if (op.kind === 'pan') { setOffset({ x: op.ox + (e.clientX - op.sx), y: op.oy + (e.clientY - op.sy) }); return; }
-    const p = pt(e);
+    if (op.kind === 'pan') { setOffset({ x: op.ox + (cx - op.sx), y: op.oy + (cy - op.sy) }); return; }
+    const p = ptc(cx, cy);
     if (op.kind === 'marquee') setMarquee({ x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) });
-    else if (op.kind === 'draw') { setElements((els) => els.map((el) => el.id === op.id && el.type === 'path' ? { ...el, points: [...el.points, [p.x, p.y]] } : el)); liveEmit([op.id]); }
+    else if (op.kind === 'draw') { setElements((els) => els.map((el) => { if (el.id !== op.id || el.type !== 'path') return el; const last = el.points[el.points.length - 1]; if (last && Math.abs(p.x - last[0]) < 2.5 && Math.abs(p.y - last[1]) < 2.5) return el; return { ...el, points: [...el.points, [p.x, p.y]] }; })); liveEmit([op.id]); }
     else if (op.kind === 'lineDraw') { patch(op.id, { x2: p.x, y2: p.y }); liveEmit([op.id]); }
     else if (op.kind === 'lineHandle') { patch(op.id, op.end === 1 ? { x1: p.x, y1: p.y } : { x2: p.x, y2: p.y }); liveEmit([op.id]); }
     else if (op.kind === 'resize') { patch(op.id, { x: Math.min(op.sx, p.x), y: Math.min(op.sy, p.y), w: Math.abs(p.x - op.sx), h: Math.abs(p.y - op.sy) }); liveEmit([op.id]); }
@@ -318,8 +386,20 @@ export const WhiteboardPage = () => {
       patch(op.id, { x, y, w, h }); liveEmit([op.id]);
     }
   };
+  const flushMove = () => { rafRef.current = null; const pm = pendingRef.current; if (pm) applyMove(pm.cx, pm.cy); };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activeTeam) { const now = Date.now(); if (now - cursorTickRef.current > 45) { cursorTickRef.current = now; const c = ptc(e.clientX, e.clientY); getSocket()?.emit('whiteboard:cursor', { teamId: activeTeam._id, x: c.x, y: c.y }); } }
+    if (gestureRef.current) { handlePinch(); return; }
+    if (!opRef.current) return;
+    pendingRef.current = { cx: e.clientX, cy: e.clientY };
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flushMove);
+  };
 
   const endOp = () => {
+    if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    if (pendingRef.current && opRef.current) applyMove(pendingRef.current.cx, pendingRef.current.cy);
+    pendingRef.current = null;
     const op = opRef.current;
     if (op?.kind === 'marquee') {
       const m = marquee;
@@ -329,14 +409,24 @@ export const WhiteboardPage = () => {
     if (op) {
       if (op.kind === 'resize') { const el = elsRef.current.find((e) => e.id === op.id); const b = el && getBox(el); if (b && b.w < 4 && b.h < 4) { setElements((els) => els.filter((e) => e.id !== op.id)); opRef.current = null; return; } }
       if (op.kind === 'lineDraw') { const el = elsRef.current.find((e) => e.id === op.id) as LineEl | undefined; if (el && Math.abs(el.x2 - el.x1) < 4 && Math.abs(el.y2 - el.y1) < 4) { setElements((els) => els.filter((e) => e.id !== op.id)); opRef.current = null; return; } }
+      if (op.kind === 'draw') { const el = elsRef.current.find((e) => e.id === op.id) as PathEl | undefined; if (el && el.type === 'path') { if (el.points.length < 2) { setElements((els) => els.filter((e) => e.id !== op.id)); opRef.current = null; return; } patch(op.id, { points: simplify(el.points, 1.1) }); setTimeout(() => emitUpsert(op.id), 0); } opRef.current = null; return; }
       if (op.kind === 'move') { for (const id of Object.keys(op.orig)) emitUpsert(id); }
-      else if (['draw', 'resize', 'handle', 'lineDraw', 'lineHandle'].includes(op.kind)) emitUpsert(op.id);
+      else if (['resize', 'handle', 'lineHandle'].includes(op.kind)) emitUpsert(op.id);
     }
     opRef.current = null;
+  };
+  // Pointer release: drop the pointer, end gestures, then commit the op.
+  const onPointerUp = (e: React.PointerEvent) => {
+    pointersRef.current.delete(e.pointerId);
+    if (e.pointerType === 'pen') penActiveRef.current = false;
+    if (gestureRef.current) { if (pointersRef.current.size < 2) gestureRef.current = null; if (pointersRef.current.size === 1) { const [pt0] = [...pointersRef.current.values()]; opRef.current = { kind: 'pan', sx: pt0.x, sy: pt0.y, ox: offsetRef.current.x, oy: offsetRef.current.y }; } return; }
+    endOp();
   };
 
   const onElPointerDown = (e: React.PointerEvent, el: El) => {
     if (spaceRef.current) return; // let the event bubble to the canvas for panning
+    const tr = trackDown(e); if (tr === 'palm') { e.stopPropagation(); return; }
+    if (tr === 'gesture') { e.stopPropagation(); return; } // second finger → pinch/pan
     if (!canEdit || editingId) return;
     if (tool === 'eraser') { e.stopPropagation(); pushHistory(); emitOp({ kind: 'delete', id: el.id }); setElements((els) => els.filter((x) => x.id !== el.id && !(x.type === 'connector' && (x.from === el.id || x.to === el.id)))); return; }
     if (tool === 'connector') {
@@ -417,7 +507,14 @@ export const WhiteboardPage = () => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editingId || !canEdit) return;
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || (a as HTMLElement).isContentEditable)) return;
       const meta = e.metaKey || e.ctrlKey;
+      if (!meta && !e.altKey && !e.shiftKey) {
+        const tmap: Record<string, Tool> = { v: 'select', h: 'pan', n: 'note', r: 'rect', o: 'ellipse', d: 'diamond', g: 'triangle', s: 'star', l: 'line', a: 'arrow', c: 'connector', p: 'pen', t: 'text', f: 'frame', e: 'eraser' };
+        const k = e.key.toLowerCase();
+        if (tmap[k]) { e.preventDefault(); setTool(tmap[k]); setConnectFrom(null); return; }
+      }
       if (meta && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
       if (meta && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
       if (meta && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
@@ -482,6 +579,7 @@ export const WhiteboardPage = () => {
 
   const cursor = spaceHeld ? 'grab' : tool === 'pan' ? 'grab' : tool === 'eraser' ? 'cell' : tool === 'connector' ? 'crosshair' : 'default';
   const hz = 1 / scale; // keep handles/hit-targets a constant screen size across zoom
+  const hpx = hz * (COARSE ? 1.7 : 1); // bigger grab targets on touch devices
   const HANDLES = ['nw', 'ne', 'sw', 'se'] as const;
   const map = new Map(elements.map((e) => [e.id, e]));
   const selEls = elements.filter((e) => selectedIds.includes(e.id));
@@ -490,6 +588,8 @@ export const WhiteboardPage = () => {
   const textSel = selEls.find((e) => e.type === 'text' || e.type === 'note' || (isBoxLike(e) && e.type !== 'image' && e.type !== 'task'));
   const showStyle = canEdit && (selectedIds.some((id) => map.get(id)?.type !== 'connector') || ['note', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame', 'line', 'arrow', 'pen', 'text'].includes(tool));
   const filteredTasks = Object.values(tasks).filter((t) => (t.title + ' ' + (t.identifier ?? '')).toLowerCase().includes(taskQuery.toLowerCase())).slice(0, 40);
+  const typeCounts = elements.reduce((acc, el) => { const k = el.type === 'note' ? 'notes' : el.type === 'text' ? 'text labels' : el.type === 'connector' ? 'connectors' : el.type === 'image' ? 'images' : el.type === 'task' ? 'task cards' : el.type === 'path' ? 'pen strokes' : el.type === 'line' || el.type === 'arrow' ? 'lines & arrows' : 'shapes'; acc[k] = (acc[k] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const srSummary = elements.length === 0 ? 'Empty whiteboard.' : `Whiteboard with ${elements.length} elements: ${Object.entries(typeCounts).map(([k, v]) => `${v} ${k}`).join(', ')}.${selectedIds.length ? ` ${selectedIds.length} selected.` : ''}${Object.keys(peers).length ? ` ${Object.keys(peers).length} teammate${Object.keys(peers).length > 1 ? 's' : ''} present.` : ''}`;
   const openCtx = (e: React.MouseEvent, el: El) => { if (!canEdit) return; e.preventDefault(); if (!selectedIds.includes(el.id)) setSelectedIds([el.id]); setCtxMenu({ x: e.clientX, y: e.clientY }); };
   const sw = (n: number | undefined) => n ?? 2;
   const dashOf = (el: El) => (el as any).dash ? '6 5' : undefined;
@@ -532,7 +632,7 @@ export const WhiteboardPage = () => {
         ) : null)}
         {el.locked && <foreignObject x={b.x + b.w - 16} y={b.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
         {selected && <rect x={b.x - 3 * hz} y={b.y - 3 * hz} width={b.w + 6 * hz} height={b.h + 6 * hz} rx={10 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
-        {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? b.x : b.x + b.w; const hy = c.includes('n') ? b.y : b.y + b.h; return <rect key={c} x={hx - 5 * hz} y={hy - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
+        {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? b.x : b.x + b.w; const hy = c.includes('n') ? b.y : b.y + b.h; return <rect key={c} x={hx - 5 * hpx} y={hy - 5 * hpx} width={10 * hpx} height={10 * hpx} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
       </g>
     );
   };
@@ -540,12 +640,13 @@ export const WhiteboardPage = () => {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-slate-50 dark:bg-slate-950">
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+      <div className="sr-only" role="status" aria-live="polite">{srSummary}</div>
       {/* Toolbar */}
       <div className="z-10 flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white/80 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200"><Presentation className="h-4 w-4 text-brand-500" /> Whiteboard</div>
         <div className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
         {TOOLS.filter((t) => canEdit || t.id === 'select' || t.id === 'pan').map((t) => (
-          <button key={t.id} onClick={() => { setTool(t.id); setConnectFrom(null); }} title={t.label} className={cn('rounded-lg p-2 transition-colors', tool === t.id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')}><t.icon className="h-4 w-4" /></button>
+          <button key={t.id} onClick={() => { setTool(t.id); setConnectFrom(null); }} title={t.label} aria-label={t.label} aria-pressed={tool === t.id} className={cn('rounded-lg p-2 transition-colors', tool === t.id ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')}><t.icon className="h-4 w-4" /></button>
         ))}
         {canEdit && (
           <>
@@ -577,7 +678,7 @@ export const WhiteboardPage = () => {
       {/* Canvas */}
       <div ref={wrapRef} className="relative flex-1 overflow-hidden">
         {loading && <div className="absolute inset-0 z-10 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>}
-        <svg ref={svgRef} className="h-full w-full touch-none" style={{ cursor }} onPointerDown={onBgPointerDown} onPointerMove={onPointerMove} onPointerUp={endOp} onPointerLeave={endOp}>
+        <svg ref={svgRef} role="application" aria-label={`Collaborative whiteboard for ${activeTeam.name}. ${elements.length} elements.${canEdit ? '' : ' View only.'}`} className="h-full w-full touch-none" style={{ cursor }} onPointerDown={onBgPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={() => { if (!gestureRef.current) endOp(); }}>
           <defs>
             <pattern id="wb-dots" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform={`translate(${offset.x} ${offset.y}) scale(${scale})`}><circle cx="1" cy="1" r="1" className="fill-slate-200 dark:fill-slate-800" /></pattern>
             <pattern id="wb-lines" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform={`translate(${offset.x} ${offset.y}) scale(${scale})`}><path d="M24 0H0V24" fill="none" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth={1} vectorEffect="non-scaling-stroke" /></pattern>
@@ -591,7 +692,7 @@ export const WhiteboardPage = () => {
                 const ends = connEnds(el, map); if (!ends) return null;
                 const ang = Math.atan2(ends.e.y - ends.s.y, ends.e.x - ends.s.x);
                 return (<g key={el.id} opacity={el.opacity ?? 1}>
-                  <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke="transparent" strokeWidth={14 * hz} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
+                  <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke="transparent" strokeWidth={14 * hpx} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
                   <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke={el.stroke} strokeWidth={sw(el.strokeWidth)} strokeDasharray={dashOf(el)} pointerEvents="none" />
                   {el.arrow !== false && <polygon points={arrowHead(ends.e, ang)} fill={el.stroke} pointerEvents="none" />}
                   {selected && <line x1={ends.s.x} y1={ends.s.y} x2={ends.e.x} y2={ends.e.y} stroke="#e8502e" strokeWidth={sw(el.strokeWidth) + 4} strokeOpacity={0.25} pointerEvents="none" />}
@@ -600,17 +701,18 @@ export const WhiteboardPage = () => {
               if (el.type === 'line' || el.type === 'arrow') {
                 const ang = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
                 return (<g key={el.id} opacity={el.opacity ?? 1}>
-                  <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={14 * hz} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
+                  <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="transparent" strokeWidth={14 * hpx} onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
                   <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke={el.stroke} strokeWidth={sw(el.strokeWidth)} strokeDasharray={dashOf(el)} strokeLinecap="round" pointerEvents="none" />
                   {el.type === 'arrow' && <polygon points={arrowHead({ x: el.x2, y: el.y2 }, ang)} fill={el.stroke} pointerEvents="none" />}
                   {el.locked && <foreignObject x={(el.x1 + el.x2) / 2 - 7} y={(el.y1 + el.y2) / 2 - 7} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
-                  {selected && canEdit && tool === 'select' && !el.locked && ([1, 2] as const).map((end) => { const ex = end === 1 ? el.x1 : el.x2, ey = end === 1 ? el.y1 : el.y2; return <rect key={end} x={ex - 5 * hz} y={ey - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onLineHandleDown(e, el, end)} style={{ cursor: 'crosshair' }} />; })}
+                  {selected && canEdit && tool === 'select' && !el.locked && ([1, 2] as const).map((end) => { const ex = end === 1 ? el.x1 : el.x2, ey = end === 1 ? el.y1 : el.y2; return <rect key={end} x={ex - 5 * hpx} y={ey - 5 * hpx} width={10 * hpx} height={10 * hpx} rx={2 * hpx} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onLineHandleDown(e, el, end)} style={{ cursor: 'crosshair' }} />; })}
                 </g>);
               }
               if (el.type === 'path') {
                 const b = el.points.length > 1 ? pathBounds(el.points) : null;
                 return (<g key={el.id} opacity={el.opacity ?? 1}>
-                  <path d={pathD(el.points)} fill="none" stroke={el.stroke} strokeWidth={sw(el.strokeWidth)} strokeDasharray={dashOf(el)} strokeLinecap="round" strokeLinejoin="round" onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
+                  <path d={smoothPathD(el.points)} fill="none" stroke="transparent" strokeWidth={Math.max(sw(el.strokeWidth), 12 * hpx)} strokeLinecap="round" onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
+                  <path d={smoothPathD(el.points)} fill="none" stroke={el.stroke} strokeWidth={sw(el.strokeWidth)} strokeDasharray={dashOf(el)} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
                   {selected && b && <rect x={b.x - 4} y={b.y - 4} width={b.w + 8} height={b.h + 8} rx={6} fill="none" stroke="#e8502e" strokeWidth={1.5} strokeDasharray="4 3" pointerEvents="none" />}
                 </g>);
               }
@@ -626,7 +728,7 @@ export const WhiteboardPage = () => {
                   <image href={el.url} x={el.x} y={el.y} width={el.w} height={el.h} preserveAspectRatio="xMidYMid slice" onPointerDown={(e) => onElPointerDown(e, el)} onContextMenu={(e) => openCtx(e, el)} style={{ cursor: moveCursor }} />
                   {el.locked && <foreignObject x={el.x + el.w - 16} y={el.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-white drop-shadow" /></foreignObject>}
                   {selected && <rect x={el.x - 3 * hz} y={el.y - 3 * hz} width={el.w + 6 * hz} height={el.h + 6 * hz} rx={6 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
-                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5 * hz} y={hy - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
+                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5 * hpx} y={hy - 5 * hpx} width={10 * hpx} height={10 * hpx} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
                 </g>);
               }
               if (el.type === 'task') {
@@ -645,7 +747,7 @@ export const WhiteboardPage = () => {
                   </foreignObject>
                   {el.locked && <foreignObject x={el.x + el.w - 16} y={el.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
                   {selected && <rect x={el.x - 3 * hz} y={el.y - 3 * hz} width={el.w + 6 * hz} height={el.h + 6 * hz} rx={14 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
-                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5 * hz} y={hy - 5 * hz} width={10 * hz} height={10 * hz} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
+                  {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? el.x : el.x + el.w; const hy = c.includes('n') ? el.y : el.y + el.h; return <rect key={c} x={hx - 5 * hpx} y={hy - 5 * hpx} width={10 * hpx} height={10 * hpx} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
                 </g>);
               }
               return renderShape(el as Shape, selected, moveCursor);
