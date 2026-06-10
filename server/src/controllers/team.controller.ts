@@ -20,6 +20,7 @@ import {
 import { assertPermission } from '../utils/permissions';
 import { syncTeamSeats } from './billing.controller';
 import { logActivity } from '../services/audit.service';
+import { seedStarterWorkspace } from '../services/onboarding.service';
 
 const generateSlug = (name: string): string => {
   return (
@@ -57,6 +58,14 @@ export const createTeam = asyncHandler(async (req: Request, res: Response) => {
   });
 
   await User.findByIdAndUpdate(userId, { $addToSet: { teams: team._id } });
+
+  // First-run onboarding: populate the user's very first team with sample
+  // tasks + a welcome doc so they don't land in an empty workspace. ownedCount
+  // is the count *before* this team was created, so 0 means this is their first.
+  // Fire-and-forget — seeding must never delay or fail team creation.
+  if (ownedCount === 0) {
+    void seedStarterWorkspace(team._id.toString(), userId);
+  }
 
   sendSuccess(res, { team: await serializeTeam(team, req.user!.email) }, 'Team created.', 201);
 });
