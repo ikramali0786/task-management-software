@@ -29,6 +29,8 @@ services:
         generateValue: true   # Auto-generated secret for AES-256 API key encryption
       - key: SENTRY_DSN
         sync: false           # Optional — Sentry Node project DSN (see OPERATIONS.md §1)
+      - key: SUPER_ADMIN_EMAILS
+        sync: false           # Optional — comma-separated emails allowed into /app/admin (defaults to founder)
 
       # ── Cloudflare R2 file storage ──────────────────────────────────────
       - key: R2_ACCOUNT_ID
