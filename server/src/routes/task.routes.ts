@@ -7,21 +7,25 @@ import {
   updateTaskStatus,
   updateTaskPosition,
   deleteTask,
+  searchTasks,
+  semanticSearch,
+  rebalancePositions,
+  bulkUpdateTasks,
+  bulkDeleteTasks,
+} from '../controllers/task.controller';
+import {
   getTaskStats,
   getDashboardMetrics,
   getWorkload,
-  searchTasks,
-  semanticSearch,
-  exportTasks,
   getAnalytics,
   getSchedulingSuggestions,
+} from '../controllers/taskAnalytics.controller';
+import { exportTasks } from '../controllers/taskExport.controller';
+import {
   addSubtask,
   updateSubtask,
   deleteSubtask,
   reorderSubtasks,
-  rebalancePositions,
-  bulkUpdateTasks,
-  bulkDeleteTasks,
   logTime,
   deleteTimeEntry,
   updateEstimate,
@@ -29,7 +33,7 @@ import {
   updateTaskLinks,
   addDependency,
   removeDependency,
-} from '../controllers/task.controller';
+} from '../controllers/taskItems.controller';
 import { protect } from '../middleware/auth.middleware';
 
 const router = Router();
