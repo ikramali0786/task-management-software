@@ -14,6 +14,7 @@ import { sendSuccess } from '../utils/ApiResponse';
 import { ApiError } from '../utils/ApiError';
 import { env } from '../config/env';
 import { audit } from '../utils/logger';
+import { isSuperAdmin } from '../utils/admin';
 import {
   sendPasswordResetEmail,
   sendVerificationEmail,
@@ -345,7 +346,9 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
 export const getMe = asyncHandler(async (req: Request, res: Response) => {
   const user = await User.findById(req.user?._id).populate('teams', 'name slug avatar');
-  sendSuccess(res, { user });
+  // Surface the super-admin flag so the client can reveal the admin panel.
+  const payload = user ? { ...user.toObject(), isSuperAdmin: isSuperAdmin(user.email) } : user;
+  sendSuccess(res, { user: payload });
 });
 
 export const updateMe = asyncHandler(async (req: Request, res: Response) => {

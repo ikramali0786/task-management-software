@@ -20,7 +20,8 @@
     "goals": "Goals",
     "activity": "Activity",
     "chatbots": "AI Chatbots",
-    "settings": "Settings"
+    "settings": "Settings",
+    "admin": "Admin"
   },
   "auth": {
     "welcomeBack": "Welcome back",

@@ -25,6 +25,7 @@ import publicRoutes from './public.routes';
 import goalRoutes from './goal.routes';
 import whiteboardRoutes from './whiteboard.routes';
 import docRoutes from './doc.routes';
+import adminRoutes from './admin.routes';
 
 const router = Router();
 
@@ -54,5 +55,6 @@ router.use('/public', publicRoutes);
 router.use('/goals', goalRoutes);
 router.use('/whiteboard', whiteboardRoutes);
 router.use('/docs', docRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
-  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation, BookText,
+  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation, BookText, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -60,6 +60,15 @@ export const Sidebar = () => {
   const [showTeamMenu, setShowTeamMenu] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // Super-admins get an extra Admin link appended to the "Manage" group.
+  const groups = user?.isSuperAdmin
+    ? navGroups.map((g) =>
+        g.label === 'Manage'
+          ? { ...g, items: [...g.items, { to: '/app/admin', icon: ShieldCheck, i18nKey: 'nav.admin' } as NavItem] }
+          : g
+      )
+    : navGroups;
 
   // Auto-close sidebar on small screens when navigating
   useEffect(() => {
@@ -229,7 +238,7 @@ export const Sidebar = () => {
 
             {/* Nav */}
             <nav className={cn('mt-4 flex-1 px-3 overflow-y-auto', sidebarCollapsed && 'px-1.5')}>
-              {navGroups.map((group, gi) => (
+              {groups.map((group, gi) => (
                 <div
                   key={gi}
                   className={cn(

@@ -17,6 +17,7 @@ export interface User {
   twoFactorEnabled?: boolean;
   lastSeenAt?: string;
   createdAt?: string;
+  isSuperAdmin?: boolean;
 }
 
 export interface TaskActivity {

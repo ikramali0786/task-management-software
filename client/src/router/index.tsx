@@ -25,6 +25,7 @@ const TimelinePage = lazy(() => import('@/pages/TimelinePage').then(m => ({ defa
 const WhiteboardPage = lazy(() => import('@/pages/WhiteboardPage').then(m => ({ default: m.WhiteboardPage })));
 const DocsPage     = lazy(() => import('@/pages/DocsPage').then(m => ({ default: m.DocsPage })));
 const StatusPage   = lazy(() => import('@/pages/StatusPage').then(m => ({ default: m.StatusPage })));
+const AdminPage    = lazy(() => import('@/pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage  = lazy(() => import('@/pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const VerifyEmailPage    = lazy(() => import('@/pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
@@ -101,6 +102,7 @@ export const router = createBrowserRouter([
       { path: 'chatbots', element: <ChatbotsPage /> },
       { path: 'calendar', element: <CalendarPage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'admin', element: <AdminPage /> },
     ],
   },
 

@@ -39,6 +39,10 @@ export const env = {
   // owner, comped accounts). These accounts always resolve to the Pro plan
   // regardless of any stored team plan — no Stripe subscription required.
   PREMIUM_EMAILS: process.env.PREMIUM_EMAILS || 'ikram.ali3811@gmail.com',
+  // Comma-separated emails allowed into the internal admin/support panel
+  // (/api/admin/*, /app/admin). Distinct from PREMIUM_EMAILS — admin access is
+  // a separate concern from comped billing. Defaults to the founder.
+  SUPER_ADMIN_EMAILS: process.env.SUPER_ADMIN_EMAILS || 'ikram.ali3811@gmail.com',
   // Stripe (optional — billing self-serve activates only when these are set).
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
