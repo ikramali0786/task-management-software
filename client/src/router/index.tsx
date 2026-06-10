@@ -38,6 +38,7 @@ const PricingPage     = lazy(() => import('@/pages/marketing/PricingPage').then(
 const HelpPage        = lazy(() => import('@/pages/marketing/HelpPage').then(m => ({ default: m.HelpPage })));
 const HelpArticlePage = lazy(() => import('@/pages/marketing/HelpArticlePage').then(m => ({ default: m.HelpArticlePage })));
 const ContactPage     = lazy(() => import('@/pages/marketing/ContactPage').then(m => ({ default: m.ContactPage })));
+const ApiDocsPage     = lazy(() => import('@/pages/marketing/ApiDocsPage').then(m => ({ default: m.ApiDocsPage })));
 
 // ── Public share pages (no auth, no layout) ──────────────────────────────────
 const IntakeFormPage  = lazy(() => import('@/pages/public/IntakeFormPage').then(m => ({ default: m.IntakeFormPage })));
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
       { path: 'help', element: <HelpPage /> },
       { path: 'help/:slug', element: <HelpArticlePage /> },
       { path: 'contact', element: <ContactPage /> },
+      { path: 'developers', element: <ApiDocsPage /> },
     ],
   },
 

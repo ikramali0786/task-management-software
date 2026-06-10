@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/features', label: 'Features' },
   { to: '/pricing', label: 'Pricing' },
+  { to: '/developers', label: 'Developers' },
   { to: '/help', label: 'Help' },
   { to: '/contact', label: 'Contact' },
 ];
@@ -95,7 +96,7 @@ const MarketingHeader = () => {
 
 const FOOTER = [
   { heading: 'Product', links: [['Features', '/features'], ['Pricing', '/pricing'], ['Log in', '/login'], ['Get started', '/register']] },
-  { heading: 'Support', links: [['Help center', '/help'], ['Contact us', '/contact'], ['System status', '/status']] },
+  { heading: 'Support', links: [['Help center', '/help'], ['API docs', '/developers'], ['Contact us', '/contact'], ['System status', '/status']] },
   { heading: 'Legal', links: [['Privacy', '/privacy']] },
 ];
 
