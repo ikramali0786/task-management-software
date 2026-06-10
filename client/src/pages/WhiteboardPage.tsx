@@ -29,7 +29,7 @@ import type {
 import {
   STROKES, FILLS, NOTE_FILL, MIN_ZOOM, MAX_ZOOM, PEER_TTL, COARSE,
   uid, clone, clamp, peerColor, relTime, hexA, smoothPathD, simplify, pathBounds,
-  isBoxLike, getBox, intersects, center, edgePoint, polyDiamond, polyTriangle, polyStar, arrowHead, sanitizeHtml, migrate,
+  isBoxLike, getBox, intersects, center, edgePoint, polyDiamond, polyTriangle, polyStar, arrowHead, sanitizeHtml, escapeHtml, migrate,
 } from '@/lib/whiteboardGeometry';
 import { BoardThumb } from '@/components/whiteboard/BoardThumb';
 import { CollabLayer } from '@/components/whiteboard/CollabLayer';
@@ -783,6 +783,9 @@ export const WhiteboardPage = () => {
   const soleBox = selEls.length === 1 ? getBox(selEls[0]) : null;
   const soleEl = selEls.length === 1 ? selEls[0] : null;
   const textSel = selEls.find((e) => e.type === 'text' || e.type === 'note' || (isBoxLike(e) && e.type !== 'image' && e.type !== 'task'));
+  // Which selections support inline rich text (bold/italic/underline/lists):
+  // notes + geometric shapes. Standalone text labels, frames, lines, etc. don't.
+  const richSel = !!textSel && ['note', 'rect', 'ellipse', 'diamond', 'triangle', 'star'].includes(textSel.type);
   const showStyle = canEdit && (selectedIds.some((id) => map.get(id)?.type !== 'connector') || ['note', 'rect', 'ellipse', 'diamond', 'triangle', 'star', 'frame', 'line', 'arrow', 'pen', 'text'].includes(tool));
   const filteredTasks = Object.values(tasks).filter((t) => (t.title + ' ' + (t.identifier ?? '')).toLowerCase().includes(taskQuery.toLowerCase())).slice(0, 40);
   const typeCounts = elements.reduce((acc, el) => { const k = el.type === 'note' ? 'notes' : el.type === 'text' ? 'text labels' : el.type === 'connector' ? 'connectors' : el.type === 'image' ? 'images' : el.type === 'task' ? 'task cards' : el.type === 'path' ? 'pen strokes' : el.type === 'line' || el.type === 'arrow' ? 'lines & arrows' : 'shapes'; acc[k] = (acc[k] || 0) + 1; return acc; }, {} as Record<string, number>);
@@ -805,28 +808,34 @@ export const WhiteboardPage = () => {
       <g key={el.id} opacity={el.opacity ?? 1}>
         {shapeNode}
         {el.type === 'frame' && <text x={b.x + 8} y={b.y - 6} fontSize={12} fontWeight={600} fill="#64748b" className="select-none" style={{ pointerEvents: 'none' }}>{el.text || 'Frame'}</text>}
-        {el.type === 'note' ? (
-          editing ? (
+        {/* Rich text for notes + geometric shapes (rect/ellipse/diamond/triangle/star).
+            Notes render top-left in ink; shapes center their text in the stroke colour.
+            Legacy shapes that only have plain `text` seed the editor/display via escapeHtml,
+            and become `html` on the first edit. Frames carry only the top label above. */}
+        {el.type !== 'frame' && (() => {
+          const isNote = el.type === 'note';
+          const initHtml = el.html || (el.text ? escapeHtml(el.text) : '');
+          const sty = { fontSize: el.fontSize ?? 14, textAlign: (el.align ?? (isNote ? 'left' : 'center')) as React.CSSProperties['textAlign'], ...(isNote ? {} : { color: el.stroke }) };
+          const listCls = '[&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4';
+          const editCls = isNote
+            ? `h-full w-full overflow-auto p-2 text-slate-800 outline-none ${listCls}`
+            : `flex h-full w-full items-center justify-center overflow-auto px-1.5 font-medium outline-none ${listCls}`;
+          const viewCls = isNote
+            ? `h-full w-full overflow-hidden p-2 text-slate-800 ${listCls}`
+            : `flex h-full w-full items-center justify-center overflow-hidden px-1.5 font-medium ${listCls}`;
+          return editing ? (
             <foreignObject x={b.x} y={b.y} width={b.w} height={b.h}>
-              <div contentEditable suppressContentEditableWarning autoFocus autoCapitalize="sentences" spellCheck ref={(n) => { if (n && !n.dataset.init) { n.dataset.init = '1'; n.innerHTML = el.html || ''; n.focus(); } }}
+              <div contentEditable suppressContentEditableWarning autoFocus autoCapitalize="sentences" spellCheck
+                ref={(n) => { if (n && !n.dataset.init) { n.dataset.init = '1'; n.innerHTML = initHtml; n.focus(); } }}
                 onBlur={(e) => commitHtml(el.id, e.currentTarget.innerHTML)}
-                className="h-full w-full overflow-auto p-2 text-slate-800 outline-none"
-                style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'left' }} />
+                className={editCls} style={sty} />
             </foreignObject>
-          ) : (
+          ) : (el.html || el.text) ? (
             <foreignObject x={b.x} y={b.y} width={b.w} height={b.h} style={{ pointerEvents: 'none' }}>
-              <div className="h-full w-full overflow-hidden p-2 text-slate-800 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4" style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'left' }} dangerouslySetInnerHTML={{ __html: el.html || '' }} />
+              <div className={viewCls} style={sty} dangerouslySetInnerHTML={{ __html: el.html || escapeHtml(el.text || '') }} />
             </foreignObject>
-          )
-        ) : el.type !== 'frame' && (editing ? (
-          <foreignObject x={b.x} y={b.y} width={b.w} height={b.h}>
-            <input autoFocus defaultValue={el.text} autoCapitalize="sentences" spellCheck enterKeyHint="done" onBlur={(e) => commitText(el.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} className="h-full w-full bg-transparent text-center outline-none" style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'center', color: el.stroke }} />
-          </foreignObject>
-        ) : el.text ? (
-          <foreignObject x={b.x} y={b.y} width={b.w} height={b.h} style={{ pointerEvents: 'none' }}>
-            <div className="flex h-full w-full items-center justify-center overflow-hidden px-1.5 font-medium" style={{ fontSize: el.fontSize ?? 14, textAlign: el.align ?? 'center', color: el.stroke }}>{el.text}</div>
-          </foreignObject>
-        ) : null)}
+          ) : null;
+        })()}
         {el.locked && <foreignObject x={b.x + b.w - 16} y={b.y + 2} width={14} height={14} style={{ pointerEvents: 'none' }}><Lock className="h-3 w-3 text-slate-400" /></foreignObject>}
         {selected && <rect x={b.x - 3 * hz} y={b.y - 3 * hz} width={b.w + 6 * hz} height={b.h + 6 * hz} rx={10 * hz} fill="none" stroke="#e8502e" strokeWidth={1.5 * hz} strokeDasharray={`${4 * hz} ${3 * hz}`} pointerEvents="none" />}
         {selected && canEdit && tool === 'select' && !el.locked && soleEl?.id === el.id && HANDLES.map((c) => { const hx = c.includes('w') ? b.x : b.x + b.w; const hy = c.includes('n') ? b.y : b.y + b.h; return <rect key={c} x={hx - 5 * hpx} y={hy - 5 * hpx} width={10 * hpx} height={10 * hpx} rx={2 * hz} fill="#fff" stroke="#e8502e" strokeWidth={1.5 * hz} onPointerDown={(e) => onHandleDown(e, el, c)} style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }} />; })}
@@ -1087,12 +1096,14 @@ export const WhiteboardPage = () => {
             {textSel && (
               <>
                 <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
-                <div className="flex items-center gap-1">
-                  <button onMouseDown={(e) => { e.preventDefault(); editingId ? exec('bold') : null; }} onClick={() => !editingId && applyStyle({} as any)} title="Bold (while editing a note)" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Bold className="h-3.5 w-3.5" /></button>
-                  <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('italic'); }} title="Italic" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Italic className="h-3.5 w-3.5" /></button>
-                  <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('underline'); }} title="Underline" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Underline className="h-3.5 w-3.5" /></button>
-                  <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('insertUnorderedList'); }} title="Bullet list (notes)" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><List className="h-3.5 w-3.5" /></button>
-                </div>
+                {richSel && (
+                  <div className="flex items-center gap-1">
+                    <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('bold'); }} title="Bold (while editing)" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Bold className="h-3.5 w-3.5" /></button>
+                    <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('italic'); }} title="Italic (while editing)" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Italic className="h-3.5 w-3.5" /></button>
+                    <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('underline'); }} title="Underline (while editing)" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Underline className="h-3.5 w-3.5" /></button>
+                    <button onMouseDown={(e) => { e.preventDefault(); if (editingId) exec('insertUnorderedList'); }} title="Bullet list (while editing)" className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><List className="h-3.5 w-3.5" /></button>
+                  </div>
+                )}
                 <div className="flex items-center gap-1">
                   {([['left', AlignLeft], ['center', AlignCenter], ['right', AlignRight]] as const).map(([a, Ic]) => (<button key={a} onClick={() => applyStyle({ align: a })} title={`Align ${a}`} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><Ic className="h-3.5 w-3.5" /></button>))}
                 </div>

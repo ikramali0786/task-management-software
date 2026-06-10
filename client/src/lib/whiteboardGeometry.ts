@@ -90,6 +90,10 @@ export const arrowHead = (p: { x: number; y: number }, ang: number, size = 9) =>
   return `${p.x},${p.y} ${p.x + size * Math.cos(a1)},${p.y + size * Math.sin(a1)} ${p.x + size * Math.cos(a2)},${p.y + size * Math.sin(a2)}`;
 };
 
+// Escape plain text → safe HTML, so a legacy shape's `text` can seed the
+// rich-text editor / display without breaking on <, >, &.
+export const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 export const sanitizeHtml = (html: string) => {
   const allowed = /^(B|STRONG|I|EM|U|UL|OL|LI|BR|DIV|SPAN|P)$/;
   const root = document.createElement('div'); root.innerHTML = html;
