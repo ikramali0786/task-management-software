@@ -5,6 +5,8 @@ import {
   assertPermission,
   canEditTask,
   canDeleteTask,
+  assertCanEditTask,
+  assertCanDeleteTask,
   BUILT_IN_PERMISSIONS,
 } from '../permissions';
 
@@ -109,5 +111,76 @@ describe('canEditTask / canDeleteTask (own vs any)', () => {
   it('owner can edit and delete any task', () => {
     expect(canEditTask(team(), 'owner1', othersTask)).toBe(true);
     expect(canDeleteTask(team(), 'owner1', othersTask)).toBe(true);
+  });
+});
+
+// Guests are always read-only — this is the core of the "share a board with an
+// outside collaborator" safety guarantee, so it gets explicit coverage.
+describe('guest override (isGuest forces read-only)', () => {
+  const guestTeam = (role: string, extra: any = {}) =>
+    team({
+      members: [
+        { user: 'owner1', role: 'admin' },
+        { user: 'g1', role, isGuest: true, ...extra },
+      ],
+    });
+
+  it('downgrades a guest to viewer permissions regardless of nominal role', () => {
+    // Even a guest carrying an "admin" role resolves to the viewer set.
+    expect(resolvePermissions(guestTeam('admin'), 'g1')).toEqual(BUILT_IN_PERMISSIONS.viewer);
+    expect(hasPermission(guestTeam('admin'), 'g1', 'createTask')).toBe(false);
+    expect(hasPermission(guestTeam('member'), 'g1', 'commentOnTasks')).toBe(false);
+  });
+
+  it('a guest cannot edit or delete even tasks they created', () => {
+    const ownTask = { createdBy: 'g1', assignees: ['g1'] };
+    expect(canEditTask(guestTeam('member'), 'g1', ownTask)).toBe(false);
+    expect(canDeleteTask(guestTeam('member'), 'g1', ownTask)).toBe(false);
+  });
+
+  it('a guest with a permissive custom role is still read-only', () => {
+    const t = team({
+      members: [{ user: 'g1', role: 'Lead', isGuest: true }],
+      customRoles: [{ name: 'Lead', permissions: { ...BUILT_IN_PERMISSIONS.admin } }],
+    });
+    expect(resolvePermissions(t, 'g1')).toEqual(BUILT_IN_PERMISSIONS.viewer);
+  });
+
+  it('the owner is never treated as a guest even if flagged', () => {
+    // owner1 is the team owner; the owner short-circuit wins over any member flag.
+    const t = team({ members: [{ user: 'owner1', role: 'admin', isGuest: true }] });
+    expect(resolvePermissions(t, 'owner1')).toEqual(BUILT_IN_PERMISSIONS.owner);
+  });
+});
+
+describe('assertCanEditTask / assertCanDeleteTask (throwing variants)', () => {
+  const othersTask = { createdBy: 'owner1', assignees: ['someoneElse'] };
+  const ownTask = { createdBy: 'mem1', assignees: [] };
+
+  it('throws 403 PERMISSION_DENIED when a member edits someone else\'s task', () => {
+    expect(() => assertCanEditTask(team(), 'mem1', othersTask)).toThrowError();
+    try {
+      assertCanEditTask(team(), 'mem1', othersTask);
+    } catch (e: any) {
+      expect(e.statusCode).toBe(403);
+      expect(e.code).toBe('PERMISSION_DENIED');
+      expect(e.details?.permission).toBe('editTask');
+    }
+  });
+
+  it('throws 403 PERMISSION_DENIED when a member deletes someone else\'s task', () => {
+    try {
+      assertCanDeleteTask(team(), 'mem1', othersTask);
+      throw new Error('should have thrown');
+    } catch (e: any) {
+      expect(e.statusCode).toBe(403);
+      expect(e.details?.permission).toBe('deleteTask');
+    }
+  });
+
+  it('passes silently for an allowed edit/delete', () => {
+    expect(() => assertCanEditTask(team(), 'mem1', ownTask)).not.toThrow();
+    expect(() => assertCanDeleteTask(team(), 'mem1', ownTask)).not.toThrow();
+    expect(() => assertCanEditTask(team(), 'owner1', othersTask)).not.toThrow();
   });
 });
