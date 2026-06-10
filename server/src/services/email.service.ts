@@ -515,3 +515,26 @@ export const sendSupportEmail = async (opts: {
     }),
   });
 };
+
+/** Dunning: a subscription renewal payment failed — nudge the team owner to
+ *  update their card before the subscription lapses. */
+export const sendPaymentFailedEmail = async (
+  to: string,
+  teamName: string,
+  plan: string
+): Promise<void> => {
+  await send({
+    to,
+    subject: `Action needed: payment failed for ${teamName}`,
+    html: renderEmail({
+      preview: `We couldn't process the ${plan} plan payment for ${teamName}.`,
+      eyebrow: 'Billing',
+      heading: 'We couldn&rsquo;t process your payment',
+      intro: `<p style="margin:0 0 14px;">The latest payment for <strong class="ink" style="color:${C.ink};">${esc(teamName)}</strong>&rsquo;s <strong class="ink" style="color:${C.ink};">${esc(plan)}</strong> plan didn&rsquo;t go through. This usually means the card expired or was declined.</p><p style="margin:0;">Your team keeps full access for now — Stripe will retry automatically. To avoid any interruption, update your payment method from Billing settings.</p>`,
+      panel: detailPanel(panelRow('Team', esc(teamName)) + panelRow('Plan', esc(plan))),
+      cta: { label: 'Update payment method', url: `${APP_URL.replace(/\/$/, '')}/app/settings?billing=portal` },
+      footerNote:
+        'You received this because you own this TaskFlow team. If payment keeps failing, the subscription will be cancelled and the team will move to the Free plan.',
+    }),
+  });
+};

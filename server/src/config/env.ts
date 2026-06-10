@@ -11,6 +11,11 @@ export const env = {
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
 
+  // ── Error monitoring (Sentry) ────────────────────────────────────────────
+  // Optional. Create a (free) Sentry project → copy the DSN here. When unset,
+  // monitoring is disabled and the app behaves exactly as before.
+  SENTRY_DSN: process.env.SENTRY_DSN || '',
+
   // ── Cloudflare R2 (S3-compatible object storage) ─────────────────────────
   R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID || '',
   R2_BUCKET_NAME: process.env.R2_BUCKET_NAME || 'taskflow',

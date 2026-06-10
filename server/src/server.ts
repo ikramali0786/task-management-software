@@ -1,3 +1,8 @@
+import { initSentry } from './config/sentry';
+// Initialise error monitoring before anything else so startup failures
+// (DB connect, socket init) are reported too. No-op without SENTRY_DSN.
+initSentry();
+
 import http from 'http';
 import app from './app';
 import { connectDB } from './config/db';

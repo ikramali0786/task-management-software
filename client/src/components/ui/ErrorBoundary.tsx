@@ -1,6 +1,7 @@
 import { Component, ReactNode, ErrorInfo } from 'react';
 import { RefreshCw, Zap } from 'lucide-react';
 import { Button } from './Button';
+import { captureError } from '@/lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -26,6 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[TaskFlow] Uncaught render error:', error, info);
+    captureError(error, { componentStack: info.componentStack });
     // Safety: ensure body scroll is never permanently locked after a crash
     document.body.style.overflow = '';
   }

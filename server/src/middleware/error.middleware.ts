@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { JsonWebTokenError } from 'jsonwebtoken';
 import { ApiError } from '../utils/ApiError';
+import { captureError } from '../config/sentry';
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
@@ -46,6 +47,14 @@ export const errorHandler = (
     res.status(401).json({ success: false, message, data: null });
     return;
   }
+
+  // Unexpected (non-operational) error — report it to Sentry with request
+  // context. ApiError / validation / JWT cases above are expected traffic.
+  captureError(err, {
+    path: req.path,
+    method: req.method,
+    userId: (req as any).user?._id?.toString(),
+  });
 
   console.error('[ERROR]', err);
   res.status(500).json({

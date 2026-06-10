@@ -27,6 +27,8 @@ services:
         sync: false           # Set this AFTER the frontend deploys
       - key: ENCRYPTION_SECRET
         generateValue: true   # Auto-generated secret for AES-256 API key encryption
+      - key: SENTRY_DSN
+        sync: false           # Optional — Sentry Node project DSN (see OPERATIONS.md §1)
 
       # ── Cloudflare R2 file storage ──────────────────────────────────────
       - key: R2_ACCOUNT_ID
@@ -56,6 +58,8 @@ services:
         sync: false           # Set to: https://taskflow-server-XXXX.onrender.com/api
       - key: VITE_SOCKET_URL
         sync: false           # Set to: https://taskflow-server-XXXX.onrender.com
+      - key: VITE_SENTRY_DSN
+        sync: false           # Optional — Sentry React project DSN (baked at build; see OPERATIONS.md §1)
     routes:
       - type: rewrite
         source: /*

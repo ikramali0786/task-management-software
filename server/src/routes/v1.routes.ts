@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
+import rateLimit from 'express-rate-limit';
 import { apiAuth, requireScope } from '../middleware/apiAuth.middleware';
 import {
   apiMe,
@@ -16,6 +17,24 @@ import {
 const router = Router();
 
 router.use(apiAuth);
+
+// Per-key rate limit (mounted after apiAuth so req.apiToken exists). External
+// integrations get a generous-but-bounded budget; the standard RateLimit-*
+// headers let well-behaved clients back off before hitting 429s.
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.apiToken?._id?.toString() ?? 'unauthenticated',
+  message: {
+    success: false,
+    message: 'Rate limit exceeded: 120 requests per minute per API key.',
+    code: 'API_RATE_LIMITED',
+    data: null,
+  },
+});
+router.use(apiLimiter);
 
 router.get('/me', apiMe);
 

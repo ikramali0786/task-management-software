@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './i18n';
 import './styles/globals.css';
+import { initSentry } from './lib/sentry';
+
+// Error monitoring — lazy no-op unless VITE_SENTRY_DSN is set at build time.
+initSentry();
 
 // Register the service worker (production only) to make TaskFlow installable.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
