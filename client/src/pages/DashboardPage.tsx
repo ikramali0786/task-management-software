@@ -5,7 +5,6 @@ import {
   CheckSquare,
   Clock,
   AlertTriangle,
-  TrendingUp,
   Plus,
   ArrowRight,
   SquareKanban,
@@ -55,14 +54,16 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // Customizable dashboard widgets (order + visibility persist to localStorage).
+// Order also defines the default top-to-bottom flow: the first three render in
+// the primary (left) column, the rest in the secondary (right) column.
 const WIDGET_META: { id: string; label: string }[] = [
+  { id: 'trend', label: 'Completion trend' },
   { id: 'myTasks', label: 'My Tasks' },
   { id: 'focus', label: 'Suggested next' },
-  { id: 'trend', label: 'Completion trend' },
   { id: 'status', label: 'Task status' },
   { id: 'priority', label: 'By priority' },
-  { id: 'activity', label: 'Recent activity' },
   { id: 'team', label: 'Team members' },
+  { id: 'activity', label: 'Recent activity' },
 ];
 const DEFAULT_ORDER = WIDGET_META.map((w) => w.id);
 const loadOrder = (): string[] => {
@@ -70,18 +71,6 @@ const loadOrder = (): string[] => {
   return [...DEFAULT_ORDER];
 };
 const loadHidden = (): Set<string> => { try { const raw = JSON.parse(localStorage.getItem('dash-widget-hidden') || '[]'); return new Set(Array.isArray(raw) ? raw : []); } catch { return new Set(); } };
-
-// Tiny dependency-free trend line for stat cards.
-const Sparkline = ({ values, color = '#22c55e' }: { values: number[]; color?: string }) => {
-  const w = 100, h = 22, max = Math.max(1, ...values);
-  const step = values.length > 1 ? w / (values.length - 1) : w;
-  const pts = values.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * (h - 2) - 1).toFixed(1)}`).join(' ');
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="mt-2 h-5 w-full" preserveAspectRatio="none" aria-hidden>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-};
 
 const STATUS_CHIP: Record<string, string> = {
   todo: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
@@ -272,19 +261,6 @@ export const DashboardPage = () => {
       sparkline: (metrics?.created ?? []).map((c) => c.count),
     },
     {
-      label: 'In Progress',
-      value: stats?.byStatus.in_progress ?? 0,
-      icon: TrendingUp,
-      color: 'text-brand-500',
-      bg: 'bg-brand-50 dark:bg-brand-500/10',
-      accentColor: '#e8502e',
-      sub: `${stats?.byStatus.review ?? 0} in review`,
-      href: '/app/board?status=in_progress&view=list',
-      delta: 0,
-      deltaSuffix: '',
-      sparkline: [] as number[],
-    },
-    {
       label: 'Completed',
       value: stats?.byStatus.done ?? 0,
       icon: Clock,
@@ -410,55 +386,42 @@ export const DashboardPage = () => {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 gap-4 lg:grid-cols-5"
+        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
       >
         {statCards.map((card) => (
           <motion.div
             key={card.label}
             variants={cardVariant}
-            whileHover={{ y: -4 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+            whileHover={{ y: -2 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 24 }}
             role="button"
             tabIndex={0}
             onClick={() => navigate(card.href)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(card.href); } }}
             aria-label={`${card.label}: ${card.value}. ${card.sub}`}
-            className="card relative cursor-pointer overflow-hidden pt-5 transition-shadow hover:shadow-lift focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            className="card cursor-pointer transition-shadow hover:shadow-lift focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
-            {/* Colored accent strip */}
-            <div
-              className="absolute inset-x-0 top-0 h-1 rounded-t-2xl"
-              style={{ backgroundColor: card.accentColor }}
-            />
-
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div className={cn('rounded-xl p-2.5', card.bg)}>
                 <card.icon className={cn('h-5 w-5', card.color)} />
               </div>
               {card.delta !== 0 && (
-                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', card.delta > 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-red-500 dark:bg-red-500/10')} title={`vs previous ${range} days`}>
-                  {card.delta > 0 ? '+' : ''}{card.delta}{card.deltaSuffix} vs prev
+                <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', card.delta > 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-red-500 dark:bg-red-500/10')} title={`vs previous ${range} days`}>
+                  {card.delta > 0 ? '+' : ''}{card.delta}{card.deltaSuffix}
                 </span>
               )}
             </div>
-            <div className="mt-4">
-              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                {statsLoading ? (
-                  <span className="animate-pulse text-lg text-slate-300 dark:text-slate-600">
-                    ···
-                  </span>
-                ) : typeof card.value === 'number' ? (
-                  <CountUp value={card.value} />
-                ) : (
-                  card.value
-                )}
-              </p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                {card.label}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-400">{card.sub}</p>
-              {card.sparkline.length > 1 && <Sparkline values={card.sparkline} color={card.accentColor} />}
-            </div>
+            <p className="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">
+              {statsLoading ? (
+                <span className="animate-pulse text-lg text-slate-300 dark:text-slate-600">···</span>
+              ) : typeof card.value === 'number' ? (
+                <CountUp value={card.value} />
+              ) : (
+                card.value
+              )}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{card.label}</p>
+            <p className="mt-0.5 text-xs text-slate-400">{card.sub}</p>
           </motion.div>
         ))}
       </motion.div>
@@ -478,11 +441,22 @@ export const DashboardPage = () => {
           </div>
         </motion.div>
       ) : (
-      <div className="grid items-start gap-6 lg:grid-cols-12">
+      <div className="grid items-start gap-5 lg:grid-cols-12">
+        {/* ── Primary column: hero chart · your tasks · activity ────────── */}
+        <div className="flex min-w-0 flex-col gap-5 lg:col-span-8">
+
+        {/* Completion trend (hero) */}
+        {vis('trend') && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="card" style={{ order: ord('trend') }}>
+          <Suspense fallback={<div className="h-32 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />}>
+            <TrendChart trend={completionTrend} range={range} onRangeChange={setRange} />
+          </Suspense>
+        </motion.div>
+        )}
+
         {/* My Tasks */}
         {vis('myTasks') && (
-        <div className="min-w-0 lg:col-span-7" style={{ order: ord('myTasks') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} className="card" style={{ order: ord('myTasks') }}>
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">My Tasks</h3>
@@ -541,13 +515,16 @@ export const DashboardPage = () => {
             </div>
           )}
         </motion.div>
-        </div>
         )}
+
+        </div>
+
+        {/* ── Secondary column: at-a-glance breakdowns & people ────────── */}
+        <div className="flex min-w-0 flex-col gap-5 lg:col-span-4">
 
         {/* Suggested next */}
         {vis('focus') && focus.length > 0 && (
-        <div className="min-w-0 lg:col-span-5" style={{ order: ord('focus') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }} className="card">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="card" style={{ order: ord('focus') }}>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Suggested next</h3>
             <span className="text-xs text-slate-400">needs a due date</span>
@@ -562,24 +539,11 @@ export const DashboardPage = () => {
             ))}
           </div>
         </motion.div>
-        </div>
-        )}
-
-        {/* Completion trend */}
-        {vis('trend') && (
-        <div className="min-w-0 lg:col-span-5" style={{ order: ord('trend') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }} className="card">
-          <Suspense fallback={<div className="h-32 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />}>
-            <TrendChart trend={completionTrend} range={range} onRangeChange={setRange} />
-          </Suspense>
-        </motion.div>
-        </div>
         )}
 
         {/* Task status (stacked bar) */}
         {vis('status') && (
-        <div className="min-w-0 lg:col-span-4" style={{ order: ord('status') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="card">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="card" style={{ order: ord('status') }}>
           <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Task Status</h3>
           {totalTasks > 0 ? (
             <>
@@ -597,13 +561,11 @@ export const DashboardPage = () => {
             </>
           ) : <div className="flex h-32 items-center justify-center text-sm text-slate-400">No tasks yet</div>}
         </motion.div>
-        </div>
         )}
 
         {/* By priority */}
         {vis('priority') && (
-        <div className="min-w-0 lg:col-span-3" style={{ order: ord('priority') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="card">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="card" style={{ order: ord('priority') }}>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">By Priority</h3>
           <div className="space-y-3">
             {(['urgent', 'high', 'medium', 'low'] as const).map((pr) => { const config = PRIORITY_CONFIG[pr]; const count = stats?.byPriority[pr] ?? 0; const pct = totalTasks > 0 ? (count / totalTasks) * 100 : 0; return (
@@ -614,13 +576,33 @@ export const DashboardPage = () => {
             ); })}
           </div>
         </motion.div>
-        </div>
+        )}
+
+        {/* Team members */}
+        {vis('team') && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="card" style={{ order: ord('team') }}>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team Members</h3>
+            <button onClick={() => navigate('/app/team')} className="flex items-center gap-1 text-xs font-medium text-brand-500 transition-colors hover:text-brand-600">Manage <ChevronRight className="h-3.5 w-3.5" /></button>
+          </div>
+          <div className="space-y-3">
+            {activeTeam.members.slice(0, 7).map((m) => {
+              const { label: activeLabel, isActive } = formatLastSeen(m.user.lastSeenAt);
+              return (
+                <div key={m.user._id} className="flex items-center gap-3">
+                  <div className="relative"><Avatar name={m.user.name} src={m.user.avatar} size="sm" /><div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900 ${isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'}`} /></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{m.user.name}</p><p className="text-xs text-slate-400">{activeLabel}</p></div>
+                </div>
+              );
+            })}
+            {activeTeam.members.length > 7 && <button onClick={() => navigate('/app/team')} className="w-full rounded-xl py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">+{activeTeam.members.length - 7} more members</button>}
+          </div>
+        </motion.div>
         )}
 
         {/* Recent activity */}
         {vis('activity') && (
-        <div className="min-w-0 lg:col-span-8" style={{ order: ord('activity') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="card">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="card" style={{ order: ord('activity') }}>
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Recent Activity</h3>
           {activityFeed.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">No recent activity</p>
@@ -639,32 +621,9 @@ export const DashboardPage = () => {
             </div>
           )}
         </motion.div>
-        </div>
         )}
 
-        {/* Team members */}
-        {vis('team') && (
-        <div className="min-w-0 lg:col-span-4" style={{ order: ord('team') }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="card">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team Members</h3>
-            <button onClick={() => navigate('/app/team')} className="flex items-center gap-1 text-xs font-medium text-brand-500 transition-colors hover:text-brand-600">Manage <ChevronRight className="h-3.5 w-3.5" /></button>
-          </div>
-          <div className="space-y-3">
-            {activeTeam.members.slice(0, 7).map((m) => {
-              const { label: activeLabel, isActive } = formatLastSeen(m.user.lastSeenAt);
-              return (
-                <div key={m.user._id} className="flex items-center gap-3">
-                  <div className="relative"><Avatar name={m.user.name} src={m.user.avatar} size="sm" /><div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-900 ${isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'}`} /></div>
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{m.user.name}</p><p className="text-xs text-slate-400">{activeLabel}</p></div>
-                </div>
-              );
-            })}
-            {activeTeam.members.length > 7 && <button onClick={() => navigate('/app/team')} className="w-full rounded-xl py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800">+{activeTeam.members.length - 7} more members</button>}
-          </div>
-        </motion.div>
         </div>
-        )}
       </div>
       )}
     </div>
