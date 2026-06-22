@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, Kanban, Users, Settings, LogOut, Zap,
-  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation, BookText, ShieldCheck, MessageSquarePlus,
+  Plus, ChevronDown, ChevronRight, BarChart2, Bot, Activity, CalendarDays, User, Target, GanttChartSquare, Presentation, BookText, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -13,7 +13,6 @@ import { useUIStore } from '@/store/uiStore';
 import { Avatar } from '@/components/ui/Avatar';
 import { CreateTeamModal } from '@/components/team/CreateTeamModal';
 import { ProfilePanel } from '@/components/profile/ProfilePanel';
-import { FeedbackModal } from '@/components/feedback/FeedbackModal';
 
 interface NavItem { to: string; icon: typeof LayoutDashboard; i18nKey: string; end?: boolean; shortcut?: string }
 const navGroups: { label?: string; items: NavItem[] }[] = [
@@ -61,7 +60,6 @@ export const Sidebar = () => {
   const [showTeamMenu, setShowTeamMenu] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Super-admins get an extra Admin link appended to the "Manage" group.
   const groups = user?.isSuperAdmin
@@ -285,21 +283,6 @@ export const Sidebar = () => {
               ))}
             </nav>
 
-            {/* Send feedback (beta) */}
-            <div className={cn('flex-shrink-0 px-3 pb-1', sidebarCollapsed && 'px-2')}>
-              <button
-                onClick={() => setFeedbackOpen(true)}
-                title="Send feedback"
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:border-brand-300 hover:bg-brand-50/40 hover:text-brand-500 dark:border-slate-700 dark:text-slate-400 dark:hover:border-brand-700 dark:hover:bg-brand-500/5',
-                  sidebarCollapsed && 'justify-center px-0'
-                )}
-              >
-                <MessageSquarePlus className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span>Send feedback</span>}
-              </button>
-            </div>
-
             {/* User footer */}
             <div className={cn(
               'border-t border-slate-100 p-3 dark:border-slate-800 flex-shrink-0',
@@ -346,7 +329,6 @@ export const Sidebar = () => {
 
       <CreateTeamModal isOpen={showCreateTeam} onClose={() => setShowCreateTeam(false)} />
       <ProfilePanel isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
-      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
 };

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Bell, Sun, Moon, Monitor } from 'lucide-react';
+import { Menu, Bell, Sun, Moon, Monitor, MessageSquarePlus } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { NotificationPanel } from '@/components/notifications/NotificationPanel';
+import { FeedbackModal } from '@/components/feedback/FeedbackModal';
 
 const themeIcons = { light: Sun, dark: Moon, system: Monitor };
 
@@ -11,6 +12,7 @@ export const Topbar = ({ title }: { title?: string }) => {
   const { theme, setTheme, toggleSidebar, toggleSidebarCollapsed } = useUIStore();
   const { unreadCount } = useNotificationStore();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const ThemeIcon = themeIcons[theme];
   const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
@@ -30,6 +32,26 @@ export const Topbar = ({ title }: { title?: string }) => {
         )}
 
         <div className="flex-1" />
+
+        {/* Send feedback (beta) */}
+        <button
+          onClick={() => setFeedbackOpen(true)}
+          aria-label="Send feedback"
+          title="Send feedback"
+          className="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:text-slate-400 dark:hover:bg-brand-500/10 dark:hover:text-brand-400 sm:flex"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+          <span>Feedback</span>
+        </button>
+        {/* Compact icon-only feedback trigger on narrow screens */}
+        <button
+          onClick={() => setFeedbackOpen(true)}
+          aria-label="Send feedback"
+          title="Send feedback"
+          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 sm:hidden"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+        </button>
 
         {/* Theme toggle */}
         <button
@@ -62,6 +84,7 @@ export const Topbar = ({ title }: { title?: string }) => {
       </header>
 
       <NotificationPanel isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
 };
