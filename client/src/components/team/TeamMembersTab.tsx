@@ -165,13 +165,21 @@ export const TeamMembersTab = () => {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Invite section (admins) */}
       {isAdmin && (
-        <div className="card">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Invite Members</h3>
+        <div className="card space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+              <UserPlus className="h-5 w-5 text-brand-500" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Invite members</h3>
+              <p className="text-xs text-slate-400">Bring teammates in by email or a one-time code.</p>
+            </div>
+          </div>
           {isLocked && (
-            <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 dark:border-amber-800/40 dark:bg-amber-500/10">
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 dark:border-amber-800/40 dark:bg-amber-500/10">
               <Lock className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Team is locked — invite codes can be generated but new members can't join until unlocked.
@@ -229,9 +237,16 @@ export const TeamMembersTab = () => {
       )}
 
       {/* Join another team */}
-      <div className="card">
-        <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Join Another Team</h3>
-        <p className="mb-3 text-xs text-slate-500">Have an invite code? Paste it below.</p>
+      <div className="card space-y-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+            <Hash className="h-5 w-5 text-slate-500 dark:text-slate-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Join another team</h3>
+            <p className="text-xs text-slate-400">Have an invite code? Paste it below.</p>
+          </div>
+        </div>
         <div className="flex gap-2">
           <div className="flex-1">
             <Input
@@ -249,10 +264,12 @@ export const TeamMembersTab = () => {
       {/* Members list */}
       <div className="card">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Members ({activeTeam.members.length})</h3>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Members <span className="text-slate-400">({activeTeam.members.length})</span>
+          </h3>
           <button
             onClick={() => setRolesOpen(true)}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 transition-colors"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
           >
             <Info className="h-3.5 w-3.5" /> Role guide
           </button>
@@ -265,33 +282,36 @@ export const TeamMembersTab = () => {
             const { label: activeLabel, isActive } = formatLastSeen(m.user.lastSeenAt);
 
             return (
-              <div key={m.user._id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+              <div
+                key={m.user._id}
+                className="group flex items-center gap-3 rounded-xl border border-slate-100 p-3 transition-colors hover:border-slate-200 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-800/40"
+              >
                 <div className="relative flex-shrink-0">
                   <Avatar name={m.user.name} src={m.user.avatar} size="md" />
                   <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 ${isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {m.user.name}
-                      {isSelf && <span className="ml-1 text-xs text-slate-400">(you)</span>}
+                      {isSelf && <span className="ml-1 font-normal text-xs text-slate-400">(you)</span>}
                     </p>
-                    {memberIsOwner && <Crown className="h-3.5 w-3.5 text-amber-500" />}
+                    {memberIsOwner && <Crown className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />}
                   </div>
-                  <p className="text-xs text-slate-400">{m.user.email}</p>
-                  <p className={`text-xs font-medium ${isActive ? 'text-emerald-500' : 'text-slate-400'}`}>{activeLabel}</p>
+                  <p className="truncate text-xs text-slate-400">{m.user.email}</p>
+                  <p className={`mt-0.5 text-xs font-medium ${isActive ? 'text-emerald-500' : 'text-slate-400'}`}>{activeLabel}</p>
                 </div>
 
                 {m.isGuest && (
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-400" title="Read-only · not a paid seat">Guest</span>
+                  <span className="flex-shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-400" title="Read-only · not a paid seat">Guest</span>
                 )}
-                <Badge variant={roleBadgeVariant(displayRole)}>{ROLE_META[displayRole]?.label || displayRole}</Badge>
+                <Badge variant={roleBadgeVariant(displayRole)} className="flex-shrink-0">{ROLE_META[displayRole]?.label || displayRole}</Badge>
 
                 {isAdmin && !isSelf && !memberIsOwner && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-shrink-0 items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                     <button
                       onClick={() => handleToggleGuest(m.user._id, !m.isGuest)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 transition-colors"
+                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
                       title={m.isGuest ? 'Convert to full member' : 'Make guest (read-only, free seat)'}
                     >
                       <UserCog className="h-3.5 w-3.5" />
@@ -299,7 +319,7 @@ export const TeamMembersTab = () => {
                     <div className="relative">
                       <button
                         onClick={() => setOpenRoleMenu(openRoleMenu === m.user._id ? null : m.user._id)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 transition-colors"
+                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
                         title="Change role"
                       >
                         <Shield className="h-3.5 w-3.5" />
@@ -310,7 +330,7 @@ export const TeamMembersTab = () => {
                             initial={{ opacity: 0, scale: 0.95, y: -4 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                            className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                            className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lift dark:border-slate-700 dark:bg-slate-800"
                           >
                             {ASSIGNABLE_ROLES.map((role) => (
                               <button
@@ -331,7 +351,7 @@ export const TeamMembersTab = () => {
                     </div>
                     <button
                       onClick={() => handleRemoveMember(m.user._id, m.user.name)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10 transition-colors"
+                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
                       title="Remove member"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -348,14 +368,21 @@ export const TeamMembersTab = () => {
       {isAdmin && (
         <div className="card">
           <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div
+                className={cn(
+                  'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl',
+                  isLocked ? 'bg-red-50 dark:bg-red-500/10' : 'bg-emerald-50 dark:bg-emerald-500/10'
+                )}
+              >
                 {isLocked ? <Lock className="h-4 w-4 text-red-500" /> : <Unlock className="h-4 w-4 text-emerald-500" />}
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team Lock</h3>
               </div>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {isLocked ? 'Locked — new members cannot join.' : 'Unlocked — anyone with a valid invite code can join.'}
-              </p>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team lock</h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {isLocked ? 'Locked — new members cannot join.' : 'Unlocked — anyone with a valid invite code can join.'}
+                </p>
+              </div>
             </div>
             <Button
               variant="secondary"
@@ -364,7 +391,7 @@ export const TeamMembersTab = () => {
               className={cn('flex-shrink-0 gap-2', isLocked && 'border-emerald-300 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400')}
             >
               {isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-              {isLocked ? 'Unlock' : 'Lock Team'}
+              {isLocked ? 'Unlock' : 'Lock team'}
             </Button>
           </div>
         </div>
@@ -387,22 +414,22 @@ export const TeamMembersTab = () => {
               className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
             >
               <div className="mb-5 flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Role Permissions</h3>
-                <button onClick={() => setRolesOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Role permissions</h3>
+                <button onClick={() => setRolesOpen(false)} className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300">
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {Object.entries(ROLE_META).map(([role, meta]) => (
                   <div key={role} className="flex items-start gap-3 rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                    <div className="mt-0.5">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-50 dark:bg-slate-800/70">
                       {role === 'owner' && <Crown className={cn('h-4 w-4', meta.color)} />}
                       {role === 'admin' && <Shield className={cn('h-4 w-4', meta.color)} />}
                       {role === 'moderator' && <Zap className={cn('h-4 w-4', meta.color)} />}
                       {role === 'member' && <Users className={cn('h-4 w-4', meta.color)} />}
                       {role === 'viewer' && <Eye className={cn('h-4 w-4', meta.color)} />}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className={cn('text-sm font-semibold', meta.color)}>{meta.label}</p>
                       <p className="text-xs text-slate-500">{meta.description}</p>
                     </div>

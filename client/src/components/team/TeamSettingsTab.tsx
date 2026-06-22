@@ -144,44 +144,50 @@ export const TeamSettingsTab = () => {
 
   if (!isAdmin) {
     return (
-      <div className="rounded-xl border border-slate-200 py-12 text-center dark:border-slate-700">
-        <Settings className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-slate-600" />
-        <p className="text-sm text-slate-400">Only admins can access team settings.</p>
+      <div className="card flex flex-col items-center py-14 text-center">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+          <Settings className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+        </div>
+        <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Admins only</p>
+        <p className="mt-1 text-xs text-slate-400">Only team admins can access these settings.</p>
       </div>
     );
   }
+
+  const fieldClass =
+    'w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
   return (
     <div className="space-y-6">
       {/* Team info */}
       <div className="card space-y-4">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Edit2 className="h-4 w-4 text-brand-500" /> Team Info
-        </h3>
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Team Name</label>
-          <input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-          />
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Edit2 className="h-5 w-5 text-brand-500" />
+          </div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Team info</h3>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Description</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">Team name</label>
+          <input value={editName} onChange={(e) => setEditName(e.target.value)} className={fieldClass} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">Description</label>
           <textarea
             value={editDesc}
             onChange={(e) => setEditDesc(e.target.value)}
             rows={2}
-            className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            placeholder="What is this team working on?"
+            className={cn(fieldClass, 'resize-none placeholder:text-slate-400')}
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Default Task Priority</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">Default task priority</label>
           <div className="relative">
             <select
               value={editPriority}
               onChange={(e) => setEditPriority(e.target.value as TaskPriority)}
-              className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-8 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className={cn(fieldClass, 'appearance-none pr-8')}
             >
               {PRIORITY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -190,41 +196,52 @@ export const TeamSettingsTab = () => {
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           </div>
         </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Allow Member Invites</p>
-            <p className="text-xs text-slate-400">Non-admins can generate invite codes</p>
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/40">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Allow member invites</p>
+            <p className="text-xs text-slate-400">Non-admins can generate invite codes.</p>
           </div>
           <button
             type="button"
+            role="switch"
+            aria-checked={editAllowInvite}
             onClick={() => setEditAllowInvite((v) => !v)}
             className={cn('relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors', editAllowInvite ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700')}
           >
             <span className={cn('pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform', editAllowInvite ? 'translate-x-5' : 'translate-x-0')} />
           </button>
         </div>
-        <div>
+        <div className="flex justify-end border-t border-slate-100 pt-4 dark:border-slate-800">
           <Button onClick={handleSaveSettings} isLoading={savingEdit} size="sm" className="gap-1.5">
-            <Save className="h-3.5 w-3.5" /> Save Settings
+            <Save className="h-3.5 w-3.5" /> Save settings
           </Button>
         </div>
       </div>
 
       {/* Custom Roles */}
       <div className="card">
-        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Shield className="h-4 w-4 text-brand-500" /> Custom Roles
-        </h3>
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Shield className="h-5 w-5 text-brand-500" />
+          </div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Custom roles</h3>
+        </div>
         <RolesManager teamId={activeTeam._id} isAdmin={isAdmin} />
       </div>
 
       {/* AI & API Keys */}
       <div className="card space-y-4">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Bot className="h-4 w-4 text-brand-500" /> AI &amp; API Keys
-        </h3>
-        <p className="text-xs text-slate-500">
-          Add your OpenAI API key to enable AI chatbots for this team. The key is encrypted at rest and never exposed.
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Bot className="h-5 w-5 text-brand-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">AI &amp; API keys</h3>
+            <p className="text-xs text-slate-400">Encrypted at rest and never exposed.</p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Add your OpenAI API key to enable AI chatbots for this team.
         </p>
 
         {/* Current key status */}
@@ -261,9 +278,9 @@ export const TeamSettingsTab = () => {
         )}
 
         {/* Set / Replace key form */}
-        <div className="space-y-3">
+        <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-500">{apiKeyData ? 'Replace API Key' : 'Add API Key'}</label>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">{apiKeyData ? 'Replace API key' : 'Add API key'}</label>
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -271,29 +288,29 @@ export const TeamSettingsTab = () => {
                 placeholder="sk-..."
                 value={apiKeyInput}
                 onChange={(e) => { setApiKeyInput(e.target.value); setApiKeyError(''); }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className={cn(fieldClass, 'pl-9')}
               />
             </div>
             {apiKeyError && <p className="mt-1 text-xs text-red-500">{apiKeyError}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-500">Label (optional)</label>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">Label (optional)</label>
               <input
                 type="text"
-                placeholder="e.g. Production Key"
+                placeholder="e.g. Production key"
                 value={apiKeyLabel}
                 onChange={(e) => setApiKeyLabel(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className={cn(fieldClass, 'placeholder:text-slate-400')}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-500">Default Model</label>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">Default model</label>
               <div className="relative">
                 <select
                   value={apiKeyModel}
                   onChange={(e) => setApiKeyModel(e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-8 text-sm text-slate-800 focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className={cn(fieldClass, 'appearance-none pr-8')}
                 >
                   <option value="gpt-4o-mini">GPT-4o Mini</option>
                   <option value="gpt-4o">GPT-4o</option>
@@ -303,17 +320,25 @@ export const TeamSettingsTab = () => {
               </div>
             </div>
           </div>
-          <Button onClick={handleSaveApiKey} isLoading={savingApiKey} disabled={!apiKeyInput.trim()} size="sm" className="gap-1.5">
-            <Save className="h-3.5 w-3.5" /> {apiKeyData ? 'Replace Key' : 'Save Key'}
-          </Button>
+          <div className="flex justify-end">
+            <Button onClick={handleSaveApiKey} isLoading={savingApiKey} disabled={!apiKeyInput.trim()} size="sm" className="gap-1.5">
+              <Save className="h-3.5 w-3.5" /> {apiKeyData ? 'Replace key' : 'Save key'}
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Labels */}
       <div className="card space-y-4">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Tag className="h-4 w-4 text-brand-500" /> Labels
-        </h3>
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Tag className="h-5 w-5 text-brand-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Labels</h3>
+            <p className="text-xs text-slate-400">Categorize tasks with colored tags.</p>
+          </div>
+        </div>
         {!labelsLoaded ? (
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <div className="h-3 w-3 animate-spin rounded-full border border-slate-400 border-t-transparent" /> Loading…
@@ -322,8 +347,8 @@ export const TeamSettingsTab = () => {
           <div className="space-y-2">
             {labels.length === 0 && <p className="text-xs text-slate-400">No labels yet. Add one below.</p>}
             {labels.map((label) => (
-              <div key={label._id} className="flex items-center gap-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
-                <span className="h-4 w-4 flex-shrink-0 rounded-full" style={{ backgroundColor: label.color }} />
+              <div key={label._id} className="group flex items-center gap-2.5 rounded-xl border border-slate-100 px-3 py-2 transition-colors hover:border-slate-200 hover:bg-slate-50/60 dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-800/40">
+                <span className="h-3.5 w-3.5 flex-shrink-0 rounded-full ring-2 ring-white dark:ring-slate-900" style={{ backgroundColor: label.color }} />
                 {editingLabelId === label._id ? (
                   <input
                     autoFocus
@@ -355,7 +380,8 @@ export const TeamSettingsTab = () => {
                     const updated = await labelService.deleteLabel(activeTeam._id, label._id);
                     setLabels(updated);
                   }}
-                  className="rounded p-1 text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors"
+                  className="rounded-lg p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+                  title="Delete label"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -412,19 +438,24 @@ export const TeamSettingsTab = () => {
       </div>
 
       {/* Danger zone */}
-      <div className="card border border-red-100 dark:border-red-900/30">
-        <h3 className="mb-3 text-sm font-semibold text-red-600 dark:text-red-400">Danger Zone</h3>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Archive Team</p>
+      <div className="card border-red-200 bg-red-50/40 dark:border-red-900/40 dark:bg-red-500/[0.04]">
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-100 dark:bg-red-500/15">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+          </div>
+          <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">Danger zone</h3>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-red-100 bg-white px-4 py-3 dark:border-red-900/40 dark:bg-slate-900">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Archive team</p>
             <p className="text-xs text-slate-400">Hides the team from all members. Cannot be undone easily.</p>
           </div>
           <button
             disabled
             title="Feature coming in a future update"
-            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-400 opacity-50 cursor-not-allowed dark:border-red-800"
+            className="flex-shrink-0 cursor-not-allowed rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-400 opacity-60 dark:border-red-800"
           >
-            Archive Team
+            Archive team
           </button>
         </div>
       </div>
