@@ -102,7 +102,7 @@ export const TeamPage = () => {
 
         {/* Tab bar */}
         <div className="relative border-t border-slate-200/80 px-2 dark:border-slate-800">
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="flex gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -119,7 +119,7 @@ export const TeamPage = () => {
                 {activeTab === id && (
                   <motion.span
                     layoutId="team-tab-underline"
-                    className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500"
+                    className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand-500"
                     transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                   />
                 )}
