@@ -87,11 +87,11 @@ export const SecuritySettings = () => {
       <TwoFactorSettings />
       <div className="card">
         <div className="mb-5 flex items-center gap-3">
-          <div className="rounded-xl bg-slate-100 p-2 dark:bg-slate-800">
-            <Lock className="h-4 w-4 text-slate-500" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Lock className="h-5 w-5 text-brand-500" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Change Password</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Change password</h3>
             <p className="text-xs text-slate-400">Use a strong password you don't use elsewhere.</p>
           </div>
         </div>
@@ -111,16 +111,25 @@ export const SecuritySettings = () => {
             error={pwErrors.confirmPassword?.message}
             {...regPw('confirmPassword', { required: 'Please confirm your password' })}
           />
-          <Button type="submit" isLoading={pwSaving} size="sm" variant="secondary">
-            Update Password
-          </Button>
+          <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+            <Button type="submit" isLoading={pwSaving} size="sm" variant="secondary">
+              Update password
+            </Button>
+          </div>
         </form>
       </div>
 
       {/* Data & danger zone */}
       <div className="card">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your data</h3>
-        <p className="mt-0.5 mb-4 text-xs text-slate-400">Export a copy of your data, or permanently delete your account.</p>
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Download className="h-5 w-5 text-brand-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your data</h3>
+            <p className="text-xs text-slate-400">Export a copy of your data, or permanently delete your account.</p>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="secondary" size="sm" isLoading={exporting} onClick={handleExport}>
             <Download className="mr-1.5 h-3.5 w-3.5" /> Export my data

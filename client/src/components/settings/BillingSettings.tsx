@@ -15,19 +15,22 @@ const UsageMeter = ({ label, used, max }: { label: string; used: number; max: nu
   const pct = unlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, max!)) * 100));
   const near = !unlimited && pct >= 80;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40">
-      <div className="mb-2 flex items-baseline justify-between">
+    <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+      <div className="mb-2.5 flex items-baseline justify-between">
         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          {used}<span className="text-slate-400"> / {unlimited ? '∞' : max}</span>
+        <p className="mono text-sm font-semibold text-slate-900 dark:text-slate-100">
+          {used}<span className="font-normal text-slate-400"> / {unlimited ? '∞' : max}</span>
         </p>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-700">
         <div
-          className={cn('h-full rounded-full transition-all', unlimited ? 'bg-emerald-400' : near ? 'bg-amber-500' : 'bg-brand-500')}
+          className={cn('h-full rounded-full transition-all duration-500', unlimited ? 'bg-emerald-400' : near ? 'bg-amber-500' : 'bg-brand-500')}
           style={{ width: unlimited ? '100%' : `${pct}%`, opacity: unlimited ? 0.4 : 1 }}
         />
       </div>
+      {near && (
+        <p className="mt-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-500">Approaching your limit</p>
+      )}
     </div>
   );
 };
@@ -114,19 +117,29 @@ export const BillingSettings = () => {
 
         {/* Usage meters (current team) */}
         {team && (
-          <div className="grid grid-cols-1 gap-4 px-6 py-5 sm:grid-cols-2">
-            <UsageMeter label="Team members" used={memberUsage.count} max={memberUsage.max} />
-            <UsageMeter label="AI messages this month" used={aiUsed} max={limits.aiMessagesPerMonth} />
+          <div className="border-t border-slate-100 px-6 py-5 dark:border-slate-800">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Usage this period</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <UsageMeter label="Team members" used={memberUsage.count} max={memberUsage.max} />
+              <UsageMeter label="AI messages this month" used={aiUsed} max={limits.aiMessagesPerMonth} />
+            </div>
           </div>
         )}
       </div>
 
       {/* Feature comparison — three tiers */}
       <div className="card">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compare plans</h3>
-        <p className="mb-4 mt-0.5 text-xs text-slate-400">
-          Per-seat pricing — Pro ${PLAN_PRICES.pro.monthly}/seat·mo, Business ${PLAN_PRICES.business.monthly}/seat·mo.
-        </p>
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+            <Sparkles className="h-5 w-5 text-brand-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compare plans</h3>
+            <p className="text-xs text-slate-400">
+              Per-seat pricing — Pro ${PLAN_PRICES.pro.monthly}/seat·mo, Business ${PLAN_PRICES.business.monthly}/seat·mo.
+            </p>
+          </div>
+        </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
           <div className="grid grid-cols-[1fr_auto_auto_auto] text-sm">

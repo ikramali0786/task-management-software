@@ -80,16 +80,16 @@ export const SettingsPage = () => {
 
       <div className="md:flex md:gap-8">
         {/* Mobile: horizontal scrollable tab strip */}
-        <div className="mb-5 -mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:hidden">
+        <div className="mb-6 -mx-6 flex gap-1.5 overflow-x-auto px-6 pb-1 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map(({ id, i18nKey, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
               className={cn(
-                'flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+                'flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all duration-150',
                 activeTab === id
-                  ? 'border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/10 dark:text-brand-300'
-                  : 'border-slate-200 text-slate-500 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'border-transparent bg-brand-500 text-white shadow-ember'
+                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -99,26 +99,32 @@ export const SettingsPage = () => {
         </div>
 
         {/* Desktop: grouped vertical nav */}
-        <nav className="hidden md:block md:w-52 md:shrink-0">
-          <div className="sticky top-8 space-y-5">
+        <nav className="hidden md:block md:w-56 md:shrink-0">
+          <div className="sticky top-8 space-y-6">
             {TAB_GROUPS.map((group) => (
               <div key={group.heading}>
-                <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{group.heading}</p>
+                <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{group.heading}</p>
                 <div className="space-y-0.5">
                   {group.tabs.map((id) => {
                     const { icon: Icon, i18nKey } = TAB_META[id];
+                    const active = activeTab === id;
                     return (
                       <button
                         key={id}
                         onClick={() => setActiveTab(id)}
+                        aria-current={active ? 'page' : undefined}
                         className={cn(
-                          'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                          activeTab === id
+                          'group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150',
+                          active
                             ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300'
-                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200'
                         )}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
+                        {/* Ember rail on the active item — mirrors .sidebar-link.active */}
+                        {active && (
+                          <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-brand-500" />
+                        )}
+                        <Icon className={cn('h-4 w-4 shrink-0 transition-colors', active ? 'text-brand-500' : 'text-slate-400 group-hover:text-slate-500 dark:group-hover:text-slate-300')} />
                         {t(i18nKey)}
                       </button>
                     );

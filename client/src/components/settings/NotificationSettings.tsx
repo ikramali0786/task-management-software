@@ -15,15 +15,15 @@ const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     type="button"
     onClick={() => onChange(!checked)}
     className={cn(
-      'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900',
-      checked ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'
+      'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900',
+      checked ? 'bg-brand-500 shadow-ember' : 'bg-slate-200 dark:bg-slate-700'
     )}
     aria-checked={checked}
     role="switch"
   >
     <span
       className={cn(
-        'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200',
+        'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md ring-0 transition-transform duration-200',
         checked ? 'translate-x-5' : 'translate-x-0'
       )}
     />
@@ -38,13 +38,13 @@ const NotifRow = ({
   checked: boolean; onChange: (v: boolean) => void;
 }) => (
   <div className="flex items-center justify-between gap-4 py-3.5">
-    <div className="flex items-center gap-3 min-w-0">
-      <div className={cn('shrink-0 rounded-lg p-2', iconBg)}>
+    <div className="flex min-w-0 items-center gap-3">
+      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', iconBg)}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{title}</p>
-        <p className="text-xs text-slate-400 truncate">{desc}</p>
+        <p className="truncate text-xs text-slate-400">{desc}</p>
       </div>
     </div>
     <Toggle checked={checked} onChange={onChange} />
@@ -74,18 +74,31 @@ export const NotificationSettings = () => {
 
   return (
     <div className="card space-y-1">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
-        Sound & Alerts
+      {/* Card header */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+          <Bell className="h-5 w-5 text-brand-500" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h3>
+          <p className="text-xs text-slate-400">Control what reaches you and how.</p>
+        </div>
+      </div>
+
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        Sound & alerts
       </p>
 
       {/* Sound toggle — highlighted */}
       <div className={cn(
-        'flex items-center justify-between gap-4 rounded-xl p-4 mb-2',
-        soundEnabled ? 'bg-brand-50 dark:bg-brand-500/10' : 'bg-slate-50 dark:bg-slate-800/50'
+        'mb-2 flex items-center justify-between gap-4 rounded-xl border p-4 transition-colors',
+        soundEnabled
+          ? 'border-brand-200/70 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-500/10'
+          : 'border-slate-200/70 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50'
       )}>
         <div className="flex items-center gap-3">
           <div className={cn(
-            'rounded-lg p-2.5',
+            'flex h-11 w-11 items-center justify-center rounded-xl',
             soundEnabled ? 'bg-brand-100 dark:bg-brand-500/20' : 'bg-slate-200 dark:bg-slate-700'
           )}>
             {soundEnabled
@@ -93,18 +106,18 @@ export const NotificationSettings = () => {
               : <VolumeX className="h-5 w-5 text-slate-400" />}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Notification Sounds</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Notification sounds</p>
             <p className="text-xs text-slate-400">{soundEnabled ? 'Sounds are enabled' : 'All sounds are muted'}</p>
           </div>
         </div>
         <Toggle checked={soundEnabled} onChange={setSoundEnabled} />
       </div>
 
-      <div className="border-t border-slate-100 dark:border-slate-700/50 pt-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Notification Types</p>
-        <p className="text-xs text-slate-400 mb-3">Choose which events trigger a notification bell.</p>
+      <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Notification types</p>
+        <p className="mb-2 text-xs text-slate-400">Choose which events trigger a notification bell.</p>
 
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
           <NotifRow icon={Mail} iconBg="bg-brand-100 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"
             title="Email notifications" desc="Email me about task assignments, mentions and due reminders"
             checked={emailNotif} onChange={handleEmailNotif} />
@@ -131,9 +144,9 @@ export const NotificationSettings = () => {
 
       {/* All-off warning */}
       {!notifyTaskAssigned && !notifyTaskUpdated && !notifyTaskCompleted && !notifyTeamEvents && (
-        <div className="mt-4 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
-          <BellOff className="h-4 w-4 shrink-0" />
-          All notifications are disabled. You won't be alerted to any activity.
+        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200/70 bg-amber-50 px-4 py-3 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400">
+          <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>All notifications are disabled. You won't be alerted to any activity.</span>
         </div>
       )}
     </div>
